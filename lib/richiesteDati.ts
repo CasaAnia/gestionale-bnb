@@ -40,11 +40,15 @@ export async function riapriRichiesta(id: string): Promise<{ error: string | nul
 // messaggio e la barra mostra «!». La navigazione continua a funzionare.
 // Dal 07/09/2026 si leggono le righe aperte (stato e ora della proposta):
 // i bollini rosso/blu si calcolano in lib/richiesteContatore.bolliniRichieste.
+// Con la condizione di pagamento (novità 14f): il bollino blu dura 3 o 24 ore
+// come l'opzione. Se il database fosse indietro di quella colonna si rilegge
+// senza, e vale 3 ore per tutti (come prima).
 export function contaRichiesteAperte(): Promise<EsitoContatore> {
-  return contaConEsito(() => supabase
-    .from('richieste')
-    .select('stato, proposta_inviata_at')
-    .in('stato', STATI_APERTI) as unknown as PromiseLike<{ data: RigaAperta[] | null; error: unknown }>)
+  return contaConEsito(async () => {
+    const con = await supabase.from('richieste').select('stato, proposta_inviata_at, condizione_pagamento').in('stato', STATI_APERTI)
+    if (!con.error) return con as unknown as { data: RigaAperta[] | null; error: unknown }
+    return await supabase.from('richieste').select('stato, proposta_inviata_at').in('stato', STATI_APERTI) as unknown as { data: RigaAperta[] | null; error: unknown }
+  })
 }
 
 // Stato UNICO per tutta l'app (come lib/webRequests): la barra, la pagina

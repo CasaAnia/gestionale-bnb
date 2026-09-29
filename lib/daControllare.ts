@@ -30,7 +30,7 @@ import { chiavePrenotazione } from './prenotazioneUnica.ts'
 // pagamenti, fatture; le sovrapposizioni del calendario restano un controllo
 // nascosto che compare IN FONDO solo se mai si verifica.
 // ============================================================================
-import { scadenzaProposta, nomeCompleto, formatIntervallo, nottiRichiesta, linkRichiesta, STATI_APERTI, ORE_SCADENZA_PROPOSTA, type StatoRichiesta } from './richieste.ts'
+import { scadenzaProposta, nomeCompleto, formatIntervallo, nottiRichiesta, linkRichiesta, STATI_APERTI, oreOpzioneProposta, type StatoRichiesta } from './richieste.ts'
 import { nomeOspite, nomeConAltri } from './guestName.ts'
 import { spostaGiorni } from './statistiche/periodo.ts'
 import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, type DocumentoStat } from './statistiche/tipi.ts'
@@ -89,6 +89,7 @@ export type RichiestaDC = {
   partenza: string
   created_at: string
   proposta_inviata_at: string | null
+  condizione_pagamento?: string | null   // 3 o 24 ore di opzione (novità 14f, 29/09/2026)
   nome?: string | null
   cognome?: string | null
   note?: string | null     // nota del cliente (dal sito o a mano), mostrata in Home dal 07/09/2026
@@ -159,8 +160,8 @@ export function eccezioniRichieste(richieste: RichiestaDC[], oggi: string, adess
       continue
     }
     if (r.stato === 'proposta_inviata') {
-      const s = scadenzaProposta({ stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at }, adesso)
-      const scadenza = r.proposta_inviata_at ? new Date(r.proposta_inviata_at).getTime() + ORE_SCADENZA_PROPOSTA * 3600000 : creata
+      const s = scadenzaProposta({ stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, condizione_pagamento: r.condizione_pagamento }, adesso)
+      const scadenza = r.proposta_inviata_at ? new Date(r.proposta_inviata_at).getTime() + oreOpzioneProposta(r.condizione_pagamento) * 3600000 : creata
       if (s?.scaduta) {
         // Chat senza testo: Ania scrive a mano (ritocchi del 07/09/2026)
         const whatsapp = numero ? { href: waHrefTesto(numero, ''), numero, testo: '', principale: false } : undefined

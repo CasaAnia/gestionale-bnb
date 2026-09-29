@@ -14,7 +14,7 @@ export function messaggioContatoreNonLetto(err: unknown): string {
 
 // Dal 07/09/2026 (Ania) il contatore non è più un numero unico ma le righe
 // aperte (stato + ora della proposta): i bollini si calcolano da qui.
-export type RigaAperta = { stato: string; proposta_inviata_at: string | null }
+export type RigaAperta = { stato: string; proposta_inviata_at: string | null; condizione_pagamento?: string | null }
 export type EsitoContatore = { righe: RigaAperta[] | null; errore: string | null }
 
 type RispostaRighe = { data: RigaAperta[] | null; error: unknown }

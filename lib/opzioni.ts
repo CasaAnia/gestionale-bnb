@@ -4,7 +4,7 @@
 // e i segmenti dei casi B/C). Entro le 3 ore quelle camere non si propongono
 // ad altri; dopo, l'opzione cade da sola e resta solo una nota. Solo regole
 // pure: chi legge il database sta in lib/richiesteDati e nella pagina.
-import { ORE_SCADENZA_PROPOSTA, nomeCompleto } from './richieste.ts'
+import { ORE_SCADENZA_PROPOSTA, nomeCompleto, pagaInAnticipo as pagaInAnticipoProposta, oreOpzioneProposta } from './richieste.ts'
 import { ORE_RISERVA_BONIFICO, type CondizionePagamento } from './condizioniPrenotazione.ts'
 import { giorniTra, siSovrappone, STATI_CHE_OCCUPANO } from './disponibilita.ts'
 import type { PrenotazioneOccupante } from './richiesteProposta.ts'
@@ -18,11 +18,10 @@ export const ORE_CHIUSURA_DOPO_SCADENZA = 24
 // ore non arriva. Una richiesta vecchia senza condizione vale come «all'arrivo».
 export const ORE_OPZIONE_ANTICIPATO = ORE_RISERVA_BONIFICO
 
-export const pagaInAnticipo = (condizione?: string | null): boolean =>
-  condizione === 'caparra' || condizione === 'completo' || condizione === 'personalizzata'
-
+// Una regola sola, in lib/richieste (la usano anche il timer e «Da guardare»)
+export const pagaInAnticipo = pagaInAnticipoProposta
 export function oreOpzione(condizione?: string | null): number {
-  return pagaInAnticipo(condizione) ? ORE_OPZIONE_ANTICIPATO : ORE_OPZIONE
+  return oreOpzioneProposta(condizione)
 }
 
 export type SegmentoOpzione = { camera: { id: string; name: string }; arrivo: string; partenza: string }

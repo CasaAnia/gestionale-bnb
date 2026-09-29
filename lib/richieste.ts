@@ -2,7 +2,7 @@
 // Funzioni pure, senza Supabase: si provano con `node --test`.
 // La parte che parla col database sta in lib/richiesteDati.ts.
 import { nottiDellaRichiesta, elencoNotti, type DateRichiesta } from './nottiRichieste.ts'
-import { ORE_RISPOSTA_PROPOSTA } from './condizioniPrenotazione.ts'
+import { ORE_RISPOSTA_PROPOSTA, ORE_RISERVA_BONIFICO } from './condizioniPrenotazione.ts'
 import { motivoRifiutoInParole } from './motivoRifiuto.ts'
 
 // «chiusa» (migrazione 0040, 06/09/2026): chiusa da sola 24 h dopo la scadenza dell'opzione
@@ -29,6 +29,7 @@ export interface Richiesta {
   proposta_inviata_at: string | null
   chiusa_at: string | null
   prenotazione_id: string | null
+  condizione_pagamento?: string | null     // 0025: come deve pagare (decide 3 o 24 ore di opzione)
   chiusura_motivo?: MotivoChiusura | null   // 0040
   motivo_rifiuto?: string | null            // 0027; dal 07/09/2026 un codice di lib/motivoRifiuto (i testi vecchi si leggono lo stesso)
   scadenza_notificata_at?: string | null    // 0040: notifica Pushover di scadenza già mandata
@@ -198,8 +199,8 @@ export function avvisoFerma(r: Pick<Richiesta, 'stato' | 'arrivo' | 'created_at'
   return `ferma da ${tempoTrascorso(da, adesso).replace(/ fa$/, '')}`
 }
 
-// «N da guardare»: le ferme più le proposte scadute (3 ore dall'invio).
-export function daGuardare<T extends Pick<Richiesta, 'stato' | 'arrivo' | 'created_at' | 'proposta_inviata_at'>>(lista: T[], adesso: Date = new Date()): T[] {
+// «N da guardare»: le ferme più le proposte scadute (3 o 24 ore dall'invio, secondo come paga).
+export function daGuardare<T extends Pick<Richiesta, 'stato' | 'arrivo' | 'created_at' | 'proposta_inviata_at' | 'condizione_pagamento'>>(lista: T[], adesso: Date = new Date()): T[] {
   return lista.filter(r => avvisoFerma(r, adesso) !== null || scadenzaProposta(r, adesso)?.scaduta === true)
 }
 
@@ -210,6 +211,18 @@ export function daGuardare<T extends Pick<Richiesta, 'stato' | 'arrivo' | 'creat
 // Alla scadenza la richiesta resta com'è: nessuna chiusura, nessun avviso;
 // cambiano solo testo e colore (verde finché manca tempo, ottone dopo).
 export const ORE_SCADENZA_PROPOSTA = ORE_RISPOSTA_PROPOSTA
+
+// SCADENZA CORRETTA (Richieste «Maison», novità 14f del 29/09/2026): la durata
+// VERA dell'opzione, la stessa di lib/opzioni e della chiusura automatica —
+// 3 ore per chi paga all'arrivo (o una richiesta vecchia senza condizione),
+// 24 ore con caparra, pagamento completo o condizioni personalizzate. Prima
+// qui si contavano sempre 3 ore e il timer di una proposta con caparra
+// diceva «scaduta» quando l'opzione teneva ancora 21 ore.
+export const pagaInAnticipo = (condizione?: string | null): boolean =>
+  condizione === 'caparra' || condizione === 'completo' || condizione === 'personalizzata'
+export function oreOpzioneProposta(condizione?: string | null): number {
+  return pagaInAnticipo(condizione) ? ORE_RISERVA_BONIFICO : ORE_SCADENZA_PROPOSTA
+}
 
 export type ScadenzaProposta = { scaduta: boolean; testo: string }
 
@@ -230,11 +243,11 @@ function giorniDiCalendario(da: Date, a: Date): number {
 // "Proposta inviata · scaduta 20 min fa" · "… scaduta 3 h fa" · "… scaduta ieri"
 // · "… scaduta 2 giorni fa" (ottone). null per le richieste in attesa o
 // senza l'ora dell'invio: lì non compare nulla.
-export function scadenzaProposta(r: Pick<Richiesta, 'stato' | 'proposta_inviata_at'>, adesso: Date = new Date()): ScadenzaProposta | null {
+export function scadenzaProposta(r: Pick<Richiesta, 'stato' | 'proposta_inviata_at'> & { condizione_pagamento?: string | null }, adesso: Date = new Date()): ScadenzaProposta | null {
   if (r.stato !== 'proposta_inviata' || !r.proposta_inviata_at) return null
   const inviata = new Date(r.proposta_inviata_at).getTime()
   if (Number.isNaN(inviata)) return null
-  const scadenza = inviata + ORE_SCADENZA_PROPOSTA * 3600000
+  const scadenza = inviata + oreOpzioneProposta(r.condizione_pagamento) * 3600000
   const resto = scadenza - adesso.getTime()
   // Per difetto verso l'alto: con 2 h 14 min 30 s si legge ancora «2 h 15 min»
   if (resto > 0) return { scaduta: false, testo: `Proposta inviata · scade tra ${durataMinuti(Math.ceil(resto / 60000))}` }
