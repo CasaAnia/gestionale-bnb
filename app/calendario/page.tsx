@@ -13,7 +13,7 @@ import type { Booking, Guest, Room } from '@/lib/types'
 import { COLORE_LETTI_ESAURITI, statoLettiAggiuntivi } from '@/lib/calendarioLetti'
 import {
   CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, geometriaScheda, statoScheda, tintaScheda, testoStato,
-  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, CAMBIO_CAMERA, FILO_SINISTRO, fondoConAcconti,
+  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, arrivoToccatoNelBuco, CAMBIO_CAMERA, FILO_SINISTRO, fondoConAcconti,
 } from '@/lib/calendarioSchede'
 import { leggiArrivo } from '@/lib/arrivo'
 import { oraRoma } from '@/lib/opzioni'
@@ -819,9 +819,10 @@ export default function Calendario() {
                         left={NAME_W + g.left} top={rowTop + SCHEDA_TOP} width={g.width} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
                         onClick={e => {
                           e.stopPropagation()
-                          // L'arrivo è l'inizio del buco; se l'inizio è fuori vista (a sinistra), il primo giorno del buco in vista
-                          const primo = Math.floor((scrollRef.current?.scrollLeft ?? 0) / CELL_W)
-                          const dateStr = toStr(days[Math.min(a - 1, Math.max(da, primo))])
+                          // L'arrivo è il GIORNO TOCCATO (Ania, 29/09/2026): dalle coordinate del tocco
+                          // rispetto al nastro, che scorre con lui; fuori dal buco, il giorno più vicino dentro
+                          const nastro = e.currentTarget.closest('.cal-nastro')?.getBoundingClientRect().left ?? 0
+                          const dateStr = arrivoToccatoNelBuco(e.clientX - nastro - NAME_W, CELL_W, toStr(days[0]), h)
                           router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)
                         }} />
                     )

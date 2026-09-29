@@ -174,6 +174,20 @@ export function rigaBuco(b: Intervallo): string {
   return `${g1} ${MESI_BREVI[m1 - 1]} ${a1} → ${g2} ${MESI_BREVI[m2 - 1]} ${a2}`
 }
 
+/**
+ * L'arrivo della nuova prenotazione dal tocco su un buco (Ania, 29/09/2026):
+ * il GIORNO TOCCATO, non l'inizio del buco. `x` è la distanza del tocco dal
+ * primo giorno disegnato (in px, dalle coordinate del tocco: niente
+ * scrollLeft), `giorno` la larghezza di una colonna, `inizio` il primo giorno
+ * disegnato. Se il giorno cade fuori dal buco vale il più vicino dentro.
+ */
+export function arrivoToccatoNelBuco(x: number, giorno: number, inizio: string, buco: Intervallo): string {
+  const passo = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
+  const toccato = passo(inizio, Math.floor(Math.max(0, x) / giorno))
+  const ultimo = passo(buco.a, -1)
+  return toccato < buco.da ? buco.da : toccato > ultimo ? ultimo : toccato
+}
+
 /** L'indirizzo della nuova prenotazione, lo stesso di oggi */
 export const indirizzoNuova = (cameraId: string, arrivo: string) => `/nuova-prenotazione?room_id=${cameraId}&check_in=${arrivo}`
 

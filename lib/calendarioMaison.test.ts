@@ -310,3 +310,25 @@ test('acconti come prima: le notti coperte in verde da sinistra, il resto del su
   assert.equal(fondoConAcconti('#BFDCC8', '#C5D6E2', 0), '#C5D6E2')
   assert.match(pagina, /const coperte = paidNightsByBooking\[booking\.id\] \?\? 0/)
 })
+
+// ── Il tocco su un buco apre la nuova prenotazione dal GIORNO TOCCATO (Ania, 29/09/2026) ──
+import { arrivoToccatoNelBuco } from './calendarioSchede.ts'
+
+test('buco 2 → 6 ott, tocco sulla colonna del 5 → check_in=2026-10-05; fuori dal buco il giorno più vicino dentro', () => {
+  // primo giorno disegnato lun 28 set, colonne da 60 px: il 5 ott è la colonna 7 (420–479 px)
+  const buco = { da: '2026-10-02', a: '2026-10-06' }
+  assert.equal(arrivoToccatoNelBuco(7 * 60 + 30, 60, '2026-09-28', buco), '2026-10-05')
+  assert.equal(indirizzoNuova('abc', arrivoToccatoNelBuco(7 * 60 + 30, 60, '2026-09-28', buco)), '/nuova-prenotazione?room_id=abc&check_in=2026-10-05')
+  assert.equal(arrivoToccatoNelBuco(4 * 60, 60, '2026-09-28', buco), '2026-10-02')      // bordo sinistro del 2
+  assert.equal(arrivoToccatoNelBuco(4 * 60 - 1, 60, '2026-09-28', buco), '2026-10-02')  // appena prima: il più vicino dentro
+  assert.equal(arrivoToccatoNelBuco(8 * 60 + 5, 60, '2026-09-28', buco), '2026-10-05')  // sul 6 (giorno di partenza): l'ultimo dentro
+  assert.equal(arrivoToccatoNelBuco(-10, 60, '2026-09-28', buco), '2026-10-02')          // tocco senza coordinate (tastiera)
+  assert.equal(arrivoToccatoNelBuco(3 * 40 + 1, 40, '2026-10-01', buco), '2026-10-04')   // a «Mese», colonne da 40
+  // le due pagine calcolano dal tocco rispetto al nastro, non dallo scrollLeft
+  for (const f of ['app/calendario/page.tsx', 'app/arrivi/page.tsx']) {
+    const src = leggi(f)
+    assert.match(src, /const dateStr = arrivoToccatoNelBuco\(e\.clientX - nastro - NAME_W, CELL_W, toStr\(days\[0\]\), h\)/, f)
+    assert.match(src, /e\.currentTarget\.closest\('\.cal-nastro'\)\?\.getBoundingClientRect\(\)\.left/, f)
+    assert.doesNotMatch(src, /L'arrivo è l'inizio del buco/, f)
+  }
+})

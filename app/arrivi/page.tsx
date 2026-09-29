@@ -42,7 +42,7 @@ import { vuoleRicevuta } from '@/lib/valutazione'
 import { dataConGiorno } from '@/lib/dateItaliane'
 import { iconeFoglietto, LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import {
-  CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, FILO_SINISTRO, geometriaScheda, iconeScheda, buchiLiberi, rigaBuco,
+  CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, FILO_SINISTRO, geometriaScheda, iconeScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco,
   daConfermareDalSito,
 } from '@/lib/calendarioSchede'
 import {
@@ -410,9 +410,10 @@ export default function Arrivi() {
                         left={NAME_W + g.left} top={rowTop + SCHEDA_TOP} width={g.width} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
                         onClick={e => {
                           e.stopPropagation()
-                          // L'arrivo è l'inizio del buco; se l'inizio è fuori vista (a sinistra), il primo giorno del buco in vista
-                          const primo = Math.floor((scrollRef.current?.scrollLeft ?? 0) / CELL_W)
-                          const dateStr = toStr(days[Math.min(a - 1, Math.max(da, primo))])
+                          // L'arrivo è il GIORNO TOCCATO (Ania, 29/09/2026): dalle coordinate del tocco
+                          // rispetto al nastro, che scorre con lui; fuori dal buco, il giorno più vicino dentro
+                          const nastro = e.currentTarget.closest('.cal-nastro')?.getBoundingClientRect().left ?? 0
+                          const dateStr = arrivoToccatoNelBuco(e.clientX - nastro - NAME_W, CELL_W, toStr(days[0]), h)
                           router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)
                         }} />
                     )
