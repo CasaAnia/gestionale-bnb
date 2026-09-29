@@ -269,7 +269,8 @@ test('nelle pagine delle Richieste la freccia va in una pagina decisa, non nella
     assert.equal(/<Back(Bar|Link) href=/.test(testo), false, `${p}: la freccia si affida ancora alla cronologia`)
     // l'elenco usa BackLink dentro la testa condivisa, le altre pagine BackBar:
     // in tutt'e due i casi la destinazione è scritta, mai la cronologia
-    assert.equal(/<Back(Bar|Link) onClick=/.test(testo), true, `${p}: manca la freccia con la destinazione`)
+    // Richieste «Maison» (29/09/2026): la barra «‹ Richieste» (np-back) va anche lei in una pagina decisa
+    assert.equal(/<Back(Bar|Link) onClick=|className="np-back" onClick=\{\(\) => router\.push\(/.test(testo), true, `${p}: manca la freccia con la destinazione`)
   }
   // il rimbalzo /richieste/<id> → …/proposta conserva il punto di partenza
   const rimbalzo = readFileSync(new URL('../app/richieste/[id]/page.tsx', import.meta.url), 'utf8')
@@ -592,14 +593,12 @@ test('la parte CLIENTE ha la veste disegnata per la scheda prenotazione', () => 
   // gli importi si scrivono come in tutto il resto del gestionale
   assert.match(parte, /import \{ euroTondi \} from '@\/lib\/euroTondi'/)
 
-  // nella proposta: la parte sta prima di «Rifiuta la richiesta» e compare
-  // solo per chi conosciamo già
+  // Richieste «Maison» (29/09/2026): nella richiesta a linguette la cliente che
+  // torna si legge in CONTROLLARE («Cliente che torna», soggiorni e speso, col
+  // link ai soggiorni); la parte CLIENTE resta per la scheda prenotazione
   const proposta = readFileSync(new URL('../app/richieste/[id]/proposta/page.tsx', import.meta.url), 'utf8')
-  assert.match(proposta, /\{\(soggiorni\.volte > 0 \|\| guest\) && \(/)
-  assert.match(proposta, /<ParteCliente className="mt-10" soggiorni=\{storicoCliente\} totaleCent=\{soggiorni\.ricaviCent\}/)
-  assert.ok(proposta.indexOf('<ParteCliente') < proposta.indexOf('Rifiuta la richiesta'), 'la parte CLIENTE non sta prima di «Rifiuta la richiesta»')
-  // la stella della cliente ottima era già nella testa: resta
-  assert.match(proposta, /stella=\{valutazioneDi\(guest\) === 'ottimo'\}/)
+  assert.match(proposta, /data-cliente-torna/)
+  assert.match(proposta, /soggiorni\.ricaviCent > 0 \? `\$\{euroTondi\(soggiorni\.ricaviCent\)\} spesi` : ''/)
   const testa = readFileSync(new URL('../components/TestaCliente.tsx', import.meta.url), 'utf8')
   assert.match(testa, /\{stella && <span data-stella aria-label="cliente ottima"/)
   // il riconoscimento del cliente è quello di sempre, in un posto solo
@@ -623,7 +622,7 @@ test('nella testa il nome ha davanti la ricevuta e poi la stella', () => {
   assert.equal(/marginRight/.test(titolo), false, 'lo spazio non è più uno spazio normale')
   // con la ricevuta il nome resta in grassetto
   assert.match(titolo, /fontWeight: ricevuta \? 700 : 400/)
-  // la proposta passa alla testa sia la stella sia la ricevuta
+  // la proposta «Maison» (29/09/2026) mette 🧾 ★ davanti al nome, nello stesso ordine
   const proposta = readFileSync(new URL('../app/richieste/[id]/proposta/page.tsx', import.meta.url), 'utf8')
-  assert.match(proposta, /ricevuta=\{vuoleRicevuta\(guest\)\}/)
+  assert.match(proposta, /const iconeNome = iconeFoglietto\(vuoleRicevuta\(guest\), valutazioneDi\(guest\) === 'ottimo'\)/)
 })

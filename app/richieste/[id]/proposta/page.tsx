@@ -18,13 +18,16 @@
 // ============================================================================
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { X } from 'lucide-react'
-import BackBar from '@/components/BackBar'
-import TestaCliente from '@/components/TestaCliente'
-import FasciaSezioni from '@/components/FasciaSezioni'
-import SchedinaControllo from '@/components/SchedinaControllo'
+import Link from 'next/link'
+import FoglioMaison from '@/components/maison/FoglioMaison'
+import { IconeContatto } from '@/components/scheda/TestataMaison'
+import LinguetteRichiesta, { useLinguettaRichiesta, linguettaDiPartenza, type LinguettaRichiesta } from '@/components/richieste/LinguetteRichiesta'
+import { mostraAlternativaAmelia, dividiNotaOpzioni } from '@/lib/richiestaMaison'
+import { LARGHEZZA_FOGLIETTO_MAC, iconeFoglietto } from '@/lib/calendarioFoglietto'
+import { pezziRigaElenco, pezzoCliente } from '@/lib/rigaRichiesta'
+import { periodoConMese, testoNotti } from '@/lib/schedaPrenotazione'
+import { euroTondi } from '@/lib/euroTondi'
 import TestoWhatsApp from '@/components/TestoWhatsApp'
-import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
@@ -32,11 +35,10 @@ import { supabase } from '@/lib/supabase'
 import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, colonne0031Presenti, AVVISO_0025, AVVISO_0029, AVVISO_0031, type CondizioniSalvate } from '@/lib/richiesteDati'
 import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
 import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
-import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
+import { ETICHETTA_CASO, proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
 import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate, spunteCorrenti, conSpuntaCambiata } from '@/lib/richiesteCamere'
 import { vociStesseDate, voceClienteCheTorna } from '@/lib/richiesteDaControllare'
-import { soggiorniDellaPersona, elencoSoggiorniPersona, clienteDellaRichiesta, type SoggiornoStorico } from '@/lib/clienteCheTorna'
-import ParteCliente from '@/components/ParteCliente'
+import { soggiorniDellaPersona, clienteDellaRichiesta, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole } from '@/lib/provenienza'
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
@@ -49,7 +51,7 @@ import { statoCondizioni } from '@/lib/condizioniProposta'
 import { testoDaRigenerare } from '@/lib/testoArchiviato'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
-import { openWhatsApp, normalizzaTelefono, telefonoAGruppi } from '@/lib/whatsapp'
+import { openWhatsApp, normalizzaTelefono, telefonoPerEsteso } from '@/lib/whatsapp'
 import { salvaImmagine, copiaImmagine, isMobile } from '@/lib/immaginePng'
 import { useDesktop, useAdesso } from '@/lib/richiesteVista'
 import { opzioniAttive, opzioniScadute, occupantiDaOpzioni, notaOpzioni, opzioniSovrapposte, oraRoma, type RichiestaOpzione } from '@/lib/opzioni'
@@ -62,33 +64,11 @@ import {
 } from '@/lib/richieste'
 import type { Room } from '@/lib/types'
 
-const BORDO = '#C9BFA8'
-const GRIGIO_NOTA = '#6b6b60'
 const OTTONE = '#A9884E'
-const GEORGIA = "Georgia, 'Times New Roman', serif"
-const PIENO = 'w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-mid text-cream-text font-semibold text-[15px] py-3.5 active:opacity-80 transition-opacity disabled:opacity-50'
-
-// Quante righe del messaggio si vedono prima di aprirlo tutto
-const RIGHE_MESSAGGIO = 12
-const ALTEZZA_RIGA = 21   // 13 px con interlinea «relaxed»
-const SEZIONI = [
-  { id: 'controllare', label: 'Controllare' },
-  { id: 'camere', label: 'Camere' },
-  { id: 'pagamento', label: 'Pagamento' },
-  { id: 'messaggio', label: 'Messaggio' },
-]
 
 const oggiIso = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function IconaWhatsApp() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.4.1-.2 0-.3 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 2.9 2.9 0 0 0-.9 2.2 5 5 0 0 0 1.1 2.7 11.3 11.3 0 0 0 4.4 3.9c1.6.7 2.2.7 3 .6a2.6 2.6 0 0 0 1.7-1.2c.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z" />
-    </svg>
-  )
 }
 
 // "Amelia 13–15 set → Allegra 15–16 set"
@@ -125,6 +105,11 @@ export default function PropostaPage() {
   const [manca0029, setManca0029] = useState(false)
   const [manca0031, setManca0031] = useState(false)
   const adesso = useAdesso()   // avanza ogni minuto: timer della proposta
+  // Le linguette (novità 14d): dal telefono una parte alla volta, dal Mac la pagina unica
+  const paginaUnica = useDesktop()
+  const [linguetta, sceltaLinguetta] = useLinguettaRichiesta(linguettaDiPartenza(richiesta?.stato))
+  // «L'hai inviata?»: il foglio si può abbassare senza rispondere (resta «Invio da confermare»)
+  const [invioNascosto, setInvioNascosto] = useState(false)
 
   // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano).
   // La scelta vale SOLO quando nessuna camera è libera per tutto il periodo: lì
@@ -367,14 +352,6 @@ export default function PropostaPage() {
   const soggiorni = useMemo(() => {
     if (!richiesta) return { volte: 0, ricaviCent: 0, ultimo: null }
     return soggiorniDellaPersona(
-      { nome: richiesta.nome, cognome: richiesta.cognome, telefono: richiesta.telefono, guest_id: guest?.id ?? null },
-      prenotazioni as unknown as SoggiornoStorico[], oggiIso(),
-    )
-  }, [richiesta, prenotazioni, guest])
-  // I soggiorni conclusi, uno per riga, per la parte CLIENTE in fondo
-  const storicoCliente = useMemo(() => {
-    if (!richiesta) return []
-    return elencoSoggiorniPersona(
       { nome: richiesta.nome, cognome: richiesta.cognome, telefono: richiesta.telefono, guest_id: guest?.id ?? null },
       prenotazioni as unknown as SoggiornoStorico[], oggiIso(),
     )
@@ -707,84 +684,70 @@ export default function PropostaPage() {
     setOccupato(null)
   }
 
-  if (loading) return <div className="p-4"><BackBar onClick={() => router.push(indietro)} /><div className="text-center py-10 text-stone">Caricamento…</div></div>
-  if (!richiesta) return <div className="p-4"><BackBar onClick={() => router.push(indietro)} /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Richiesta non trovata.'}</div></div>
+  // La testa della pagina: dal telefono «‹ Richieste» e lo stato a destra
+  const barra = (stato: string | null) => (
+    <div className="sch-top ric-top" data-riga-navigazione>
+      <button type="button" className="np-back" onClick={() => router.push(indietro)}>‹ Richieste</button>
+      <p className="sch-scritta">Richiesta</p>
+      {stato && <span className="stato" data-stato-richiesta>{stato}</span>}
+    </div>
+  )
+  if (loading) return <div className="maison cal ric-pag">{barra(null)}<div className="mz-caricamento">Caricamento…</div></div>
+  if (!richiesta) return <div className="maison cal ric-pag">{barra(null)}<p className="ric-avviso" role="alert">{errore || 'Richiesta non trovata.'}</p></div>
 
   const n = nottiRichiesta(richiesta)
   const problematico = valutazioneDi(guest) === 'problematico'
+  const statoTesta = richiesta.stato === 'in_attesa' ? 'In attesa' : richiesta.stato === 'proposta_inviata' ? 'Proposta inviata' : richiesta.stato === 'confermata' ? 'Confermata' : 'Chiusa'
+  const telefonoEsteso = telefonoPerEsteso(richiesta.telefono)
+  const iconeNome = iconeFoglietto(vuoleRicevuta(guest), valutazioneDi(guest) === 'ottimo')
+  const pezziTesta = pezziRigaElenco({ notti: n, personeNotti: personeNottiRichiesta.length ? personeNottiRichiesta : [richiesta.persone], camera: richiesta.rooms?.name ?? null, maison: true })
+    .filter(x => !x.speso).map(x => x.testo).join('')
+  const rigaQuando = [pezzoCliente(soggiorni.volte, !!guest), CANALE_LABEL[richiesta.canale], oraArrivo(richiesta.created_at, adesso)].filter(Boolean).join(' · ')
+  const vediParte = (l: LinguettaRichiesta) => paginaUnica || linguetta === l
+  const avanti = (l: LinguettaRichiesta, testo: string, pieno: boolean) => (paginaUnica ? null : pieno
+    ? <button type="button" className="ric-cta" data-avanti={l} onClick={() => sceltaLinguetta(l)}>{testo}</button>
+    : <div className="ric-ac centro"><button type="button" className="mz-lnk" data-avanti={l} onClick={() => sceltaLinguetta(l)}>{testo}</button></div>)
 
-  // ── Camere da proporre ────────────────────────────────────────────────────
+  // ── Camere da proporre: casella a filo, nome in Cormorant, sotto il dettaglio, a destra il totale ──
+  const dettaglioCamera = (r: typeof righeCamere[number]) => {
+    if (!r.proponibile) return (motivoOpzione.get(r.camera.id)) || r.stato
+    return [
+      testoNotti(n),
+      ...r.prezzo.map(x => `${x.importo} ${x.quando}${x.letto ? (r.prezzo.length === 1 ? ', letto compreso' : ' letto compreso') : ''}`),
+      r.tripla ? 'tripla' : '', r.lettoInPiu ? '+ letto' : '', r.tavolo ? 'va tolto il tavolo' : '',
+    ].filter(Boolean).join(' · ')
+  }
   const elencoCamere = (
-    <ul className="ed-lista mt-1">
-      {righeCamere.map((r, i) => {
+    <div className="ric-camere" data-camere-proposta data-senza-sottolinea>
+      {righeCamere.map(r => {
         const spunta = spuntate.includes(r.camera.id)
         // Si possono toccare anche in attesa della risposta a «L'hai inviata?»
         const si = r.proponibile && !manuale && !forzaNessunaDisponibilita
         return (
-          /* La prima camera non ha il filo sopra: ce l'ha già il titoletto,
-             e due fili attaccati sembravano una riga vuota (Ania, 11/09/2026) */
-          <li key={r.camera.id} style={{ opacity: r.proponibile ? 1 : 0.55, ...(i === 0 ? { borderTop: 'none' } : {}) }}>
-            <button type="button" disabled={!si} onClick={() => cambiaSpunta(r.camera.id)} aria-pressed={spunta}
-              data-camera={r.camera.name} data-spuntata={spunta ? 'si' : 'no'}
-              className="w-full text-left py-[14px] flex items-start gap-3 disabled:cursor-default">
-              <span aria-hidden className="shrink-0 inline-flex items-center justify-center" style={{
-                width: 24, height: 24, borderRadius: 7, marginTop: 2,
-                border: r.proponibile ? `1px solid ${spunta ? 'var(--color-green-mid)' : BORDO}` : `1px dashed ${BORDO}`,
-                background: spunta ? 'var(--color-green-mid)' : 'transparent',
-                color: '#F5EFE4', fontSize: 14, fontWeight: 700, lineHeight: 1,
-              }}>{spunta ? '✓' : ''}</span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-baseline justify-between gap-3">
-                  <span style={{ fontFamily: GEORGIA, fontSize: 18, color: 'var(--color-green-dark)' }}>{r.camera.name}</span>
-                  {r.proponibile && <span style={{ fontFamily: GEORGIA, fontSize: 15, color: 'var(--color-stone)' }}>{formattaEuro(r.totaleCent)}</span>}
-                </span>
-                {/* Una riga sola (Ania, 11/09/2026): etichetta · libera ·
-                    prezzo a notte, col letto già compreso quando si paga. */}
-                <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>
-                  {r.tripla && <span className="ed-badge" style={{ borderColor: 'var(--color-green-mid)', color: 'var(--color-green-mid)' }}>tripla</span>}
-                  {r.lettoInPiu && <span className="ed-badge" style={{ background: '#EFE2C7', borderColor: '#EFE2C7', color: '#7A5C1E' }}>+ letto</span>}
-                  <span style={!r.proponibile && motivoOpzione.has(r.camera.id) ? { color: OTTONE } : undefined}>{(!r.proponibile && motivoOpzione.get(r.camera.id)) || r.stato}</span>
-                  {r.proponibile && r.prezzo.length > 0 && <>
-                    <span aria-hidden>·</span>
-                    {/* Un pezzo solo se tutte le notti costano uguale, altrimenti
-                        uno per gruppo di notti (Ania, 11/09/2026) */}
-                    <span>
-                      {r.prezzo.map((x, k) => (
-                        <span key={k}>
-                          {k > 0 ? ', ' : ''}
-                          <span className="font-semibold">{x.importo}</span> {x.quando}
-                          {x.letto ? (r.prezzo.length === 1 ? ', letto compreso' : ' letto compreso') : ''}
-                        </span>
-                      ))}
-                    </span>
-                  </>}
-                </span>
-                {/* Allegra col letto in più: la sola cosa che va detta a parte */}
-                {r.tavolo && <span className="block mt-0.5" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>va tolto il tavolo</span>}
-              </span>
-            </button>
-          </li>
+          <button key={r.camera.id} type="button" disabled={!si} onClick={() => cambiaSpunta(r.camera.id)} aria-pressed={spunta}
+            data-camera={r.camera.name} data-spuntata={spunta ? 'si' : 'no'} className={`cr ${r.proponibile ? '' : 'no'}`}>
+            <span aria-hidden className={`cb ${spunta ? 'on' : ''}`}>{spunta ? '✓' : ''}</span>
+            <span className="cn">{r.camera.name}<small>{dettaglioCamera(r)}</small></span>
+            <span className="cp">{r.proponibile ? formattaEuro(r.totaleCent) : ''}</span>
+          </button>
         )
       })}
-    </ul>
+    </div>
   )
 
   // Nessuna camera libera per tutte le notti: resta la proposta automatica di sempre
   const propostaAutomatica = !conCamereLibere && !manuale && !forzaNessunaDisponibilita && modificaConsentita && automatica && automatica.segmenti.length > 0 && (
-    <SchedinaControllo className="mt-3"
-      etichetta={automatica.caso === 'cambio' ? 'Proposta con cambio camera' : 'Proposta per una parte delle notti'}
-      titolo={soluzioneInParole(automatica)}
-      dettaglio={`${formattaEuro(centesimiTotale(automatica))} in tutto${automatica.nottiCoperte < automatica.nottiTotali ? ` · copre ${automatica.nottiCoperte} notti su ${automatica.nottiTotali}` : ''}`}
-      azione={soluzioni.length > 1 ? { testo: "Un'altra soluzione", onClick: () => setPannelloCambia(true) } : null} />
+    <div className="dr2" data-proposta-automatica>
+      <b>{automatica.caso === 'cambio' ? 'Proposta con cambio camera' : 'Proposta per una parte delle notti'}</b>
+      {soluzioneInParole(automatica)}
+      <span className="so">{`${formattaEuro(centesimiTotale(automatica))} in tutto${automatica.nottiCoperte < automatica.nottiTotali ? ` · copre ${automatica.nottiCoperte} notti su ${automatica.nottiTotali}` : ''}`}</span>
+    </div>
   )
 
   // ── «Compongo io, notte per notte»: striscia camera per notte + prezzo a mano ──
-  const scelgoIo = manuale && modificaConsentita && richiesta && (
-    <div className="mt-3 ed-riga py-3" role="group" aria-label="Compongo io">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <p className="text-sm font-semibold text-green-dark">Tocca una notte per cambiare camera</p>
-        <button type="button" onClick={tornaAutomatica} className="shrink-0 text-xs font-semibold text-green-mid underline underline-offset-2">Torna alla proposta automatica</button>
-      </div>
+  const scelgoIo = manuale && modificaConsentita && (
+    <div className="ric-scelgo" role="group" aria-label="Compongo io">
+      <p className="ti">Tocca una notte per cambiare camera</p>
       <StrisciaNotti<string | null> arrivo={richiesta.arrivo} partenza={richiesta.partenza} nottiSelezionate={richiesta.notti_richieste ?? undefined} valori={composizione} aria="Camera notte per notte"
         onChange={v => { setComposizione(v); setPrezziManuali(p => p.map((x, k) => (v[k] === composizione[k] ? x : null))); setPrezzoEditor(null) }}
         cicla={(v, verso, i) => {
@@ -803,33 +766,30 @@ export default function PropostaPage() {
           contorno: prezziManuali[i] != null ? OTTONE : undefined,
         })}
         onLungo={apriPrezzo} />
-      <p className="text-xs text-green-dark mt-2">
+      <p className="so">
         {riassuntoPerNotte(richiesta.arrivo, composizione.map(nomeCamera))}
-        {soluzione ? <> · totale <span className="font-semibold">{formattaEuro(totaleCentesimi(soluzione))}</span></> : null}
-        {prezziManuali.some(p => p != null) && <span className="ml-1 font-semibold" style={{ color: OTTONE }}>· prezzo modificato</span>}
+        {soluzione ? <> · totale <b>{formattaEuro(totaleCentesimi(soluzione))}</b></> : null}
+        {prezziManuali.some(p => p != null) && <b className="ott"> · prezzo modificato</b>}
       </p>
-      <p className="text-[11px] mt-1" style={{ color: GRIGIO_NOTA }}>Tieni premuta una notte{desktop ? ' (o la matita)' : ''} per scrivere il prezzo a mano.</p>
-      {erroreComposizione && <div role="alert" className="mt-2 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-2.5 text-sm text-[#8C3B2E]">{erroreComposizione}</div>}
+      <p className="so">Tieni premuta una notte{desktop ? ' (o la matita)' : ''} per scrivere il prezzo a mano.</p>
+      {erroreComposizione && <p role="alert" className="ric-avviso">{erroreComposizione}</p>}
       {prezzoEditor !== null && composizione[prezzoEditor] !== null && (
-        <div className="mt-3 bg-sand rounded-xl p-3" role="group" aria-label="Prezzo a mano">
-          <p className="text-sm font-semibold text-green-dark mb-1.5">Prezzo della notte del {etichettaNotte(nottiDellaRichiesta(richiesta)[prezzoEditor])} · {nomeCamera(composizione[prezzoEditor])}</p>
-          <p className="text-xs mb-1.5" style={{ color: GRIGIO_NOTA }}>Tariffa: {prezziTariffa[prezzoEditor] != null ? `${fmtPrezzo((prezziTariffa[prezzoEditor] as number) / 100)} €` : '—'} · scrivi il prezzo in euro (anche con decimali)</p>
-          <input type="text" inputMode="decimal" value={prezzoTesto} onChange={e => setPrezzoTesto(e.target.value)} aria-label="Prezzo della notte in euro"
-            className="w-full min-w-0 appearance-none bg-white rounded-xl px-3 py-2.5 text-[15px] text-green-dark focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
-          {!(prezzoEditorCent >= 0) || prezzoTesto.trim() === '' ? <p className="text-xs mt-1 font-semibold text-[#8C3B2E]">Scrivi un prezzo valido</p> : null}
-          <div className="flex flex-wrap gap-2 mt-2">
-            <button type="button" disabled={prezzoTesto.trim() === '' || !(prezzoEditorCent >= 0)}
-              onClick={() => { setPrezziManuali(p => p.map((x, k) => (k === prezzoEditor ? prezzoEditorCent : x))); setPrezzoEditor(null) }}
-              className="rounded-full px-3.5 py-1.5 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-50">Applica</button>
-            <button type="button" disabled={prezzoTesto.trim() === '' || !(prezzoEditorCent >= 0)}
-              onClick={() => { setPrezziManuali(p => applicaATutteLeNotti(composizione, p, prezzoEditor, prezzoEditorCent)); setPrezzoEditor(null) }}
-              className="rounded-full px-3.5 py-1.5 text-sm font-semibold bg-white text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>Applica a tutte le notti di questa camera</button>
-            <button type="button" onClick={() => { setPrezziManuali(p => p.map((x, k) => (k === prezzoEditor ? null : x))); setPrezzoEditor(null) }}
-              className="rounded-full px-3.5 py-1.5 text-sm font-semibold bg-white text-green-dark border" style={{ borderColor: BORDO }}>Ripristina tariffa</button>
-            <button type="button" onClick={() => setPrezzoEditor(null)} className="rounded-full px-3.5 py-1.5 text-sm font-semibold text-stone">Chiudi</button>
+        <div className="ric-prezzo" role="group" aria-label="Prezzo a mano">
+          <p className="ti">Prezzo della notte del {etichettaNotte(nottiDellaRichiesta(richiesta)[prezzoEditor])} · {nomeCamera(composizione[prezzoEditor])}</p>
+          <p className="so">Tariffa: {prezziTariffa[prezzoEditor] != null ? `${fmtPrezzo((prezziTariffa[prezzoEditor] as number) / 100)} €` : '—'} · scrivi il prezzo in euro (anche con decimali)</p>
+          <input type="text" inputMode="decimal" value={prezzoTesto} onChange={e => setPrezzoTesto(e.target.value)} aria-label="Prezzo della notte in euro" className="ric-fld" />
+          {!(prezzoEditorCent >= 0) || prezzoTesto.trim() === '' ? <p className="ric-avviso">Scrivi un prezzo valido</p> : null}
+          <div className="ric-ac">
+            <button type="button" className="mz-lnk" disabled={prezzoTesto.trim() === '' || !(prezzoEditorCent >= 0)}
+              onClick={() => { setPrezziManuali(p => p.map((x, k) => (k === prezzoEditor ? prezzoEditorCent : x))); setPrezzoEditor(null) }}>Applica</button>
+            <button type="button" className="mz-lnk q" disabled={prezzoTesto.trim() === '' || !(prezzoEditorCent >= 0)}
+              onClick={() => { setPrezziManuali(p => applicaATutteLeNotti(composizione, p, prezzoEditor, prezzoEditorCent)); setPrezzoEditor(null) }}>Applica a tutte le notti di questa camera</button>
+            <button type="button" className="mz-lnk q" onClick={() => { setPrezziManuali(p => p.map((x, k) => (k === prezzoEditor ? null : x))); setPrezzoEditor(null) }}>Ripristina tariffa</button>
+            <button type="button" className="mz-lnk q" onClick={() => setPrezzoEditor(null)}>Chiudi</button>
           </div>
         </div>
       )}
+      <div className="ric-ac"><button type="button" onClick={tornaAutomatica} className="mz-lnk q">Torna alla proposta automatica</button></div>
     </div>
   )
 
@@ -839,306 +799,263 @@ export default function PropostaPage() {
   const riassuntoCondizione = condizioneInviata
     ? `${ETICHETTA_CONDIZIONE[condizioneInviata.tipo]}${condizioneInviata.tipo === 'caparra' ? ` ${formattaEuro(condizioneInviata.caparraCentesimi)}` : ''}${condizioniMostrate?.amelia_alternativa ? ' · con alternativa ad Amelia' : ''}`
     : null
+  // L'alternativa Ambra/Allegra (novità 14e): sotto le camere, solo con Amelia scelta
+  const ameliaScelta = !!soluzione?.segmenti.some(x => /amelia/i.test(x.camera.name)) || righeCamere.some(r => /amelia/i.test(r.camera.name) && spuntate.includes(r.camera.id))
+  const mostraAmelia = mostraAlternativaAmelia({ amelia: !!amelia, ameliaScelta, completo, inviataBloccata })
+  // Il titolo della nota delle opzioni: «Amelia è in opzione» · «Amelia era in opzione»
+  const [titoloOpz, restoOpz] = notaOpz ? dividiNotaOpzioni(notaOpz.testo) : ['', '']
+  const stesse = vociControllo.filter(v => v.chiave.startsWith('stesse_date_'))
+  const torna = vociControllo.find(v => v.chiave === 'cliente_torna') ?? null
 
   return (
-    /* Margini laterali 22 px (Ania, 11/09/2026): la pagina respira. */
-    <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
-      <div className="-mx-[6px]"><BackBar onClick={() => router.push(indietro)} /></div>
+    <div className="maison cal ric-pag" data-richiesta-maison>
+      {barra(statoTesta)}
 
-      <TestaCliente
-        nome={nomeCompleto(richiesta)}
-        stella={valutazioneDi(guest) === 'ottimo'}
-        ricevuta={vuoleRicevuta(guest)}
-        problematico={problematico}
-        motivoProblematico={guest?.motivo_problematico ?? null}
-        volte={soggiorni.volte}
-        inArchivio={!!guest}
-        provenienza={provenienzaInParole(guest ?? richiesta)}
-        quando={`${CANALE_LABEL[richiesta.canale]} · ${oraArrivo(richiesta.created_at, adesso)}`}
-        totaleCent={soggiorni.ricaviCent}
-        hrefCliente={hrefCliente}
-        arrivo={richiesta.arrivo}
-        partenza={richiesta.partenza}
-        notti={n}
-        personeNotti={personeNottiRichiesta.length ? personeNottiRichiesta : [richiesta.persone]}
-        nottiRichieste={nottiDellaRichiesta(richiesta)}
-        cameraChiesta={richiesta.rooms?.name ?? null}
-        telefono={telefonoAGruppi(richiesta.telefono) || richiesta.telefono}
-        telefonoDaChiamare={telefono || null}
-        telefonoWhatsApp={telefono || null}
-        avvisoTelefono={telefonoNorm.avviso}
-        onScrivi={() => telefono && openWhatsApp(telefono, '')}
-        note={noteTesta}
-        hrefModifica={linkModificaRichiesta(richiesta, 'proposta')}
-      />
-      {/* timer delle 3 ore: stesso testo della lista e del tooltip del calendario */}
-      <RigaScadenza r={richiesta} adesso={adesso} className="mt-3 text-center" />
-
-      {mancaMigrazione && (
-        <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
-          {mancaMigrazione} Finché manca, la proposta non può essere registrata.
+      {/* ── LA TESTATA: nome con 🧾 ★ e i cerchi, il telefono per esteso, chi è e da dove, il soggiorno, la nota ── */}
+      <header className="ric-testa" data-testa-richiesta>
+        <div className="hd3">
+          <h1 className="ti">{iconeNome && <span className="ic">{iconeNome} </span>}{nomeCompleto(richiesta)}</h1>
+          <IconeContatto telefono={richiesta.telefono} nome={nomeCompleto(richiesta)} dati="richiesta" />
         </div>
-      )}
-      {erroreRicerca && (
-        <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{erroreRicerca}</div>
-      )}
+        {telefonoEsteso && <p className="tel"><span className="num" data-telefono-richiesta>{telefonoEsteso}</span></p>}
+        {telefonoNorm.avviso && <p className="ric-avviso">{telefonoNorm.avviso}</p>}
+        <p className="hs">{rigaQuando}{provenienzaInParole(guest ?? richiesta) ? ` · ${provenienzaInParole(guest ?? richiesta)}` : ''}</p>
+        <p className="hs2">{periodoConMese(richiesta.arrivo, richiesta.partenza)} · {pezziTesta}</p>
+        {noteTesta.map(x => <p key={x.etichetta} className="nt2" data-nota-testa={x.etichetta}>«{x.testo}»</p>)}
+        {problematico && <p className="nt2" data-problematico>Cliente segnalata{guest?.motivo_problematico ? `: ${guest.motivo_problematico}` : ''}</p>}
+        {/* timer delle 3 o 24 ore: sotto la testata quando c'è una proposta inviata */}
+        <RigaScadenza r={richiesta} adesso={adesso} className="ric-scad" />
+      </header>
 
-      <FasciaSezioni voci={SEZIONI} className="mt-4" />
+      {mancaMigrazione && <p role="alert" className="ric-avviso">{mancaMigrazione} Finché manca, la proposta non può essere registrata.</p>}
+      {erroreRicerca && <p role="alert" className="ric-avviso">{erroreRicerca}</p>}
 
-      {/* ── Da controllare ────────────────────────────────────────────────── */}
-      <section id="controllare" className="pt-[42px] scroll-mt-16">
-        <p className="ed-sezione">Da controllare</p>
-        {/* Nota ottone delle opzioni (blocco entro le 3 ore, oppure opzione scaduta) */}
-        {!inviata && notaOpz && (
-          <div role="note" data-nota-opzioni={notaOpz.tipo} className="mt-2 rounded-r-lg px-3 py-2.5 text-sm text-green-dark leading-snug" style={{ borderLeft: `3px solid ${OTTONE}`, background: '#F3ECD8' }}>{notaOpz.testo}</div>
-        )}
-        {vociControllo.length === 0 && !notaOpz
-          ? <p className="mt-2 text-sm font-semibold" style={{ color: 'var(--color-green-mid)' }}>✓ Tutto a posto</p>
-          : <div className="mt-2 flex flex-col gap-2">
-            {vociControllo.map(v => <SchedinaControllo key={v.chiave} etichetta={v.etichetta} titolo={v.titolo} dettaglio={v.dettaglio} link={v.link} />)}
-          </div>}
-      </section>
+      <LinguetteRichiesta scelta={linguetta} onScegli={sceltaLinguetta} paginaUnica={paginaUnica} />
 
-      {/* ── Camere da proporre ────────────────────────────────────────────── */}
-      <section id="camere" className="pt-[42px] scroll-mt-16">
-        <p className="ed-sezione">Camere da proporre {conCamereLibere && <small>{spuntate.length}</small>}</p>
-        {sceltaPersa && <div role="alert" className="mt-2 rounded-xl bg-[#F6E4DE] p-3 text-sm text-[#8C3B2E]">La soluzione scelta non è più disponibile. <button type="button" onClick={() => setPannelloCambia(true)} className="underline font-semibold">Scegline un’altra</button></div>}
-        {forzaNessunaDisponibilita
-          ? <p className="mt-2 text-sm text-green-dark">Hai scelto di rispondere che non c’è posto. <button type="button" onClick={tornaAlleDisponibilita} className="font-semibold text-green-mid underline underline-offset-2">Torna alle disponibilità</button></p>
-          : <>
-            {elencoCamere}
-            {propostaAutomatica}
-            {scelgoIo}
-            {modificaConsentita && !manuale && (
-              <div className="flex flex-wrap gap-4 mt-3">
-                <button type="button" onClick={apriScelgoIo} className="text-sm font-semibold text-green-mid underline underline-offset-2">Compongo io, notte per notte</button>
-                <button type="button" onClick={scegliNessunaDisponibilita} className="text-sm font-semibold underline underline-offset-2" style={{ color: '#8C3B2E' }}>Non ho posto</button>
-              </div>
-            )}
-          </>}
-      </section>
-
-      {/* ── Come paga ─────────────────────────────────────────────────────── */}
-      <section id="pagamento" className="pt-[42px] scroll-mt-16">
-        <p className="ed-sezione">Come paga</p>
-        {completo && <p className="mt-2 text-sm text-stone">Con «non c’è posto» non serve: il messaggio non parla di pagamento.</p>}
-        {condizioni !== 'nascoste' && (
-          <div className="mt-2" role="group" aria-label="Condizioni di pagamento">
-            {/* Due colonne, tutti della stessa larghezza (Ania, 11/09/2026):
-                All'arrivo · Caparra / Pagamento completo · Personalizzata */}
-            <div className="grid grid-cols-2 gap-2">
-              {CONDIZIONI_PAGAMENTO.map(tipo => {
-                const scelta = condizioni === 'solo_lettura' ? condizioneInviata?.tipo === tipo : condizioneTipo === tipo
-                return (
-                  <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={scelta}
-                    style={{ height: 38, fontSize: 13 }}
-                    className={`w-full inline-flex items-center justify-center rounded-full font-medium transition-colors ${scelta ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
-                    {ETICHETTA_CONDIZIONE[tipo]}
-                  </button>
-                )
-              })}
-            </div>
-            {riassuntoCondizione && condizioni === 'solo_lettura' && <p className="mt-2 text-sm text-stone">Inviata: {riassuntoCondizione}. Toccane un’altra per rifare la proposta.</p>}
-            {inviata && ricomponi && (
-              <p className="mt-2 text-sm text-stone">Stai rifacendo la proposta. <button type="button" onClick={() => { setRicomponi(false); setTestoModificato(null); azzeraCondizioni(); setAvviso(null) }} className="font-semibold text-green-mid underline underline-offset-2">Torna a quella inviata</button></p>
-            )}
-            {condizioni === 'scegliere' && condizioneTipo === 'caparra' && (
-              <div className="mt-2.5">
-                <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="caparra">Caparra confirmatoria (€) · proposta al {fmtPrezzo(caparraDefault(totaleCent) / 100)} €, cioè il 50% di {fmtPrezzo(totaleCent / 100)} €</label>
-                <input id="caparra" type="text" inputMode="decimal" value={caparraTesto} onChange={e => setCaparraTesto(e.target.value)} aria-label="Importo della caparra in euro"
-                  className="w-full min-w-0 appearance-none bg-white rounded-xl px-3 py-2.5 text-[15px] text-green-dark focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
-                {problemaCondizione && problemaCondizione !== SCEGLI_COME_PAGA && <p className="text-xs mt-1 font-semibold text-[#8C3B2E]">{problemaCondizione}</p>}
-              </div>
-            )}
-            {condizioni === 'scegliere' && condizioneTipo === 'personalizzata' && (
-              <div className="mt-2.5">
-                <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="condizione-testo">Scrivi il paragrafo delle condizioni: la chiusura «Grazie mille, Ania – Casa Ania» viene aggiunta da sola</label>
-                <textarea id="condizione-testo" value={condizioneTesto} onChange={e => setCondizioneTesto(e.target.value)} rows={4} aria-label="Condizioni di pagamento personalizzate"
-                  className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
-              </div>
-            )}
-            {condizioni === 'scegliere' && amelia && (
-              <div className="mt-3 flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-2.5" style={{ border: `1px solid ${BORDO}` }}>
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-green-dark">Aggiungi alternativa Ambra/Allegra</span>
-                  <span className="block text-xs" style={{ color: GRIGIO_NOTA }}>{amelia.camera.name}, {formattaEuro(amelia.differenzaNotteCentesimi)} in più a notte · totale {formattaEuro(amelia.prezzoTotaleCentesimi)}</span>
-                </span>
-                <button type="button" role="switch" aria-checked={ameliaAttiva} aria-label="Aggiungi alternativa Ambra/Allegra" onClick={() => cambiaAmelia(!ameliaAttiva)}
-                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${ameliaAttiva ? 'bg-green-mid' : 'bg-border-soft'}`}>
-                  <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${ameliaAttiva ? 'translate-x-5' : ''}`} aria-hidden />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* ── Il messaggio ──────────────────────────────────────────────────── */}
-      <section id="messaggio" className="pt-[42px] scroll-mt-16">
-        <p className="ed-sezione">Il messaggio</p>
-        <div className="mt-2">
-          {modificaConsentita && (
-            <div role="group" aria-label="Come mandarlo" className="inline-flex rounded-full border p-0.5 mb-3" style={{ borderColor: BORDO }}>
-              {([['testo', 'Solo testo'], ['immagine', 'Testo + immagine']] as const).map(([k, label]) => (
-                <button key={k} type="button" onClick={() => setModo(k)} aria-pressed={modoEffettivo === k} disabled={k === 'immagine' && (completo || !immagine)}
-                  className={`rounded-full whitespace-nowrap font-semibold transition-colors px-3 py-1.5 text-xs disabled:opacity-40 ${modoEffettivo === k ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
-                  {label}
-                </button>
+      {/* ── CONTROLLARE ─────────────────────────────────────────────────── */}
+      {vediParte('controllare') && (
+        <section id="parte-controllare" className="sec" role="tabpanel" data-parte="controllare">
+          <p className="k">Da controllare</p>
+          {!inviata && notaOpz && (
+            <div className="dr2" data-nota-opzioni={notaOpz.tipo}><b>{titoloOpz}</b>{restoOpz}</div>
+          )}
+          {stesse.length > 0 && (
+            <div className="dr2" data-stesse-date-controllo>
+              <b>Stesse date · {stesse.length === 1 ? '1 altra' : `${stesse.length} altre`}</b>
+              {stesse.map(v => (
+                <span key={v.chiave} className="riga">{v.titolo}{v.link && <> <Link href={v.link.href} className="mz-lnk q">Vedi</Link></>}</span>
               ))}
             </div>
           )}
-          {/* Su una proposta già partita quello che si legge è il messaggio
-              ARCHIVIATO, cioè quello che il cliente ha ricevuto: può essere
-              diverso da quello che il gestionale scriverebbe oggi. Va detto
-              sopra al riquadro, altrimenti non si capisce (Ania, 11/09/2026). */}
+          {torna && (
+            <div className="dr2" data-cliente-torna>
+              <b>{torna.etichetta}</b>
+              {[torna.titolo.charAt(0).toLowerCase() + torna.titolo.slice(1), torna.dettaglio, soggiorni.ricaviCent > 0 ? `${euroTondi(soggiorni.ricaviCent)} spesi` : ''].filter(Boolean).join(' · ')}
+              {torna.link && <> <Link href={torna.link.href} className="mz-lnk q">{torna.link.testo}</Link></>}
+            </div>
+          )}
+          {vociControllo.length === 0 && !notaOpz && <p className="ric-ok">✓ Tutto a posto</p>}
+          <div className="ric-ac centro">
+            <Link href={linkModificaRichiesta(richiesta, 'proposta')} className="mz-lnk q" data-modifica-richiesta>Modifica</Link>
+          </div>
+          {avanti('camere', 'Avanti · Camere', false)}
+        </section>
+      )}
+
+      {/* ── CAMERE ──────────────────────────────────────────────────────── */}
+      {vediParte('camere') && (
+        <section id="parte-camere" className="sec" role="tabpanel" data-parte="camere">
+          <p className="k">Camere da proporre{conCamereLibere ? ` · ${spuntate.length}` : ''}</p>
+          {sceltaPersa && <p role="alert" className="ric-avviso">La soluzione scelta non è più disponibile. <button type="button" onClick={() => setPannelloCambia(true)} className="mz-lnk">Scegline un’altra</button></p>}
+          {forzaNessunaDisponibilita
+            ? <p className="so">Hai scelto di rispondere che non c’è posto. <button type="button" onClick={tornaAlleDisponibilita} className="mz-lnk">Torna alle disponibilità</button></p>
+            : <>
+              {elencoCamere}
+              {propostaAutomatica}
+              {scelgoIo}
+              {modificaConsentita && !manuale && (
+                <div className="ric-ac">
+                  {!conCamereLibere && soluzioni.length > 1 && <button type="button" onClick={() => setPannelloCambia(true)} className="mz-lnk q">Un’altra soluzione</button>}
+                  <button type="button" onClick={apriScelgoIo} className="mz-lnk q">Compongo io, notte per notte</button>
+                  <button type="button" onClick={scegliNessunaDisponibilita} className="mz-lnk q">Non ho posto</button>
+                </div>
+              )}
+            </>}
+          {mostraAmelia && amelia && (
+            <button type="button" className="dr2 ric-amelia" data-senza-sottolinea role="switch" aria-checked={ameliaAttiva} onClick={() => cambiaAmelia(!ameliaAttiva)} data-alternativa-amelia>
+              <span aria-hidden className={`cb ${ameliaAttiva ? 'on' : ''}`}>{ameliaAttiva ? '✓' : ''}</span>
+              Aggiungi l’alternativa Ambra/Allegra
+              <span className="so">{amelia.camera.name}, {formattaEuro(amelia.differenzaNotteCentesimi)} in più a notte · totale {formattaEuro(amelia.prezzoTotaleCentesimi)}</span>
+            </button>
+          )}
+          {problemaCamere && <p className="ric-avviso">{problemaCamere}</p>}
+          {avanti('pagamento', 'Avanti · Pagamento', true)}
+        </section>
+      )}
+
+      {/* ── PAGAMENTO ───────────────────────────────────────────────────── */}
+      {vediParte('pagamento') && (
+        <section id="parte-pagamento" className="sec" role="tabpanel" data-parte="pagamento">
+          <p className="k">Come paga</p>
+          {completo && <p className="so">Con «non c’è posto» non serve: il messaggio non parla di pagamento.</p>}
+          {condizioni !== 'nascoste' && (
+            <div role="group" aria-label="Condizioni di pagamento">
+              <div className="ric-chips piatte" data-senza-sottolinea>
+                {CONDIZIONI_PAGAMENTO.map(tipo => {
+                  const scelta = condizioni === 'solo_lettura' ? condizioneInviata?.tipo === tipo : condizioneTipo === tipo
+                  return <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={scelta} className={scelta ? 'on' : ''}>{ETICHETTA_CONDIZIONE[tipo]}</button>
+                })}
+              </div>
+              {riassuntoCondizione && condizioni === 'solo_lettura' && <p className="so">Inviata: {riassuntoCondizione}. Toccane un’altra per rifare la proposta.</p>}
+              {inviata && ricomponi && (
+                <p className="so">Stai rifacendo la proposta. <button type="button" onClick={() => { setRicomponi(false); setTestoModificato(null); azzeraCondizioni(); setAvviso(null) }} className="mz-lnk">Torna a quella inviata</button></p>
+              )}
+              {condizioni === 'scegliere' && condizioneTipo === 'caparra' && (
+                <label className="ric-campo">
+                  <span className="fl2">Caparra confirmatoria (€) · proposta al {fmtPrezzo(caparraDefault(totaleCent) / 100)} €, cioè il 50% di {fmtPrezzo(totaleCent / 100)} €</span>
+                  <input id="caparra" type="text" inputMode="decimal" value={caparraTesto} onChange={e => setCaparraTesto(e.target.value)} aria-label="Importo della caparra in euro" className="ric-fld" />
+                </label>
+              )}
+              {condizioni === 'scegliere' && condizioneTipo === 'personalizzata' && (
+                <label className="ric-campo">
+                  <span className="fl2">Scrivi il paragrafo delle condizioni: la chiusura «Grazie mille, Ania – Casa Ania» viene aggiunta da sola</span>
+                  <textarea id="condizione-testo" value={condizioneTesto} onChange={e => setCondizioneTesto(e.target.value)} rows={4} aria-label="Condizioni di pagamento personalizzate" className="ric-fld area" />
+                </label>
+              )}
+              {problemaCondizione && problemaCondizione !== SCEGLI_COME_PAGA && <p className="ric-avviso">{problemaCondizione}</p>}
+            </div>
+          )}
+          <p className="so">La camera resta in opzione 3 ore dall’invio · con caparra o pagamento completo 24 ore</p>
+          {avanti('messaggio', 'Avanti · Il messaggio', true)}
+        </section>
+      )}
+
+      {/* ── MESSAGGIO ───────────────────────────────────────────────────── */}
+      {vediParte('messaggio') && (
+        <section id="parte-messaggio" className="sec" role="tabpanel" data-parte="messaggio">
+          <p className="k">Il messaggio{soluzione ? ` · ${ETICHETTA_CASO[soluzione.caso]}` : ''}</p>
+          {modificaConsentita && (
+            <div role="group" aria-label="Come mandarlo" className="ric-chips piatte" data-senza-sottolinea>
+              {([['testo', 'Solo testo'], ['immagine', 'Testo + immagine']] as const).map(([k, label]) => (
+                <button key={k} type="button" onClick={() => setModo(k)} aria-pressed={modoEffettivo === k} disabled={k === 'immagine' && (completo || !immagine)} className={modoEffettivo === k ? 'on' : ''}>{label}</button>
+              ))}
+            </div>
+          )}
           {superataAMano && (
-            <p data-richiesta-cambiata className="mb-1.5" style={{ fontSize: 12.5, color: OTTONE }}>
-              La richiesta è cambiata: il messaggio è ancora quello di prima.{' '}
-              <button type="button" onClick={rifaiIlMessaggio} className="font-semibold underline underline-offset-2" style={{ color: 'var(--color-green-mid)' }}>Rifai il messaggio</button>
-            </p>
+            <p data-richiesta-cambiata className="so ott">La richiesta è cambiata: il messaggio è ancora quello di prima. <button type="button" onClick={rifaiIlMessaggio} className="mz-lnk">Rifai il messaggio</button></p>
           )}
           {inviataBloccata && !superataAMano && (
-            <p data-messaggio-inviato className="mb-1.5" style={{ fontSize: 12.5, color: OTTONE }}>
-              Questo è il messaggio già inviato{richiesta.proposta_inviata_at ? ` ${oraArrivo(richiesta.proposta_inviata_at, adesso)}` : ''}: non è la bozza di adesso.
-            </p>
+            <p data-messaggio-inviato className="so ott">Questo è il messaggio già inviato{richiesta.proposta_inviata_at ? ` ${oraArrivo(richiesta.proposta_inviata_at, adesso)}` : ''}: non è la bozza di adesso.</p>
           )}
-          {/* Raccolto: si vedono le prime righe con una sfumatura verso il
-              basso, e sotto il link per aprirlo tutto (Ania, 11/09/2026). */}
-          <div data-messaggio className="relative bg-white rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDO}`, maxHeight: messaggioAperto ? undefined : RIGHE_MESSAGGIO * ALTEZZA_RIGA + 24 }}>
+          <div data-messaggio className={`msg ${messaggioAperto ? 'aperto' : ''}`}>
             {inviataBloccata || chiediConferma ? (
-              /* Qui il messaggio non si tocca più: si mostra come lo vedrà
-                 l'ospite, col grassetto al posto degli asterischi (nota
-                 dell'altra attività nella scheda, 11/09/2026). Il testo vero,
-                 quello che parte e quello archiviato, conserva gli asterischi.
-                 Mentre si compone resta la casella di scrittura, dove il
-                 grassetto non si può mostrare senza togliere la modifica. */
-              <div className="p-3 text-[13px] text-green-dark leading-relaxed"><TestoWhatsApp testo={testoFinale} /></div>
+              <div className="testo"><TestoWhatsApp testo={testoFinale} /></div>
             ) : (
               <textarea ref={textareaRef} value={testoFinale} onChange={e => setTestoModificato(e.target.value)} rows={6} spellCheck={false}
-                aria-label="Bozza del messaggio"
-                className="w-full bg-white p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none block"
-                style={{ border: 'none' }} />
-            )}
-            {!messaggioAperto && (
-              <span aria-hidden className="absolute left-0 right-0 bottom-0" style={{ height: 56, background: 'linear-gradient(to bottom, rgba(255,255,255,0), #fff)' }} />
+                aria-label="Bozza del messaggio" className="testo" />
             )}
           </div>
-          <p className="text-center">
-            <button type="button" data-apri-messaggio onClick={() => setMessaggioAperto(v => !v)}
-              className="mt-1.5 text-[13px] font-semibold text-green-mid underline underline-offset-2">
-              {messaggioAperto ? 'Richiudi il messaggio' : 'Mostra tutto il messaggio'}
-            </button>
-          </p>
+          <div className="ric-ac">
+            <button type="button" data-apri-messaggio onClick={() => setMessaggioAperto(v => !v)} className="mz-lnk q">{messaggioAperto ? 'Richiudi' : 'Mostra tutto'}</button>
+            {modificaConsentita && (
+              <button type="button" className="mz-lnk q" data-modifica-testo onClick={() => { setMessaggioAperto(true); setTimeout(() => textareaRef.current?.focus(), 0) }}>Modifica il testo</button>
+            )}
+            {modificaConsentita && testoModificato !== null && testoModificato !== bozzaGenerata && (
+              <button type="button" className="mz-lnk q" onClick={() => setTestoModificato(null)}>Ripristina la bozza</button>
+            )}
+            {inviata && ricomponi && (
+              <button type="button" className="mz-lnk q" onClick={() => { setRicomponi(false); setTestoModificato(null); azzeraCondizioni(); setAvviso(null) }}>Torna a quella inviata</button>
+            )}
+          </div>
           {modificaConsentita && testoModificato !== null && testoModificato !== bozzaGenerata && (
-            <p className="text-xs mt-1" style={{ color: GRIGIO_NOTA }}>Testo modificato a mano: ha la precedenza sulla bozza. <button type="button" className="underline" onClick={() => setTestoModificato(null)}>Ripristina la bozza</button></p>
+            <p className="so">Testo modificato a mano: ha la precedenza sulla bozza.</p>
           )}
 
           {modoEffettivo === 'immagine' && immagine && modificaConsentita && (
-            <div className="mt-3">
-              <p className="text-xs mb-1.5" style={{ color: GRIGIO_NOTA }}>Anteprima dell’immagine</p>
-              <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-card-border" style={{ height: imgH ? imgH * scala : undefined }}>
+            <div className="ric-img">
+              <p className="so">Anteprima dell’immagine</p>
+              <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="cornice" style={{ height: imgH ? imgH * scala : undefined }}>
                 <div style={{ transform: `scale(${scala})`, transformOrigin: 'top left', width: IMG_W }}>
                   <ImmagineSoggiorno imgRef={imgRef} variante="proposta" nome={richiesta.nome.trim()} segmenti={immagine.seg} numOspiti={richiesta.persone}
                     righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} personeNotti={immagine.personeNotti} lineaSempre={!!soluzione?.manuale} formattaImporto={x => formattaEuro(centesimi(x))} />
                 </div>
               </div>
-              <button type="button" onClick={immagineSuDispositivo} disabled={!!occupato}
-                className={`w-full mt-2 rounded-xl py-2.5 font-semibold text-sm border disabled:opacity-50 ${immagineFatta ? 'bg-sage text-green-dark' : 'bg-white text-green-dark'}`} style={{ borderColor: BORDO }}>
-                {occupato === 'immagine' ? 'Preparo…' : immagineFatta ? (isMobile() ? 'Immagine salvata!' : 'Immagine copiata!') : (isMobile() ? '1 · Salva immagine sul telefono' : '1 · Copia immagine')}
-              </button>
-              <p className="text-xs mt-1.5" style={{ color: GRIGIO_NOTA }}>
-                {isMobile() ? 'Poi, nella chat, allega la prima foto dalla galleria e invia il testo già scritto.' : 'Poi incolla l’immagine nella chat (Cmd+V) e invia il testo già scritto.'}
-              </p>
-            </div>
-          )}
-
-          {errore && <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>}
-          {avviso && <div role="status" className="mt-3 bg-white ed-campo rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
-
-          <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviataBloccata && (!!problemaCamere || !!problemaCondizione))} className={`${PIENO} mt-4`}>
-            <IconaWhatsApp />
-            {chiediConferma ? 'Invio da confermare' : problemaCamere ? problemaCamere : problemaCondizione ? problemaCondizione : inviata ? 'Invia di nuovo' : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
-          </button>
-          {chiediConferma && (
-            <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="scheda-in mt-3 bg-white rounded-xl p-3" style={{ border: `1px solid ${BORDO}` }}>
-              <p className="text-sm font-medium text-green-dark mb-2">L’hai inviata?</p>
-              {/* Le camere DAVVERO proposte, nell'ordine del messaggio, con
-                  le date e come paga (Ania, 11/09/2026) */}
-              {perConferma && (
-                <p className="text-xs mb-2" style={{ color: GRIGIO_NOTA }} data-pendente>{rigaConferma(perConferma)}</p>
-              )}
-              {!perConferma && <p role="alert" className="text-sm mb-2 text-[#8C3B2E]">Questa vecchia bozza non conserva tutte le camere e i prezzi. Non posso registrarla in modo sicuro. Controlla il messaggio in WhatsApp, poi scarta l’attesa e ricomponi la proposta corretta.</p>}
-              <div className="flex gap-2">
-                <button type="button" onClick={confermaInviata} disabled={occupato === 'invio' || !perConferma || !!mancaMigrazione}
-                  className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-50 active:opacity-80">
-                  {occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}
-                </button>
-                <button type="button" onClick={rispostaNo} disabled={occupato === 'invio' || !!pendente?.confermataIl}
-                  className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-white text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>
-                  {perConferma ? 'No' : 'Scarta attesa e ricomponi'}
+              <div className="ric-ac">
+                <button type="button" onClick={immagineSuDispositivo} disabled={!!occupato} className="mz-lnk">
+                  {occupato === 'immagine' ? 'Preparo…' : immagineFatta ? (isMobile() ? 'Immagine salvata!' : 'Immagine copiata!') : (isMobile() ? '1 · Salva immagine sul telefono' : '1 · Copia immagine')}
                 </button>
               </div>
-              <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Con «Sì, inviata» la richiesta passa a «Proposta inviata».</p>
-              {pendente?.confermataIl && <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Salvataggio da verificare: riprova «Sì, inviata» o riapri la pagina prima di scartare.</p>}
+              <p className="so">{isMobile() ? 'Poi, nella chat, allega la prima foto dalla galleria e invia il testo già scritto.' : 'Poi incolla l’immagine nella chat (Cmd+V) e invia il testo già scritto.'}</p>
             </div>
           )}
-          {/* Sotto il riquadro non si ripete: la frase sta già lì (Ania, 11/09/2026) */}
+
+          {errore && <p role="alert" className="ric-avviso">{errore}</p>}
+          {avviso && <p role="status" className="so ott">{avviso}</p>}
+
+          <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviataBloccata && (!!problemaCamere || !!problemaCondizione))} className="ric-cta" data-invia-whatsapp>
+            {chiediConferma ? 'Invio da confermare' : problemaCamere ? problemaCamere : problemaCondizione ? problemaCondizione : inviata ? 'Invia di nuovo' : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
+          </button>
+          {chiediConferma && invioNascosto && (
+            <div className="ric-ac centro"><button type="button" className="mz-lnk" onClick={() => setInvioNascosto(false)}>L’hai inviata? Rispondi</button></div>
+          )}
           {!chiediConferma && (
-            <p className="text-xs text-center mt-2" style={{ color: GRIGIO_NOTA }}>
+            <p className="so centro">
               {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio, confermato, aggiorna l’ora.` : 'Dopo l’invio, confermato con «Sì, inviata», la richiesta passa a «Proposta inviata».'}
             </p>
           )}
-          {inviata && !chiediConferma && (
-            <button type="button" onClick={async () => { const { data } = await fetchRichieste(); setConfermando({ aperte: data }) }}
-              className="w-full mt-3 rounded-xl py-3 text-[15px] font-semibold bg-white text-green-dark border active:bg-sage" style={{ borderColor: BORDO }}>
-              Conferma → crea la prenotazione
-            </button>
-          )}
-          {/* Chi è la cliente: i suoi soggiorni, quanto ha speso, la nota e la
-              sua scheda (Ania, 12/09/2026). Solo per chi conosciamo già: alla
-              prima volta non c'è niente da dire e la parte non compare. */}
-          {(soggiorni.volte > 0 || guest) && (
-            <ParteCliente className="mt-10" soggiorni={storicoCliente} totaleCent={soggiorni.ricaviCent}
-              ricevuta={vuoleRicevuta(guest)} provenienza={provenienzaInParole(guest ?? richiesta)}
-              nota={guest?.notes ?? null} hrefCliente={hrefCliente} />
-          )}
-          {/* Staccato da tutto il resto: non si tocca per sbaglio */}
-          <div className="text-center mt-10 mb-4">
-            <button type="button" onClick={() => setDaRifiutare(true)} disabled={chiediConferma} className="text-[13px] underline underline-offset-2 disabled:opacity-50" style={{ color: '#C0392B' }}>Rifiuta la richiesta</button>
+          <div className="ric-ac colonna">
+            {inviata && !chiediConferma && (
+              <button type="button" className="mz-lnk" data-conferma-richiesta onClick={async () => { const { data } = await fetchRichieste(); setConfermando({ aperte: data }) }}>Conferma → crea la prenotazione</button>
+            )}
+            <button type="button" onClick={() => setDaRifiutare(true)} disabled={chiediConferma} className="mz-lnk mat" data-rifiuta-richiesta>Rifiuta la richiesta</button>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* «L'hai inviata?»: al ritorno da WhatsApp, in un foglio basso */}
+      {chiediConferma && !invioNascosto && (
+        <FoglioMaison titolo="L’hai inviata?" altezza={perConferma ? 300 : 320} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-inviata"
+          onChiudi={() => setInvioNascosto(true)}
+          piede={
+            <div className="ric-piede" data-piede-inviata>
+              <button type="button" className="mz-lnk q" onClick={rispostaNo} disabled={occupato === 'invio' || !!pendente?.confermataIl}>{perConferma ? 'No' : 'Scarta attesa e ricomponi'}</button>
+              <button type="button" className="ric-cta corto" onClick={confermaInviata} disabled={occupato === 'invio' || !perConferma || !!mancaMigrazione}>{occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}</button>
+            </div>
+          }>
+          <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="ric-inviata">
+            {perConferma && <p className="so" data-pendente>{rigaConferma(perConferma)}</p>}
+            {!perConferma && <p role="alert" className="ric-avviso">Questa vecchia bozza non conserva tutte le camere e i prezzi. Non posso registrarla in modo sicuro. Controlla il messaggio in WhatsApp, poi scarta l’attesa e ricomponi la proposta corretta.</p>}
+            <p className="so">Con «Sì, inviata» la richiesta passa a «Proposta inviata».</p>
+            {pendente?.confermataIl && <p className="so">Salvataggio da verificare: riprova «Sì, inviata» o riapri la pagina prima di scartare.</p>}
+            {errore && <p role="alert" className="ric-avviso">{errore}</p>}
+          </div>
+        </FoglioMaison>
+      )}
 
       {/* Altre soluzioni trovate */}
       {pannelloCambia && (
-        <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Altre soluzioni">
-          <div className="velo-in absolute inset-0 ed-velo" onClick={() => setPannelloCambia(false)} />
-          <div className={`scheda-in absolute ed-foglio shadow-lg overflow-y-auto ${desktop ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl w-[420px] max-h-[70vh] p-4' : 'left-0 right-0 bottom-0 rounded-t-2xl px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[75dvh]'}`}>
-            {!desktop && <div className="w-10 h-1 rounded-full bg-border-soft mx-auto mb-3" aria-hidden />}
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-semibold text-green-dark">Soluzioni trovate</p>
-              <button type="button" onClick={() => setPannelloCambia(false)} aria-label="Chiudi" className="w-9 h-9 -mr-2 flex items-center justify-center text-stone"><X size={18} strokeWidth={2} aria-hidden /></button>
-            </div>
-            {soluzioni.length <= 1 && <p className="text-sm text-stone py-2">Nessun&apos;altra soluzione automatica.</p>}
-            <ul className="divide-y-[0.5px] divide-border-soft">
-              {soluzioni.map((s, i) => (
-                <li key={i}>
-                  <button type="button" onClick={() => scegli(i)} aria-pressed={i === indiceScelto} className="w-full text-left py-3 flex items-start gap-3">
-                    <span className="min-w-0 flex-1 text-sm text-green-dark">
-                      <span className="block truncate">{riassuntoSegmenti(s)}</span>
-                      <span className="block text-xs text-stone">{s.nottiCoperte} su {s.nottiTotali} notti · <span className="font-semibold text-brass">{fmtPrezzo(s.prezzoTotale)} €</span></span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <FoglioMaison titolo="Soluzioni trovate" altezza={420} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-soluzioni" onChiudi={() => setPannelloCambia(false)}
+          piede={<div className="ric-piede"><button type="button" className="mz-lnk q" onClick={() => setPannelloCambia(false)}>Chiudi</button></div>}>
+          {soluzioni.length <= 1 && <p className="so">Nessun&apos;altra soluzione automatica.</p>}
+          {soluzioni.map((x, i) => (
+            <button key={i} type="button" onClick={() => scegli(i)} aria-pressed={i === indiceScelto} data-senza-sottolinea className={`dr2 ric-soluzione ${i === indiceScelto ? 'on' : ''}`}>
+              <b>{riassuntoSegmenti(x)}</b>
+              {x.nottiCoperte} su {x.nottiTotali} notti · {fmtPrezzo(x.prezzoTotale)} €
+            </button>
+          ))}
+        </FoglioMaison>
       )}
 
       {azioneSospesa && (
-        <ConfermaDialog titolo="Sostituire il testo modificato?" testo="La bozza verrà rigenerata con la nuova scelta e le modifiche a mano andranno perse."
-          conferma="Sostituisci" onConferma={() => { azioneSospesa(); setTestoModificato(null); setAzioneSospesa(null) }} onAnnulla={() => setAzioneSospesa(null)} />
+        <FoglioMaison titolo="Sostituire il testo modificato?" altezza={240} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-sostituire" onChiudi={() => setAzioneSospesa(null)}
+          piede={
+            <div className="ric-piede">
+              <button type="button" className="mz-lnk q" onClick={() => setAzioneSospesa(null)}>Annulla</button>
+              <button type="button" className="ric-cta corto" onClick={() => { azioneSospesa(); setTestoModificato(null); setAzioneSospesa(null) }}>Sostituisci</button>
+            </div>
+          }>
+          <p className="so">La bozza verrà rigenerata con la nuova scelta e le modifiche a mano andranno perse.</p>
+        </FoglioMaison>
       )}
       {confermando && (
         <FinestraConferma richiesta={richiesta as RichiestaConProposta} aperte={confermando.aperte} layout={desktop ? 'desktop' : 'mobile'}

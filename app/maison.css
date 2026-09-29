@@ -879,6 +879,70 @@ body:has(.cal) { background: var(--home-bg); }
 .ric-chiuse .rk { padding-top: 14px; }
 .ric-nota { padding: 12px 16px 0; font-size: 12px; color: var(--m-mut); margin: 0; }
 
+/* ── LA PAGINA DELLA RICHIESTA a linguette (app/richieste/[id]/proposta, telefoni 6–9) ── */
+.ric-pag { padding-bottom: 28px; }
+@media (min-width: 768px) { .ric-pag { max-width: 620px; margin: 0 auto; } }
+.ric-top .np-back { font-size: 10px; }
+.ric-testa { padding: 6px 16px 0; }
+.ric-testa .hd3 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ric-testa .hd3 .ti { margin: 0; font-family: var(--m-disp); font-size: 26px; font-weight: 500; line-height: 1.15; color: var(--m-ink); min-width: 0; }
+.ric-testa .hd3 .ti .ic { font-size: 18px; }
+.ric-testa .tel { margin: 4px 0 0; }
+.ric-testa .num { font-family: var(--m-disp); font-size: 17px; letter-spacing: .02em; font-variant-numeric: tabular-nums; color: var(--m-ink); }
+.ric-testa .hs { margin: 2px 0 0; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--m-mut); line-height: 1.5; }
+.ric-testa .hs2 { margin: 6px 0 0; font-family: var(--m-disp); font-size: 16px; color: var(--m-ink); }
+.ric-testa .nt2 { margin: 6px 0 0; font-size: 13px; color: var(--m-mat); line-height: 1.4; overflow-wrap: anywhere; }
+.ric-testa .ric-scad { display: flex; margin-top: 8px; font-size: 12px; font-weight: 500; color: var(--cal-richiesta-testo) !important; }
+.sch-tabs.quattro { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 14px 16px 0; border-top-color: var(--m-acc); border-bottom-color: var(--m-acc); }
+.sch-tabs.quattro button { font-size: 10px; letter-spacing: .14em; }
+.sch-tabs.quattro button.on { font-weight: 400; }
+.sch-tabs.quattro button.on::after { left: 0; right: 0; }
+.ric-pag .sec { padding: 14px 16px 0; }
+.ric-pag .sec .k { margin: 0 0 6px; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }
+.ric-pag .so { font-size: 12.5px; color: var(--m-mut); margin: 6px 0 0; line-height: 1.45; }
+.ric-pag .so.ott, .ric-pag .ott { color: var(--cal-richiesta-testo); }
+.ric-pag .so.centro { text-align: center; }
+.ric-pag .dr2 { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--m-line); padding: 8px 0; font-family: var(--home-ui-font); font-size: 13px; line-height: 1.45; color: var(--m-ink); }
+.ric-pag .dr2 b { display: block; font-family: var(--m-disp); font-size: 16px; font-weight: 500; }
+.ric-pag .dr2 .riga { display: block; }
+.ric-pag .dr2 .so { display: block; margin-top: 2px; }
+.ric-pag .dr2.on { background: #FBF8F1; }
+.ric-pag .cb { width: 20px; height: 20px; flex: none; border: 1px solid #C9BFA8; border-radius: 4px; display: inline-grid; place-items: center; font-size: 12px; color: #F6F2EA; vertical-align: middle; }
+.ric-pag .cb.on { background: var(--m-ink); border-color: var(--m-ink); }
+.ric-amelia .cb { margin-right: 6px; }
+.ric-camere .cr { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 0; border: 0; border-bottom: 1px solid var(--m-line); background: none; text-align: left; color: var(--m-ink); }
+.ric-camere .cr:disabled { cursor: default; }
+.ric-camere .cr.no .cn { color: var(--m-mut); }
+.ric-camere .cn { flex: 1; min-width: 0; font-family: var(--m-disp); font-size: 17px; }
+.ric-camere .cn small { display: block; font-family: var(--home-ui-font); font-size: 11px; color: var(--m-mut); line-height: 1.35; }
+.ric-camere .cp { font-family: var(--m-disp); font-size: 17px; }
+.ric-ac { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-top: 10px; }
+.ric-ac.centro { justify-content: center; margin-top: 20px; }
+.ric-ac.colonna { flex-direction: column; align-items: center; gap: 12px; margin-top: 16px; }
+.ric-cta { display: block; width: 100%; margin-top: 18px; background: var(--m-ink); color: #F6F2EA; text-align: center; padding: 11px; border: 0; border-radius: 999px; font-family: var(--home-ui-font); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; text-decoration: none !important; }
+.ric-cta:disabled { opacity: .45; }
+.ric-cta.mat { background: var(--m-mat); }
+.ric-cta.corto { width: auto; margin-top: 0; padding: 10px 18px; }
+.ric-chips.piatte { padding: 0; margin-top: 4px; }
+.ric-campo { display: block; margin-top: 12px; }
+.ric-campo .fl2, .fl2 { display: block; font-family: var(--home-ui-font); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--m-mut); line-height: 1.5; }
+.ric-fld { display: block; width: 100%; border: 0; border-bottom: 1px solid #C9BFA8; border-radius: 0; background: transparent; padding: 6px 0; font-family: var(--m-disp); font-size: 17px; color: var(--m-ink); outline: none; }
+.ric-fld:focus { border-bottom-color: var(--m-acc); }
+.ric-fld.area { font-family: var(--home-ui-font); font-size: 13.5px; resize: none; }
+.ric-pag .msg { margin-top: 8px; border: 1px solid var(--m-line); border-radius: 8px; max-height: 230px; overflow: hidden; }
+.ric-pag .msg.aperto { max-height: none; }
+.ric-pag .msg .testo { display: block; width: 100%; border: 0; padding: 10px 12px; font-family: var(--home-ui-font); font-size: 12.5px; line-height: 1.45; color: var(--m-ink); background: transparent; resize: none; outline: none; }
+.ric-avviso { margin: 8px 16px 0; font-size: 12.5px; color: var(--m-mat); line-height: 1.45; }
+.ric-pag .sec .ric-avviso, .mz .ric-avviso { margin: 8px 0 0; }
+.ric-ok { margin: 8px 0 0; font-size: 13px; font-weight: 500; color: var(--cal-verde); }
+.ric-scelgo { margin-top: 10px; padding: 10px 0; border-bottom: 1px solid var(--m-line); }
+.ric-scelgo .ti, .ric-prezzo .ti { margin: 0 0 6px; font-family: var(--m-disp); font-size: 16px; color: var(--m-ink); }
+.ric-prezzo { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(168,137,79,.55); }
+.ric-img { margin-top: 12px; }
+.ric-img .cornice { width: 100%; border: 1px solid var(--m-line); border-radius: 8px; overflow: hidden; margin-top: 6px; }
+.ric-piede { display: flex; justify-content: flex-end; align-items: center; gap: 18px; margin-top: 12px; flex: none; }
+.ric-piede.centro { flex-direction: column; justify-content: center; gap: 12px; }
+
 /* ───────────────────────────────────────────────────────────────────────
    MENU DEL MAC «MAISON» (riferimento approvato da Ania il 29/09/2026:
    docs/design/menu-mac-riferimento.html, colonna M2). Solo la barra
