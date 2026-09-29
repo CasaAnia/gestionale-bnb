@@ -473,6 +473,70 @@ if (process.env.ANTEPRIMA_SCHEDA_MAISON === '1') {
   booking_whatsapp_log.push({ id: '77777777-4101-4000-8000-000000004101', booking_id: 'bbbbbbbb-4101-4000-8000-000000004101', message_type: 'conferma', message_text: '…', sent: true, created_at: new Date(Date.now() - 55 * 60000).toISOString() })
 }
 
+// Scenario opt-in degli Arrivi «Maison» (29/09/2026): i casi del riferimento
+// (docs/design/arrivi-riferimento.html) con date RELATIVE a oggi, dati solo
+// sintetici. ANTEPRIMA_ARRIVI_MAISON=1 toglie le prenotazioni fisse dei
+// prossimi quattordici giorni e mette, camera per camera:
+//   Amelia  Marta Bellini (arrivata 2 giorni fa, autonoma) · Paolo Conti (Linate, Massimo) ·
+//           A. Moretti (orario da chiedere) · Fam. Fontana (Rogoredo, navetta da assegnare)
+//   Ambra   Fam. Russo (Linate, da assegnare; domani cambio camera → Lena, box «Cambi camera») · Rossi (esclusiva, «?») ·
+//           Giovanni Serra (⭐ 🛏, Malpensa, Aldo) · Sara Galli (Centrale, da definire)
+//   Allegra Lucia Ferri (San Donato, stima 18:30–19:30, Alberto) · richiesta dal sito · Anna Colombo («?»)
+//   Lena    Bianchi (arrivata, autonoma) · Fam. Russo (da Ambra) · Fam. De Luca (Rogoredo, Alberto)
+if (process.env.ANTEPRIMA_ARRIVI_MAISON === '1') {
+  const oggiA = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const g = delta => new Date(Date.parse(oggiA + 'T12:00:00Z') + delta * 86400000).toISOString().slice(0, 10)
+  for (let i = bookings.length - 1; i >= 0; i--) {
+    const b = bookings[i]
+    if (b.status !== 'annullata' && b.check_in < g(16) && b.check_out > g(-8)) bookings.splice(i, 1)
+  }
+  const persona = (k, nome, tel, extra = {}) => ({ ...ospite(`aaaaaaaa-5${String(k).padStart(3, '0')}-4000-8000-00000000500${k}`, nome, tel), ...extra })
+  const P = {
+    bellini: persona(1, 'Marta Bellini', '393330005001', { vuole_ricevuta: true }),
+    conti: persona(2, 'Paolo Conti', '393330005002'),
+    moretti: persona(3, 'A. Moretti', '393330005003'),
+    fontana: persona(4, 'Fam. Fontana', '393330005004'),
+    russo: persona(5, 'Fam. Russo', '393330005005'),
+    rossi: persona(6, 'Rossi', null),
+    serra: persona(7, 'Giovanni Serra', '393330005007', { rating: 'ottimo' }),
+    galli: persona(8, 'Sara Galli', '393330005008'),
+    ferri: persona(9, 'Lucia Ferri', '393330005009'),
+    colombo: persona(10, 'Anna Colombo', '393330005010'),
+    bianchi: persona(11, 'Bianchi', '393330005011'),
+    deluca: persona(12, 'Fam. De Luca', '393330005012'),
+    sito: persona(13, 'Riva Dal Sito', '393330005013'),
+  }
+  guests.push(...Object.values(P))
+  const luogo = (l, da, stima, navetta, prelievo = null, extra = {}) => ({
+    arrivo_tipo: 'luogo', arrivo_luogo: l, arrivo_luogo_altro: null, arrivo_luogo_ora_da: da, arrivo_luogo_ora_a: null,
+    arrivo_struttura_ora_da: null, arrivo_struttura_ora_a: null, arrivo_stima_da: stima, arrivo_stima_a: null,
+    navetta, navetta_prelievo: prelievo, check_in_time: stima, shuttle: navetta === 'non_richiesta' ? 'no' : navetta === 'da_definire' ? null : 'si', ...extra })
+  const struttura = (ora, navetta) => ({
+    arrivo_tipo: 'struttura', arrivo_luogo: null, arrivo_luogo_altro: null, arrivo_luogo_ora_da: null, arrivo_luogo_ora_a: null,
+    arrivo_struttura_ora_da: ora, arrivo_struttura_ora_a: null, arrivo_stima_da: null, arrivo_stima_a: null,
+    navetta, navetta_prelievo: null, check_in_time: ora, shuttle: navetta === 'non_richiesta' ? 'no' : null })
+  const daDefinire = { arrivo_tipo: 'da_definire', navetta: 'da_definire', check_in_time: null, shuttle: null }
+  const GR = 'cccccccc-5005-4000-8000-000000005005'
+  // un soggiorno precedente di Serra, per lo storico nel foglio
+  bookings.push(prenotazione(ROOM.ambra, P.serra.id, '2026-08-12', '2026-08-15', 2, { id: 'bbbbbbbb-5070-4000-8000-000000005070', status: 'completata', ...struttura('15:30', 'massimo'), shuttle: 'si' }))
+  bookings.push(
+    prenotazione(ROOM.amelia, P.bellini.id, g(-2), g(3), 1, { id: 'bbbbbbbb-5001-4000-8000-000000005001', ...struttura('15:30', 'non_richiesta') }),
+    prenotazione(ROOM.amelia, P.conti.id, g(3), g(5), 2, { id: 'bbbbbbbb-5002-4000-8000-000000005002', ...luogo('linate', '13:00', '14:30', 'massimo', '13:20') }),
+    prenotazione(ROOM.amelia, P.moretti.id, g(6), g(8), 2, { id: 'bbbbbbbb-5003-4000-8000-000000005003', ...daDefinire }),
+    prenotazione(ROOM.amelia, P.fontana.id, g(10), g(14), 2, { id: 'bbbbbbbb-5004-4000-8000-000000005004', ...luogo('rogoredo', '10:40', '11:00', 'da_assegnare') }),
+    prenotazione(ROOM.ambra, P.russo.id, g(-1), g(1), 2, { id: 'bbbbbbbb-5005-4000-8000-000000005005', group_id: GR, ...luogo('linate', '14:30', '15:10', 'da_assegnare') }),
+    prenotazione(ROOM.lena, P.russo.id, g(1), g(5), 2, { id: 'bbbbbbbb-5006-4000-8000-000000005006', group_id: GR, ...daDefinire }),
+    prenotazione(ROOM.ambra, P.rossi.id, g(2), g(3), 1, { id: 'bbbbbbbb-5007-4000-8000-000000005007', color: '#f97316', ...daDefinire }),
+    prenotazione(ROOM.ambra, P.serra.id, g(3), g(7), 3, { id: 'bbbbbbbb-5008-4000-8000-000000005008', extra_bed: true, extra_bed_dates: [g(3)], ...luogo('malpensa', '14:15', '16:00', 'aldo', '14:30') }),
+    prenotazione(ROOM.ambra, P.galli.id, g(8), g(13), 2, { id: 'bbbbbbbb-5009-4000-8000-000000005009', ...luogo('centrale', '11:30', '12:00', 'da_definire') }),
+    prenotazione(ROOM.allegra, P.ferri.id, g(1), g(5), 2, { id: 'bbbbbbbb-5010-4000-8000-000000005010', ...luogo('san_donato', null, '18:30', 'alberto', '18:00', { arrivo_stima_a: '19:30' }) }),
+    prenotazione(ROOM.allegra, P.sito.id, g(5), g(7), 2, { id: 'bbbbbbbb-5013-4000-8000-000000005013', status: 'in_attesa', source: 'sito_web', ...daDefinire }),
+    prenotazione(ROOM.allegra, P.colombo.id, g(8), g(11), 1, { id: 'bbbbbbbb-5011-4000-8000-000000005011', ...daDefinire }),
+    prenotazione(ROOM.lena, P.bianchi.id, g(-3), g(1), 1, { id: 'bbbbbbbb-5012-4000-8000-000000005012', ...struttura('12:00', 'non_richiesta') }),
+    prenotazione(ROOM.lena, P.deluca.id, g(5), g(11), 3, { id: 'bbbbbbbb-5014-4000-8000-000000005014', extra_bed: true, extra_bed_dates: [g(5)], ...luogo('rogoredo', '11:40', '12:00', 'alberto', '11:45') }),
+  )
+}
+
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []
 
