@@ -1,7 +1,7 @@
 'use client'
 import { useEffect,useRef,useState } from 'react'
 import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
-import Foglio from './Foglio'
+import Foglio, { PiedeFoglio } from './Foglio'
 import { stileCampo } from '@/components/nuova/PezziNuova'
 import { contoMancatoArrivo,fotoMancatoArrivo,mancatoArrivo,type RigaMancatoArrivo } from '@/lib/mancatoArrivo'
 import { eseguiMancato,leggiTentativoMancato } from '@/lib/mancatoArrivoDati'
@@ -42,6 +42,8 @@ export default function FoglioMancatoArrivo({booking,righe,pagamenti,oggi,onChiu
       <label>Metodo<select className="block mt-2 w-full" style={stileCampo} value={metodo} onChange={e=>setMetodo(e.target.value)} disabled={occupato||pendente}><option value="contanti">Contanti</option><option value="bonifico">Bonifico</option></select></label>
     </div>:<p className="mt-4">Il conto è saldato.</p>}
     {errore&&<p role="alert" className="text-sm text-red-800 mt-4">{errore}</p>}
-    <div className="flex flex-wrap gap-3 justify-end mt-6"><button type="button" className="ed-pillola-contorno" disabled={occupato} onClick={onChiudi}>Chiudi</button>{(pendente || !gia || conto.residuo>0) && <button type="button" className="ed-pillola" disabled={occupato||!pronto} onClick={()=>void salva()}>{occupato?'Verifico…':pendente?'Verifica salvataggio':gia?'Registra pagamento ricevuto':'Conferma mancato arrivo'}</button>}</div>
+    {/* i due tasti nella riga fissa in fondo al foglio (ritocchi del 29/09/2026, B1) */}
+    <PiedeFoglio azione={(pendente || !gia || conto.residuo>0) ? (pendente?'Verifica salvataggio':gia?'Registra pagamento ricevuto':'Conferma mancato arrivo') : undefined}
+      onAzione={()=>void salva()} salvando={occupato} testoSalvando="Verifico…" disabilitato={!pronto} onAnnulla={onChiudi} testoAnnulla="Chiudi" dati="mancato-arrivo" />
   </Foglio>
 }

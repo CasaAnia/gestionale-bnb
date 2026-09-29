@@ -257,7 +257,7 @@ body:has(.mz-home) { background: var(--home-bg); }
 .mz-seg button::before { content: ""; position: absolute; left: -6px; right: -6px; top: 50%; height: 40px; transform: translateY(-50%); }
 .mz-seg button.on { color: var(--m-ink); border-color: var(--m-acc); }
 .mz-seg button:disabled { opacity: .45; }
-.mz-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 20px; flex: none; }
+.mz-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 24px; flex: none; }
 .mz-foot .tot { font-size: 12px; color: var(--m-mut); flex: 1 1 auto; min-width: 0; }
 .mz-foot .acts { display: flex; gap: 18px; align-items: center; margin-left: auto; flex: none; }
 .mz-cta { font-family: var(--m-ui); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: #F6F2EA; background: var(--m-ink); padding: 9px 16px; border: 0; border-radius: 0; min-height: 36px; font-weight: 500; white-space: nowrap; text-decoration: none !important; }
@@ -767,7 +767,7 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-fog .dv s { color: var(--m-mut); }
 .cal-fog .mat { color: var(--m-mat); font-weight: 500; }
 .cal-fog .verde { color: #2D6A4F; font-weight: 500; }
-.cal-fog-ac { display: flex; gap: 16px; align-items: center; margin-top: 12px; flex: none; }
+.cal-fog-ac { display: flex; gap: 16px; align-items: center; margin-top: 24px; flex: none; }
 /* Ritocchi del 29/09/2026 (A4), foglietti del Calendario e delle Richieste
    (components/calendario/PezziFoglietto): sotto il nome il numero per esteso in
    Cormorant 16 coi cerchi a destra; in fondo, 28 px sotto l'ultima riga, i due
@@ -818,7 +818,7 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-ten .so b.scad { color: var(--m-mat); }
 .cal-ten .hint { font-size: 11.5px; color: var(--m-mut); margin-top: 3px; line-height: 1.4; }
 .cal-ten .avv { font-size: 12.5px; color: var(--m-mat); margin-top: 10px; }
-.cal-ten-ac { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin-top: 14px; flex: none; }
+.cal-ten-ac { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin-top: 24px; flex: none; }
 .cal-conf p { font-size: 13px; color: var(--m-mut); line-height: 1.5; margin: 0 0 6px; }
 
 /* ── ARRIVI «MAISON» (29/09/2026, docs/design/arrivi-riferimento.html): lo stesso nastro del Calendario,
@@ -843,7 +843,7 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-fa-st .righe p { margin: 0 0 3px; font-size: 12px; color: var(--m-ink); }
 .cal-fa-st .righe p b { font-weight: 600; }
 .cal-fa-st .righe .no { color: var(--m-mut); }
-.cal-fa-piede { flex: none; margin-top: 10px; }
+.cal-fa-piede { flex: none; margin-top: 24px; }
 .cal-fa-ac { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
 .cal-fa-cta { display: block; width: 100%; margin-top: 12px; background: var(--m-ink); color: #F6F2EA; text-align: center; padding: 10px; border: 0; border-radius: 999px; font-family: var(--home-ui-font); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
 .cal-fa-cta:disabled { opacity: .5; }
@@ -967,7 +967,7 @@ body:has(.cal) { background: var(--home-bg); }
 .ric-prezzo { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(168,137,79,.55); }
 .ric-img { margin-top: 12px; }
 .ric-img .cornice { width: 100%; border: 1px solid var(--m-line); border-radius: 8px; overflow: hidden; margin-top: 6px; }
-.ric-piede { display: flex; justify-content: flex-end; align-items: center; gap: 18px; margin-top: 12px; flex: none; }
+.ric-piede { display: flex; justify-content: flex-end; align-items: center; gap: 18px; margin-top: 24px; flex: none; }
 .mz .ric-pag { padding: 0; max-width: none; margin: 0; }
 .ric-fog-conferma .k, .sec-conflitti .k { margin: 14px 0 4px; font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }
 .ric-fog-conferma .riga-seg { display: block; color: var(--m-mut); }

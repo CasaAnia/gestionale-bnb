@@ -33,7 +33,7 @@ import InterruttorePillola from '@/components/InterruttorePillola'
 import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro } from '@/components/calendario/Nastro'
 import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
 import { PannelloLegenda } from '@/components/LegendaCalendario'
-import FoglioArrivo from '@/components/scheda/FoglioArrivo'
+import FoglioArrivo, { ALTEZZA_FOGLIO_ARRIVO_ARRIVI } from '@/components/scheda/FoglioArrivo'
 import { IconeContatto } from '@/components/scheda/TestataMaison'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
@@ -563,7 +563,7 @@ export default function Arrivi() {
         // Stessi bottoni WhatsApp della Home (08/09/2026): «Chiedi orario» · «Apri chat»; senza numero non compaiono
         const wa = whatsappRichiestaOrario(cur)
         return (
-          <FoglioArrivo key={cur.id} bookingId={cur.id} prenotazione={cur} dati="arrivo-arrivi" veloChiaro larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
+          <FoglioArrivo key={cur.id} bookingId={cur.id} prenotazione={cur} dati="arrivo-arrivi" veloChiaro larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} altezza={ALTEZZA_FOGLIO_ARRIVO_ARRIVI}
             onChiudi={chiudiFoglio}
             onSalvato={campi => { setBookings(prima => prima.map(b => b.id === cur.id ? { ...b, ...campi } : b)); chiudiFoglio() }}
             testa={

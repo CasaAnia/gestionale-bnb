@@ -57,8 +57,11 @@ export type PagamentoSalvato = Extract<EsitoPagamento, { esito: 'ok' }> & { impo
 /** Il conto autorevole della scheda: le tre cifre di contoPrenotazione */
 export type ContoFoglio = { totaleCent: number; ricevutiCent: number }
 
-/** Il foglio ha un'altezza fissa, quella del caso più lungo (con l'avviso sull'esito) */
-export const ALTEZZA_FOGLIO_PAGAMENTO = 700
+/** Il foglio ha un'altezza fissa, quella del caso più lungo + 24 px + «Annulla
+ *  · Salva il pagamento» (ritocchi del 29/09/2026, B1): «Altro importo» con la
+ *  nota, sul conto già saldato (le due righe d'avviso in più), misurata a 390
+ *  px: 611 (prima 700). L'avviso di un esito incerto, quando capita, scorre dentro. */
+export const ALTEZZA_FOGLIO_PAGAMENTO = 611
 /** «28 settembre 2026» */
 const giornoInParole = (iso: string) => { const [a, m, g] = iso.split('-').map(Number); return iso ? `${g} ${MESI_LUNGHI[m - 1]} ${a}` : 'da scegliere' }
 

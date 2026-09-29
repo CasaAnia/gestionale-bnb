@@ -127,7 +127,10 @@ test('il foglio si apre da ?apri=<id>, col nastro sul giorno prima, ed è il Fog
   assert.match(pagina, /salvaPieno=\{\{ salvando: 'Salvo\.\.\.' \}\}/)
   assert.match(pagina, /\{arrivoInScheda\(a\)\.titolo\} · Navetta: \{navettaInScheda\(a\)\.titolo\}/)
   for (const t of ['Usa come l&apos;ultima volta', "'nascondi storico'", 'Vedi storico arrivi (', 'Apri prenotazione']) assert.ok(pagina.includes(t), t)
-  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO = 752/)
+  // ritocchi del 29/09/2026 (B1): 756 nella scheda e nella Home, 830 negli Arrivi (il caso più lungo, misurato)
+  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO = 756/)
+  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 830/)
+  assert.match(pagina, /altezza=\{ALTEZZA_FOGLIO_ARRIVO_ARRIVI\}/)
 })
 
 test('le schede della pagina: colore per stato, arrivi passati attenuati, stessi pezzi del Calendario, niente riga «🛏 extra»', () => {

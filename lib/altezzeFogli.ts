@@ -10,21 +10,26 @@
 export const ALTEZZA_FOGLIO_PREDEFINITA = 560
 
 export const ALTEZZE_FOGLI = {
-  // misurate il 28-29/09/2026 a 390 px nel caso più lungo, più lo spazio di un avviso
-  date: 330,            // 276 con l'effetto sul conto
-  cambioCamera: 360,    // 309
-  togliCamera: 320,     // la domanda e i due comandi
-  sconto: 420,          // 372 con la percentuale e i tre numeri
-  comePaga: 470,        // 430 con «Caparra»: importo, entro il, alle
-  togliPagamento: 330,  // 293
-  nota: 420,            // 385 con i colori e «La prenotazione è arrivata»
-  annulla: 360,         // 306 con la spiegazione e il motivo
-  mancatoArrivo: 480,
-  prezzoSoggiorno: 720, // le due colonne prima/dopo e le scelte del prezzo
-  cliente: 790,         // 769 con la valutazione «!» e il motivo
-  cambiaCliente: 720,   // la ricerca con i risultati: oltre, scorre dentro
-  provenienza: 380,     // 319 con «Struttura» e l'elenco delle strutture
-  chiDorme: 420,        // due persone e l'avviso delle colonne
-  notte: 540,           // 492 con gli ospiti e l'effetto sul conto
+  // RITOCCHI DEL 29/09/2026 (B1): ogni altezza è il contenuto più lungo del
+  // foglio + 24 px + la riga «Annulla · Salva», misurata a 390 px
+  // nell'anteprima finta (FoglioMaison con l'altezza libera, poi rimessa):
+  // così i tasti stanno sempre nello stesso punto, subito sotto, e niente
+  // spazio vuoto in più. Fra parentesi il caso misurato.
+  date: 293,            // la linea di una camera fra due (sottotitolo «Lena · 20 → 22 nov»)
+  cambioCamera: 417,    // 24 notti da scegliere (Ventiquattro Notti); oltre, scorre dentro
+  togliCamera: 226,     // la domanda, la spiegazione e i due comandi
+  sconto: 382,          // «Percentuale» o «Prezzo finale» coi tre numeri
+  comePaga: 434,        // «Caparra»: importo, entro il, alle
+  togliPagamento: 297,  // l'importo, la data e «restano da incassare»
+  nota: 389,            // la nota, i colori e «La prenotazione è arrivata»
+  annulla: 343,         // «Errore mio» con la spiegazione e il motivo
+  mancatoArrivo: 500,   // 458 «Mancato arrivo»; «Pagamento · mancato arrivo» coi tre campi non si riproduce nell'anteprima: stima
+  prezzoSoggiorno: 655, // due camere, «Concordo un prezzo nuovo» col campo
+  cliente: 790,         // il foglio «Dati della cliente» (misurato nel pezzo 5)
+  cambiaCliente: 720,   // la ricerca coi risultati (fino a 30): oltre, scorre dentro
+  provenienza: 323,     // «Altra struttura» col campo della struttura
+  chiDorme: 412,        // tre persone e l'avviso sulla camera; oltre, scorre dentro
+  persona: 391,         // «Aggiungi una persona»: nome, cognome, telefono, chi è
+  notte: 552,           // la notte di una camera fra due, ospiti ed effetto sul conto
 } as const
 export type FoglioConAltezza = keyof typeof ALTEZZE_FOGLI

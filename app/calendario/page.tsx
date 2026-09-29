@@ -74,8 +74,9 @@ const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
 // Le altezze fisse dei fogli della camera tenuta (29/09/2026)
-const ALTEZZA_TENUTA = 400
-const ALTEZZA_CONFERMA_TENUTA = 320
+// Ritocchi del 29/09/2026 (B1): il contenuto più lungo + 24 px + i comandi, misurati a 390 px (prima 400 e 320)
+const ALTEZZA_TENUTA = 366
+const ALTEZZA_CONFERMA_TENUTA = 239
 const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 // Colori delle schede: blu prenotazione, viola bonifico in attesa, verde pagato… — da lib/calendarioMobile (stessa fonte della legenda)
 

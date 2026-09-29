@@ -71,3 +71,41 @@ test('A4: in fondo ai foglietti i due tasti affiancati (metà larghezza, 12 px, 
   assert.equal(ALTEZZA_FOGLIETTO, 500)
   assert.equal(ALTEZZA_FOGLIETTO_RICHIESTA, 440)
 })
+
+// ── B · Fogli ───────────────────────────────────────────────────────────────
+test('B1: la riga «Annulla · Salva» sta 24 px sotto il contenuto, in tutti i piedi dei fogli Maison', () => {
+  const css = leggi('app/maison.css')
+  for (const regola of [
+    /\.mz-foot \{[^}]*margin-top: 24px; flex: none; \}/,
+    /\.cal-fa-piede \{ flex: none; margin-top: 24px; \}/,
+    /\.ric-piede \{[^}]*margin-top: 24px; flex: none; \}/,
+    /\.cal-fog-ac \{[^}]*margin-top: 24px; flex: none; \}/,
+    /\.cal-ten-ac \{[^}]*margin-top: 24px; flex: none; \}/,
+  ]) assert.match(css, regola)
+  // il foglio resta ad altezza fissa (la riga non si sposta scegliendo) e mai oltre il 92% dello schermo
+  assert.match(leggi('components/maison/FoglioMaison.tsx'), /style=\{\{ height: `min\(\$\{altezza\}px, 92dvh\)` \}\}/)
+  // il «Mancato arrivo» ha i tasti nella riga fissa (prima stavano in mezzo al contenuto)
+  const mancato = leggi('components/scheda/FoglioMancatoArrivo.tsx')
+  assert.match(mancato, /<PiedeFoglio azione=\{/)
+  assert.doesNotMatch(mancato, /ed-pillola-contorno/)
+})
+
+test('B1: l’altezza nuova di ogni foglio, misurata a 390 px nel suo caso più lungo', async () => {
+  const { ALTEZZE_FOGLI } = await import('./altezzeFogli.ts')
+  assert.deepEqual({ ...ALTEZZE_FOGLI }, {
+    date: 293, cambioCamera: 417, togliCamera: 226, sconto: 382, comePaga: 434, togliPagamento: 297, nota: 389, annulla: 343,
+    mancatoArrivo: 500, prezzoSoggiorno: 655, cliente: ALTEZZE_FOGLI.cliente, cambiaCliente: 720, provenienza: 323, chiDorme: 412, persona: 391, notte: 552,
+  })
+  assert.match(leggi('components/nuova/ConLei.tsx'), /<Foglio titolo=\{TITOLO_FOGLIETTO\} altezza=\{ALTEZZE_FOGLI\.persona\}/)
+  const arrivo = leggi('components/scheda/FoglioArrivo.tsx')
+  assert.match(arrivo, /export const ALTEZZA_FOGLIO_ARRIVO = 756/)
+  assert.match(arrivo, /export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 830/)
+  assert.match(leggi('components/scheda/FoglioPagamento.tsx'), /export const ALTEZZA_FOGLIO_PAGAMENTO = 611/)
+  assert.match(leggi('components/SchedaPulizia.tsx'), /export const ALTEZZA_FOGLIO_PULIZIA = 866/)
+  const proposta = leggi('app/richieste/[id]/proposta/page.tsx')
+  assert.match(proposta, /const ALTEZZA_INVIATA = 235/)
+  assert.match(proposta, /const ALTEZZA_SOSTITUIRE = 174/)
+  const calendario = leggi('app/calendario/page.tsx')
+  assert.match(calendario, /const ALTEZZA_TENUTA = 366/)
+  assert.match(calendario, /const ALTEZZA_CONFERMA_TENUTA = 239/)
+})

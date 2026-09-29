@@ -44,13 +44,18 @@ import { nomeConAltri } from '@/lib/guestName'
 import { COSA_SALVATA } from '@/lib/salvatoMaison'
 
 export { TITOLO_ARRIVO }
-/** L'altezza del foglio: quella del caso più lungo, «Arrivo a…» con la fascia
- *  oraria, la stima e il prelievo (misurata a 390 px: 752). Nel riferimento il
- *  caso disegnato, con l'ora precisa, stava in 660. Solo «Altro luogo…» con la
- *  fascia supera di poco: lì il foglio scorre dentro, senza cambiare misura. */
-export const ALTEZZA_FOGLIO_ARRIVO = 752
+/** L'altezza del foglio: quella del caso più lungo, «Arrivo a…» un luogo
+ *  (Centrale) con la fascia oraria, la stima in struttura e la navetta con
+ *  l'autista e il prelievo, + 24 px + «Annulla · Salva» (ritocchi del
+ *  29/09/2026, B1: misurata a 390 px, 756). Nella scheda e nella Home. */
+export const ALTEZZA_FOGLIO_ARRIVO = 756
+/** Negli Arrivi il foglio ha in più la testa col nome e i cerchi, il riassunto,
+ *  la riga dello storico, «Chiedi orario · Apri chat · Apri prenotazione» e
+ *  «Salva» pieno: lo stesso caso più lungo misura 830 px, più di quanto sta
+ *  su un telefono da 844 (il foglio si ferma al 92% e scorre dentro). */
+export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 830
 
-export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChiudi, onSalvato, testa, sopra, sotto, azioni, salvaPieno, veloChiaro, larghezzaDesktop, dati = 'arrivo' }: {
+export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChiudi, onSalvato, testa, sopra, sotto, azioni, salvaPieno, veloChiaro, larghezzaDesktop, dati = 'arrivo', altezza = ALTEZZA_FOGLIO_ARRIVO }: {
   /** prima era il sottotitolo; dalla veste «Maison» il sottotitolo è «Camera · Arrivo e navetta» */
   etichetta?: string
   bookingId: string
@@ -68,6 +73,8 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
   azioni?: ReactNode
   /** Arrivi: il tasto pieno «Salva» a tutta larghezza, con questo testo mentre salva */
   salvaPieno?: { salvando: string }
+  /** l'altezza fissa (gli Arrivi hanno la loro: ALTEZZA_FOGLIO_ARRIVO_ARRIVI) */
+  altezza?: number
   veloChiaro?: boolean
   larghezzaDesktop?: number
   /** il nome del foglio (data-foglio-maison): gli Arrivi hanno le loro misure */
@@ -105,7 +112,7 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
   }
 
   return (
-    <FoglioMaison titolo={nome || TITOLO_ARRIVO} sottotitolo={camera ? `${camera} · ${TITOLO_ARRIVO}` : TITOLO_ARRIVO} altezza={ALTEZZA_FOGLIO_ARRIVO}
+    <FoglioMaison titolo={nome || TITOLO_ARRIVO} sottotitolo={camera ? `${camera} · ${TITOLO_ARRIVO}` : TITOLO_ARRIVO} altezza={altezza}
       onChiudi={onChiudi} dati={dati} salvato={salvato} onFineSalvato={() => salvato && onSalvato(salvato.campi)}
       testa={testa} veloChiaro={veloChiaro} larghezzaDesktop={larghezzaDesktop}
       piede={salvaPieno ? (

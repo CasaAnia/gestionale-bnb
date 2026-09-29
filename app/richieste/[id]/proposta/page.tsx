@@ -86,6 +86,12 @@ function soluzioneInParole(s: Soluzione): string {
   return s.segmenti.map((x, i) => `${x.camera.name} ${date[i]}`).join(', poi ')
 }
 
+// Ritocchi del 29/09/2026 (B1): i fogli bassi della proposta alti quanto il loro
+// contenuto più lungo + 24 px + la riga dei tasti, misurati a 390 px (prima 300/320
+// e 240): «L'hai inviata?» con la riga della proposta e «Salvataggio da verificare»
+const ALTEZZA_INVIATA = 235
+const ALTEZZA_SOSTITUIRE = 174
+
 export default function PropostaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -1014,7 +1020,7 @@ export default function PropostaPage() {
 
       {/* «L'hai inviata?»: al ritorno da WhatsApp, in un foglio basso */}
       {chiediConferma && !invioNascosto && (
-        <FoglioMaison titolo="L’hai inviata?" altezza={perConferma ? 300 : 320} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-inviata"
+        <FoglioMaison titolo="L’hai inviata?" altezza={ALTEZZA_INVIATA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-inviata"
           onChiudi={() => setInvioNascosto(true)}
           piede={
             <div className="ric-piede" data-piede-inviata>
@@ -1047,7 +1053,7 @@ export default function PropostaPage() {
       )}
 
       {azioneSospesa && (
-        <FoglioMaison titolo="Sostituire il testo modificato?" altezza={240} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-sostituire" onChiudi={() => setAzioneSospesa(null)}
+        <FoglioMaison titolo="Sostituire il testo modificato?" altezza={ALTEZZA_SOSTITUIRE} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-sostituire" onChiudi={() => setAzioneSospesa(null)}
           piede={
             <div className="ric-piede">
               <button type="button" className="mz-lnk q" onClick={() => setAzioneSospesa(null)}>Annulla</button>

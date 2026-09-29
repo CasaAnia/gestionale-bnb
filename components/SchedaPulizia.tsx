@@ -27,8 +27,11 @@ import {
 } from '@/lib/dotazionePulizie'
 
 export const TIPI_INTERVENTO: Record<TipoPulizia, string> = { fine_soggiorno: 'Fine soggiorno', soggiorno: 'Durante il soggiorno', cambio_camera: 'Cambio camera' }
-/** Il foglio ha un'altezza fissa, quella del caso più lungo (letti, federe, due file di chip, timer) */
-export const ALTEZZA_FOGLIO_PULIZIA = 780
+/** Il foglio ha un'altezza fissa, quella del caso più lungo (letti, federe, due file di chip, timer)
+ *  + 24 px + «Annulla · Conferma pulizia» (ritocchi del 29/09/2026, B1): «Pulita e
+ *  recuperato» coi pezzi recuperati e il timer, misurata a 390 px: 866 (prima 780).
+ *  Su un telefono da 844 il foglio si ferma al 92% dello schermo e scorre dentro. */
+export const ALTEZZA_FOGLIO_PULIZIA = 866
 const NESSUNO: SenzaMisura = { lenzuolo_sotto: 0, lenzuolo_sopra: 0 }
 // Fotografia del timer che si vedeva quando si sono scritti o riportati i minuti.
 const fotoTimer = (t: TimerSql | null | undefined): TimerVisto | null => t ? { versione: Number(t.versione), trascorsi: Number(t.trascorsi) } : null

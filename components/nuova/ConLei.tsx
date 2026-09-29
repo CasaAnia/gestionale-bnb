@@ -12,6 +12,7 @@ import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCamp
 import { CHI_E_VOCI, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { nomeDaSalvare } from '@/lib/guestName'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const AGGIUNGI_PERSONA = '+ Aggiungi una persona'
 export const TITOLO_FOGLIETTO = 'Chi dorme in camera'
@@ -75,7 +76,7 @@ export default function ConLei({ persone, onPersone, avviso, senzaTitolo = false
       <div style={{ marginTop: 10 }}><TastinoTenue testo={AGGIUNGI_PERSONA} onClick={() => setAperto(true)} centrato={false} /></div>
 
       {aperto && (
-        <Foglio titolo={TITOLO_FOGLIETTO} onChiudi={() => setAperto(false)}>
+        <Foglio titolo={TITOLO_FOGLIETTO} altezza={ALTEZZE_FOGLI.persona} onChiudi={() => setAperto(false)}>
           <CampiNomeCognome nome={nome} cognome={cognome} onNome={setNome} onCognome={setCognome} prefissoDati="persona-"
             classeFila="flex" stileFila={{ gap: 12 }} stile={stileCampo}
             avvolgi={(etichetta, campo) => <RigaCampo etichetta={etichetta} ottone={etichetteOttone} className="flex-1 min-w-0">{campo}</RigaCampo>} />

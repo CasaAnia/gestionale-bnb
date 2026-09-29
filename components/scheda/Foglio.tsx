@@ -91,7 +91,8 @@ export default function Foglio({ titolo, grande = false, centrato = false, misur
  *  è spenta (manca un dato valido) ma «Annulla» resta viva: si spegne solo
  *  mentre si salva. */
 export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando = 'Salvo…', onAnnulla, testoAnnulla = TESTO_ANNULLA, mattone = false, disabilitato = false, dati }: {
-  azione: string
+  /** senza azione resta solo «Annulla» (o «Chiudi»): il «Mancato arrivo» già saldato */
+  azione?: string
   onAzione: () => void
   salvando?: boolean
   testoSalvando?: string
@@ -111,17 +112,17 @@ export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando 
         <span />
         <span className="acts">
           <button type="button" className="mz-lnk q" data-annulla-foglio onClick={onAnnulla} disabled={salvando}>{testoAnnulla}</button>
-          <button type="button" className={`mz-cta ${mattone ? 'mat' : ''}`} data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>
+          {azione && <button type="button" className={`mz-cta ${mattone ? 'mat' : ''}`} data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>}
         </span>
       </div>, posto)
   }
   return (
     <div data-piede-foglio className="text-center" style={{ marginTop: 22, marginBottom: 2 }}>
-      <button type="button" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}
+      {azione && <button type="button" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}
         style={{
           minHeight: ALTEZZA_AZIONE, maxWidth: '100%', overflowWrap: 'anywhere', lineHeight: '18px', borderRadius: 999, padding: '6px 18px', fontSize: 12, fontWeight: 600,
           background: mattone ? MATTONE_FOGLIO : 'var(--color-green-mid)', color: 'var(--color-cream)', opacity: salvando ? 0.5 : disabilitato ? 0.45 : 1,
-        }}>{salvando ? testoSalvando : azione}</button>
+        }}>{salvando ? testoSalvando : azione}</button>}
       <p style={{ marginTop: 10 }}>
         <button type="button" data-annulla-foglio onClick={onAnnulla} disabled={salvando}
           style={{ minHeight: 44, padding: '0 14px', fontSize: 13, color: 'var(--color-stone)' }}>{testoAnnulla}</button>
