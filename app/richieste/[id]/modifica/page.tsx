@@ -1,8 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import BackBar from '@/components/BackBar'
 import ModuloRichiesta, { valoriDaRichiesta } from '@/components/richieste/ModuloRichiesta'
 import { fetchRichiesta, aggiornaRichiesta, colonne0031Presenti, AVVISO_0031 } from '@/lib/richiesteDati'
 import { modificabile, nomeCompleto, ritornoDallaModifica, type Richiesta } from '@/lib/richieste'
@@ -24,6 +23,7 @@ export default function ModificaRichiesta() {
   const [manca0031, setManca0031] = useState(false)
   const [avviso, setAvviso] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const avvisoRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -35,49 +35,56 @@ export default function ModificaRichiesta() {
     })
   }, [id])
 
-  if (loading) return <div className="p-4"><BackBar onClick={() => router.push(indietro)} /><div className="text-center py-10 text-stone">Caricamento…</div></div>
-  if (!richiesta) return <div className="p-4"><BackBar onClick={() => router.push(indietro)} /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Richiesta non trovata.'}</div></div>
+  // La barra «‹ Richieste» (Richieste «Maison», 29/09/2026): torna da dove si è arrivati
+  const barra = (
+    <div className="sch-top ric-top" data-riga-navigazione>
+      <button type="button" className="np-back" onClick={() => router.push(indietro)}>‹ Richieste</button>
+      <p className="sch-scritta">Modifica richiesta</p>
+    </div>
+  )
+  if (loading) return <div className="maison cal ric-pag">{barra}<div className="mz-caricamento">Caricamento…</div></div>
+  if (!richiesta) return <div className="maison cal ric-pag">{barra}<p className="ric-avviso" role="alert">{errore || 'Richiesta non trovata.'}</p></div>
 
   if (avviso) {
     return (
-      <div className="p-4">
-        <BackBar onClick={() => router.push(indietro)} />
-        <h1 className="ed-titolo-medio titolo-mac testa-mac-sopra mb-3">Richiesta modificata</h1>
-        <div role="status" className="bg-white ed-campo rounded-xl p-3 text-sm text-green-dark">{avviso}</div>
-        <Link href={`/richieste/${richiesta.id}/proposta`} className="block w-full mt-4 text-center bg-green-mid text-cream-text rounded-xl py-3.5 font-semibold text-[15px]">Rigenera la proposta</Link>
-        {indietro === '/richieste' && (
-          <Link href="/richieste" className="block w-full mt-2 text-center bg-white text-green-dark rounded-xl py-3 font-semibold text-sm border" style={{ borderColor: '#C9BFA8' }}>Torna alle richieste</Link>
-        )}
+      <div className="maison cal ric-pag">
+        {barra}
+        <header className="ric-testa"><div className="hd3"><h1 className="ti">Richiesta modificata</h1></div></header>
+        <div className="sec">
+          <p role="status" className="so ott">{avviso}</p>
+          <Link href={`/richieste/${richiesta.id}/proposta`} className="ric-cta">Rigenera la proposta</Link>
+          {indietro === '/richieste' && <div className="ric-ac centro"><Link href="/richieste" className="mz-lnk q">Torna alle richieste</Link></div>}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-4">
-      <BackBar onClick={() => router.push(indietro)} />
-      <h1 className="ed-titolo-medio titolo-mac testa-mac-sopra mb-1">Modifica richiesta</h1>
-      <p className="text-sm text-stone mb-3">{nomeCompleto(richiesta)}</p>
+    <div className="maison cal ric-pag" data-modifica-richiesta-maison>
+      {barra}
+      <header className="ric-testa">
+        <div className="hd3"><h1 className="ti">Modifica richiesta</h1></div>
+        <p className="hs">{nomeCompleto(richiesta)}</p>
+      </header>
       {!modificabile(richiesta) ? (
-        <div role="alert" className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">Una richiesta confermata o rifiutata non si modifica.</div>
+        <p role="alert" className="ric-avviso">Una richiesta confermata o rifiutata non si modifica.</p>
       ) : (
         <>
           {manca0031 && (
-            <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
-              {AVVISO_0031} Finché manca, non si salvano persone diverse per notte né modifiche a una richiesta con proposta inviata.
-            </div>
+            <p role="alert" className="ric-avviso">{AVVISO_0031} Finché manca, non si salvano persone diverse per notte né modifiche a una richiesta con proposta inviata.</p>
           )}
           {richiesta.stato === 'proposta_inviata' && (
-            <p className="text-xs text-stone mb-3">Questa richiesta ha una proposta inviata: se cambi date, persone o camera, la proposta va rigenerata e reinviata.</p>
+            <p className="ric-avviso">Questa richiesta ha una proposta inviata: se cambi date, persone o camera, la proposta va rigenerata e reinviata.</p>
           )}
           <ModuloRichiesta iniziale={valoriDaRichiesta(richiesta)} etichettaSalva="Salva le modifiche"
             notaSotto="Nessun messaggio parte da qui."
             onSalva={async valori => {
               const r = await aggiornaRichiesta(richiesta, valori)
               if (r.error) return r.error
-              if (r.avviso) { setAvviso(r.avviso); return null }
-              router.push(indietro)
+              avvisoRef.current = r.avviso ?? null
               return null
-            }} />
+            }}
+            onSalvato={() => { if (avvisoRef.current) setAvviso(avvisoRef.current); else router.push(indietro) }} />
         </>
       )}
     </div>

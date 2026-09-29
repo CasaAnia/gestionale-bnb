@@ -70,3 +70,18 @@ test('«Creare la prenotazione?» e «Perché la rifiuti?» nei fogli Maison ad 
   assert.match(rifiuta, /La richiesta resta in archivio fra le chiuse per 3 giorni, con «Riapri»\./)
   assert.match(rifiuta, /MOTIVI_RIFIUTO_SCELTE\.map/)
 })
+
+test('Nuova e Modifica richiesta: CANALE, CLIENTE, SOGGIORNO, NOTE; campi a filo; la partenza segue l’arrivo; conferma «B»', () => {
+  const modulo = leggi('components/richieste/ModuloRichiesta.tsx')
+  const dove = (x: string) => { const i = modulo.indexOf(x); assert.notEqual(i, -1, `manca ${x}`); return i }
+  const pos = ['<p className="k">Canale</p>', '<p className="k">Cliente</p>', '<CampiNomeCognome', '<span className="fl2">Telefono</span>', 'data-cliente-in-archivio', '<CampoProvenienza', '<p className="k">Soggiorno</p>', '<span className="fl2">Arrivo</span>', '<span className="fl2">Partenza</span>', '<span className="fl2">Persone</span>', '<span className="fl2">Camera</span>', 'data-solo-alcune-notti', 'data-persone-notte', '<p className="k">Note</p>', 'data-salva-richiesta'].map(dove)
+  assert.deepEqual(pos, [...pos].sort((a, b) => a - b))
+  assert.match(modulo, /placeholder="Es\. arriva tardi, chiede il letto aggiuntivo…"/)
+  assert.match(modulo, /\{saving \? 'Salvataggio…' : etichettaSalva\}/)
+  assert.match(modulo, /<SalvatoMaison salvato=\{salvato\}/)
+  // cambiando l'arrivo la partenza segue con le stesse notti
+  assert.match(modulo, /const fine = val \? spostaGiorni\(val, durata\) : x\.partenza/)
+  // «Dal sito» solo se la richiesta è dal sito
+  assert.match(modulo, /\.\.\.\(v\.canale === 'web' \? \[\['web', 'Dal sito'\]\] : \[\]\)/)
+  assert.match(leggi('app/richieste/nuova/page.tsx'), /etichettaSalva="Salva la richiesta"/)
+})

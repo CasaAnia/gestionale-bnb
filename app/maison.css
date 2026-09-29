@@ -945,6 +945,19 @@ body:has(.cal) { background: var(--home-bg); }
 .ric-fog-conferma .k, .sec-conflitti .k { margin: 14px 0 4px; font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }
 .ric-fog-conferma .riga-seg { display: block; color: var(--m-mut); }
 .ric-fog-conferma .dr2 .cb { margin-right: 6px; }
+.ric-modulo .sec .k { margin-bottom: 2px; }
+.ric-campi-nome { display: block; }
+.ric-due { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: end; }
+.ric-modulo .ric-fld { font-size: 17px; min-height: 36px; -webkit-appearance: none; appearance: none; }
+.ric-modulo select.ric-fld { background: transparent; }
+.ric-pm { display: inline-flex; align-items: center; gap: 12px; padding: 4px 0; border-bottom: 1px solid #C9BFA8; width: 100%; }
+.ric-pm b { font-family: var(--m-disp); font-size: 17px; font-weight: 500; min-width: 18px; text-align: center; }
+.ric-pm button { position: relative; width: 24px; height: 24px; border: 1px solid var(--m-line); border-radius: 50%; display: grid; place-items: center; font-size: 14px; background: none; color: var(--m-ink); padding: 0; line-height: 1; }
+.ric-pm button::before { content: ""; position: absolute; inset: -10px; }
+.ric-pm button:disabled { opacity: .35; }
+.ric-pag .so.verde { color: var(--cal-verde); }
+.ric-pag .so.mat { color: var(--m-mat); }
+.ric-strisce { margin-top: 10px; }
 .ric-piede.centro { flex-direction: column; justify-content: center; align-items: stretch; gap: 12px; }
 .ric-piede.centro .mz-lnk { align-self: center; }
 .ric-piede .ric-cta { margin-top: 0; }

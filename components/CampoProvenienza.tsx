@@ -10,7 +10,7 @@ import { PROVENIENZE, AVVISO_0037, suggerimentiDaMostrare, strutturaNota, type P
 
 export type ValoreProvenienza = { provenienza: Provenienza; struttura: string }
 
-export default function CampoProvenienza({ valore, onChange, strutture, disponibile, compatto, nota, nota2, avvisoNonDisponibile }: {
+export default function CampoProvenienza({ valore, onChange, strutture, disponibile, compatto, nota, nota2, avvisoNonDisponibile, maison = false }: {
   valore: ValoreProvenienza
   onChange: (v: ValoreProvenienza) => void
   strutture: StrutturaNota[]
@@ -19,6 +19,8 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
   nota?: string | null        // accanto all'etichetta: «Già stato da noi · N soggiorni»
   nota2?: string | null       // seconda etichetta: «Ricevuta»
   avvisoNonDisponibile?: string | null   // quale migrazione manca (0036 o 0037)
+  /** veste «Maison» (Nuova/Modifica richiesta, 29/09/2026): chip a pillola, etichetta la mette chi lo monta, campo a filo */
+  maison?: boolean
 }) {
   const [aperto, setAperto] = useState(false)
   if (!disponibile) {
@@ -29,7 +31,7 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
       </div>
     )
   }
-  const chip = (attivo: boolean) => compatto
+  const chip = (attivo: boolean) => maison ? (attivo ? 'on' : '') : compatto
     ? `px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${attivo ? 'bg-green-mid text-white' : 'text-stone border border-[#C9BFA8]'}`
     : `rounded-full text-sm font-semibold px-4 py-2 transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'border border-[#C9BFA8] text-stone'}`
   // Al tocco nel campo si vedono sempre le strutture (tutte se il nome è già
@@ -38,10 +40,10 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
   const nuovo = valore.struttura.trim() && !strutturaNota(valore.struttura, strutture)
   return (
     <div data-provenienza={valore.provenienza}>
-      <p className={`${compatto ? 'text-sm text-gray-500' : 'text-sm text-stone'} mb-1 flex flex-wrap items-center gap-2`}>Come ci ha trovato
+      {!maison && <p className={`${compatto ? 'text-sm text-gray-500' : 'text-sm text-stone'} mb-1 flex flex-wrap items-center gap-2`}>Come ci ha trovato
         {nota && <span data-gia-stato className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{nota}</span>}
-        {nota2 && <span data-ricevuta className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{nota2}</span>}</p>
-      <div className="flex flex-wrap gap-2">
+        {nota2 && <span data-ricevuta className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{nota2}</span>}</p>}
+      <div className={maison ? 'ric-chips piatte' : 'flex flex-wrap gap-2'} data-senza-sottolinea={maison || undefined}>
         {PROVENIENZE.map(p => (
           <button key={p.chiave} type="button" aria-pressed={valore.provenienza === p.chiave} className={chip(valore.provenienza === p.chiave)}
             onClick={() => onChange({ ...valore, provenienza: p.chiave })}>
@@ -55,7 +57,7 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
           <input value={valore.struttura} onChange={e => { onChange({ ...valore, struttura: e.target.value }); setAperto(true) }}
             onFocus={() => setAperto(true)} onClick={() => setAperto(true)} onBlur={() => setTimeout(() => setAperto(false), 150)}
             autoComplete="off" autoCapitalize="words" placeholder="Nome della struttura" aria-label="Quale struttura"
-            className="w-full min-w-0 appearance-none bg-white ed-campo p-3 text-[15px] focus:outline-none focus:border-green-mid" />
+            className={maison ? 'ric-fld' : 'w-full min-w-0 appearance-none bg-white ed-campo p-3 text-[15px] focus:outline-none focus:border-green-mid'} />
           {aperto && suggerimenti.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1.5" role="listbox" aria-label="Strutture note">
               {suggerimenti.map(s => (

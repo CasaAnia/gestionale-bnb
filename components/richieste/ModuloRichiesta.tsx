@@ -2,12 +2,15 @@
 import { conInizialiNomeCognome } from '@/lib/maiuscole'
 import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Minus, Plus } from 'lucide-react'
+import SalvatoMaison, { type Salvataggio } from '@/components/maison/SalvatoMaison'
+import { COSA_SALVATA } from '@/lib/salvatoMaison'
+import { nomeCompleto } from '@/lib/guestName'
+import { pezzoCliente } from '@/lib/rigaRichiesta'
 import StrisciaNotti from '@/components/StrisciaNotti'
 import { supabase } from '@/lib/supabase'
 import { frasiDisponibilita, notti, ordinaCamere, type PrenotazioneMinima } from '@/lib/disponibilita'
 import { selezioneNottiValida, elencoNotti } from '@/lib/nottiRichieste'
-import { giorniTra } from '@/lib/richiesteCalendario'
+import { giorniTra, spostaGiorni } from '@/lib/richiesteCalendario'
 import { capienzaCamera } from '@/lib/tariffe'
 import { avvisoCameraPersone } from '@/lib/cameraPerPersone'
 import { riassuntoPersone, type CanaleRichiesta, type ValoriModifica } from '@/lib/richieste'
@@ -15,7 +18,6 @@ import { normalizzaTelefono, telefonoLeggibile, numeroUsabile } from '@/lib/what
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, normalizzaProvenienza, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, cercaClientePerTelefono, salvaProvenienzaCliente, type ClienteTrovato } from '@/lib/provenienzaDati'
-import { etichettaGiaStato } from '@/lib/clienteCheTorna'
 import { ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
 
 // Il modulo della richiesta (pezzo 9): lo STESSO per «Nuova richiesta» e per
@@ -41,8 +43,10 @@ export type ValoriModulo = {
   struttura: string
 }
 
-const INPUT = 'w-full min-w-0 appearance-none bg-white ed-campo p-3 text-[15px] focus:outline-none focus:border-green-mid'
-const ETICHETTA = 'text-sm text-stone mb-1'
+// Veste «Maison» (29/09/2026, telefono 12 del riferimento): campi a filo,
+// etichetta maiuscoletta piccola sopra, valore in Cormorant
+const INPUT = 'ric-fld'
+const ETICHETTA = 'fl2'
 const MAX_PERSONE_SENZA_CAMERE = 4
 
 // Giorno dopo, senza passare dal fuso orario del telefono.
@@ -73,16 +77,21 @@ export function normalizzaPersonePerNotte(perNotte: number[] | null, base: numbe
   return perNotte.every(x => x === base) ? null : perNotte
 }
 
-export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, notaSotto }: {
+export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, notaSotto, onSalvato }: {
   iniziale?: ValoriModulo
   etichettaSalva: string
   onSalva: (valori: ValoriModifica) => Promise<string | null>   // torna l'errore da mostrare, oppure null
   notaSotto?: string
+  /** dopo la conferma di salvataggio «B» (1,2 s): la pagina decide dove andare */
+  onSalvato?: () => void
 }) {
   const [v, setV] = useState<ValoriModulo>(iniziale ?? VALORI_VUOTI)
   const [camere, setCamere] = useState<Camera[]>([])
   const [occupazione, setOccupazione] = useState<{ chiave: string; prenotazioni: PrenotazioneMinima[]; errore: string | null } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [salvato, setSalvato] = useState<Salvataggio | null>(null)
+  // «Solo alcune notti» e «Persone notte per notte»: le due strisce si aprono a comando
+  const [personeAperte, setPersoneAperte] = useState(() => !!iniziale?.personePerNotte)
   const [errore, setErrore] = useState<string | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
   // Strutture note (0036): disponibile = false finché la migrazione non c'è
@@ -159,8 +168,9 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
 
   // Le date cambiano → le notti cambiano: la striscia riparte da «Persone»
   // (una striscia con un numero diverso di caselle sarebbe un dato incoerente)
+  // Cambiando l'arrivo la partenza segue con le stesse notti, come nella Nuova prenotazione
   function cambiaArrivo(val: string) {
-    setV(x => { const fine = val && (!x.partenza || x.partenza <= val) ? giornoDopo(val) : x.partenza; return { ...x, arrivo: val, partenza: fine, personePerNotte: null, ...(x.nottiRichieste != null ? { nottiRichieste: x.nottiRichieste.filter(g => g >= val && g < fine) } : {}) } })
+    setV(x => { const durata = x.arrivo && x.partenza && x.partenza > x.arrivo ? notti(x.arrivo, x.partenza) : 1; const fine = val ? spostaGiorni(val, durata) : x.partenza; return { ...x, arrivo: val, partenza: fine, personePerNotte: null, ...(x.nottiRichieste != null ? { nottiRichieste: x.nottiRichieste.filter(g => g >= val && g < fine) } : {}) } })
   }
   function cambiaPartenza(val: string) { setV(x => ({ ...x, partenza: val, personePerNotte: null, ...(x.nottiRichieste != null ? { nottiRichieste: x.nottiRichieste.filter(g => g >= x.arrivo && g < val) } : {}) })) }
   function cambiaPersone(n: number) { setV(x => ({ ...x, persone: n, personePerNotte: null })) }
@@ -190,131 +200,136 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
       if (errStruttura) setAvviso(`Richiesta salvata, ma il nome della struttura non è stato aggiunto all'elenco: ${errStruttura}`)
     }
     setSaving(false)
-    if (e) setErrore(e)
+    if (e) { setErrore(e); return }
+    // Conferma «B»: la spunta al centro, poi la pagina va avanti da sola
+    if (onSalvato) setSalvato({ cosa: COSA_SALVATA.richiesta(nomeCompleto({ nome: v.nome, cognome: v.cognome })), quando: new Date() })
   }
 
+  const telefonoInArchivio = cliente ? (cliente.soggiorniConclusi > 0 ? `${pezzoCliente(cliente.soggiorniConclusi, true)}` : 'Cliente già in archivio') : null
+  const tuttiINotti = giorniTra(arrivo, partenza)
   return (
-    <>
-      <div className="ed-riga py-4 space-y-3">
-        <div>
-          <p className={ETICHETTA}>Canale</p>
-          <div className="flex gap-2">
-            {([['telefono', 'Telefono'], ['whatsapp', 'WhatsApp'], ...(v.canale === 'web' ? [['web', 'Dal sito']] : [])] as [CanaleRichiesta, string][]).map(([c, label]) => (
-              <button key={c} type="button" onClick={() => set('canale', c)} aria-pressed={v.canale === c}
-                className={`flex-1 rounded-full text-sm font-semibold px-4 py-2 transition-colors ${v.canale === c ? 'bg-green-mid text-cream-text' : 'border border-[#C9BFA8] text-stone'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+    <div className="ric-modulo" data-modulo-richiesta>
+      {/* CANALE */}
+      <section className="sec">
+        <p className="k">Canale</p>
+        <div className="ric-chips piatte" data-senza-sottolinea>
+          {([['telefono', 'Telefono'], ['whatsapp', 'WhatsApp'], ...(v.canale === 'web' ? [['web', 'Dal sito']] : [])] as [CanaleRichiesta, string][]).map(([c, label]) => (
+            <button key={c} type="button" onClick={() => set('canale', c)} aria-pressed={v.canale === c} className={v.canale === c ? 'on' : ''}>{label}</button>
+          ))}
         </div>
+      </section>
 
-        <CampoProvenienza valore={{ provenienza: v.provenienza, struttura: v.struttura }} onChange={x => setV(y => ({ ...y, provenienza: x.provenienza, struttura: x.struttura }))}
-          strutture={strutture.lista} disponibile={strutture.disponibile}
-          nota={cliente ? (etichettaGiaStato(cliente.soggiorniConclusi) ?? `Cliente già in archivio${cliente.full_name ? `: ${cliente.full_name}` : ''}`) : null}
-          nota2={cliente?.ricevuta ? ETICHETTA_RICEVUTA_BREVE : null} />
-        {avviso && <p className="text-xs text-stone">{avviso}</p>}
-
-        <CampiNomeCognome nome={v.nome} cognome={v.cognome} onNome={x => set('nome', x)} onCognome={x => set('cognome', x)}
-          classeCampo={INPUT} classeEtichetta={ETICHETTA} placeholderNome="Anna" placeholderCognome="Rossi" />
-
-        {/* I campi data nativi di iPhone hanno una larghezza minima propria:
-            min-w-0 + appearance-none impediscono alle due caselle di sovrapporsi. */}
-        <div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="min-w-0">
-              <p className={ETICHETTA}>Arrivo</p>
-              <input type="date" value={arrivo} onChange={e => cambiaArrivo(e.target.value)} className={INPUT} />
-            </div>
-            <div className="min-w-0">
-              <p className={ETICHETTA}>Partenza</p>
-              <input type="date" value={partenza} min={arrivo ? giornoDopo(arrivo) : undefined} onChange={e => cambiaPartenza(e.target.value)} className={INPUT} />
-            </div>
-          </div>
-          {arrivo && partenza && partenza <= arrivo && (
-            <p className="text-xs text-[#8C3B2E] mt-1.5">La partenza deve essere dopo l’arrivo.</p>
-          )}
-          {rigaDisponibilita && (
-            <p className="text-sm font-medium text-brass mt-2" aria-live="polite">{rigaDisponibilita}</p>
-          )}
+      {/* CLIENTE: Nome, Cognome, Telefono (con «già ospite» se il numero è in archivio), Da dove arriva */}
+      <section className="sec">
+        <p className="k">Cliente</p>
+        <div className="ric-campi">
+          <CampiNomeCognome nome={v.nome} cognome={v.cognome} onNome={x => set('nome', x)} onCognome={x => set('cognome', x)} classeFila="ric-campi-nome"
+            classeCampo={INPUT} placeholderNome="Anna" placeholderCognome="Rossi"
+            avvolgi={(etichetta, campo) => <label key={etichetta} className="ric-campo"><span className={ETICHETTA}>{etichetta}</span>{campo}</label>} />
         </div>
+        <label className="ric-campo">
+          <span className="fl2">Telefono</span>
+          <input type="tel" inputMode="tel" value={v.telefono} onChange={e => set('telefono', e.target.value)} placeholder="+39 333 1234567" className={INPUT} />
+        </label>
+        {v.telefono.trim() && (() => {
+          const t = normalizzaTelefono(v.telefono)
+          return <p className={`so ${t.avviso ? 'mat' : ''}`}>{t.avviso ? `${t.avviso} · verrà salvato come ${telefonoLeggibile(t)}` : `Verrà salvato come ${telefonoLeggibile(t)}`}</p>
+        })()}
+        {telefonoInArchivio && <p className="so verde" data-cliente-in-archivio>{telefonoInArchivio.charAt(0).toUpperCase() + telefonoInArchivio.slice(1)}{cliente?.full_name ? ` · ${cliente.full_name}` : ''}{cliente?.ricevuta ? ` · ${ETICHETTA_RICEVUTA_BREVE}` : ''}</p>}
+        <div className="ric-campo">
+          <span className="fl2">Da dove arriva</span>
+          <CampoProvenienza valore={{ provenienza: v.provenienza, struttura: v.struttura }} onChange={x => setV(y => ({ ...y, provenienza: x.provenienza, struttura: x.struttura }))}
+            strutture={strutture.lista} disponibile={strutture.disponibile} maison />
+        </div>
+        {avviso && <p className="so">{avviso}</p>}
+      </section>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="min-w-0">
-            <p className={ETICHETTA}>Persone</p>
-            <div className="flex items-center ed-campo p-0 overflow-hidden h-[50px]">
-              <button type="button" onClick={() => cambiaPersone(Math.max(1, persone - 1))} disabled={persone <= 1} aria-label="Una persona in meno"
-                className="w-12 h-full flex items-center justify-center text-green-dark disabled:opacity-30 active:bg-sage transition-colors">
-                <Minus size={18} strokeWidth={2} aria-hidden />
-              </button>
-              <span className="flex-1 text-center text-lg font-semibold text-green-dark tabular-nums">{persone}</span>
-              <button type="button" onClick={() => cambiaPersone(Math.min(10, persone + 1))} disabled={persone >= 10} aria-label="Una persona in più"
-                className="w-12 h-full flex items-center justify-center text-green-dark disabled:opacity-30 active:bg-sage transition-colors">
-                <Plus size={18} strokeWidth={2} aria-hidden />
-              </button>
-            </div>
+      {/* SOGGIORNO: Arrivo e Partenza affiancati, Persone − / +, Camera, le due strisce a comando */}
+      <section className="sec">
+        <p className="k">Soggiorno</p>
+        <div className="ric-due">
+          <label className="ric-campo">
+            <span className="fl2">Arrivo</span>
+            <input type="date" value={arrivo} onChange={e => cambiaArrivo(e.target.value)} className={INPUT} />
+          </label>
+          <label className="ric-campo">
+            <span className="fl2">Partenza</span>
+            <input type="date" value={partenza} min={arrivo ? giornoDopo(arrivo) : undefined} onChange={e => cambiaPartenza(e.target.value)} className={INPUT} />
+          </label>
+        </div>
+        {arrivo && partenza && partenza <= arrivo && <p className="so mat">La partenza deve essere dopo l’arrivo.</p>}
+        {rigaDisponibilita && <p className="so ott" aria-live="polite">{rigaDisponibilita}</p>}
+        <div className="ric-due">
+          <div className="ric-campo">
+            <span className="fl2">Persone</span>
+            <span className="ric-pm">
+              <button type="button" onClick={() => cambiaPersone(Math.max(1, persone - 1))} disabled={persone <= 1} aria-label="Una persona in meno">−</button>
+              <b>{persone}</b>
+              <button type="button" onClick={() => cambiaPersone(Math.min(10, persone + 1))} disabled={persone >= 10} aria-label="Una persona in più">+</button>
+            </span>
           </div>
-          <div className="min-w-0">
-            <p className={ETICHETTA}>Camera</p>
-            <select value={v.cameraId} onChange={e => set('cameraId', e.target.value)} className={`${INPUT} h-[50px]`}>
+          <label className="ric-campo">
+            <span className="fl2">Camera</span>
+            <select value={v.cameraId} onChange={e => set('cameraId', e.target.value)} className={INPUT}>
               <option value="">Qualsiasi</option>
               {camere.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-          </div>
+          </label>
         </div>
-        {/* La camera chiesta non regge le persone (o quelle della notte più
-            piena): si avvisa e basta. La richiesta registra quello che chiede
-            la cliente, quindi si salva lo stesso (Ania, 12/09/2026). */}
-        {avvisoCamera && <p data-avviso-camera className="text-[13px] leading-snug" style={{ color: '#8a4f2f' }}>{avvisoCamera}</p>}
-
-        {dateValide && v.nottiRichieste != null && <div className="rounded-xl border border-green-mid p-3">
-          <p className="font-semibold text-sm mb-2">Richiesta soltanto per le notti selezionate</p>
-          <div className="flex flex-wrap gap-2">{giorniTra(arrivo, partenza).map(g => <button type="button" role="checkbox" aria-checked={v.nottiRichieste!.includes(g)} key={g}
-            onClick={() => setV(x => ({ ...x, nottiRichieste: x.nottiRichieste!.includes(g) ? x.nottiRichieste!.filter(n => n !== g) : [...x.nottiRichieste!, g].sort() }))}
-            className={`min-h-11 px-3 rounded-lg border text-sm ${v.nottiRichieste!.includes(g) ? 'bg-green-mid text-white' : 'bg-white'}`}>{Number(g.slice(8))}/{Number(g.slice(5,7))}</button>)}</div>
-          <p className="text-xs mt-2">Notti del {elencoNotti(v.nottiRichieste)}. Le altre sono escluse.</p>
-        </div>}
-
+        {/* La camera chiesta non regge le persone: si avvisa e basta, si salva lo stesso (Ania, 12/09/2026) */}
+        {avvisoCamera && <p data-avviso-camera className="so mat">{avvisoCamera}</p>}
         {dateValide && (
-          <div>
-            <p className={ETICHETTA}>Persone notte per notte <span className="text-xs">· tocca una notte per cambiarla (1–{maxPersone})</span></p>
-            <StrisciaNotti arrivo={arrivo} partenza={partenza} nottiSelezionate={v.nottiRichieste ?? undefined} valori={v.nottiRichieste ? v.nottiRichieste.map(g => valoriStriscia[giorniTra(arrivo, partenza).indexOf(g)]) : valoriStriscia} min={1} max={maxPersone}
-              onChange={vals => { const tutte = v.nottiRichieste ? giorniTra(arrivo, partenza).map((g, i) => { const k = v.nottiRichieste!.indexOf(g); return k < 0 ? valoriStriscia[i] : vals[k] }) : vals; set('personePerNotte', normalizzaPersonePerNotte(tutte, persone, nottiN)) }} />
-            <p className="text-xs text-green-dark mt-1.5" aria-live="polite">
+          <div className="ric-ac">
+            <button type="button" className="mz-lnk q" aria-pressed={v.nottiRichieste != null} data-solo-alcune-notti
+              onClick={() => setV(x => ({ ...x, nottiRichieste: x.nottiRichieste != null ? null : giorniTra(x.arrivo, x.partenza) }))}>Solo alcune notti</button>
+            <button type="button" className="mz-lnk q" aria-pressed={personeAperte} data-persone-notte onClick={() => setPersoneAperte(a => !a)}>Persone notte per notte</button>
+          </div>
+        )}
+        {dateValide && v.nottiRichieste != null && (
+          <div className="ric-strisce" data-notti-selezionate>
+            <p className="so">Richiesta soltanto per le notti selezionate</p>
+            <div className="ric-chips piatte" data-senza-sottolinea>
+              {tuttiINotti.map(g => (
+                <button type="button" role="checkbox" aria-checked={v.nottiRichieste!.includes(g)} key={g} className={v.nottiRichieste!.includes(g) ? 'on' : ''}
+                  onClick={() => setV(x => ({ ...x, nottiRichieste: x.nottiRichieste!.includes(g) ? x.nottiRichieste!.filter(n => n !== g) : [...x.nottiRichieste!, g].sort() }))}>
+                  {Number(g.slice(8))}/{Number(g.slice(5, 7))}
+                </button>
+              ))}
+            </div>
+            <p className="so">{v.nottiRichieste.length > 0 ? `Notti del ${elencoNotti(v.nottiRichieste)}. Le altre sono escluse.` : 'Nessuna notte scelta.'}</p>
+          </div>
+        )}
+        {dateValide && personeAperte && (
+          <div className="ric-strisce" data-persone-per-notte>
+            <p className="so">Persone notte per notte · tocca una notte per cambiarla (1–{maxPersone})</p>
+            <StrisciaNotti arrivo={arrivo} partenza={partenza} nottiSelezionate={v.nottiRichieste ?? undefined} valori={v.nottiRichieste ? v.nottiRichieste.map(g => valoriStriscia[tuttiINotti.indexOf(g)]) : valoriStriscia} min={1} max={maxPersone}
+              onChange={vals => { const tutte = v.nottiRichieste ? tuttiINotti.map((g, i) => { const k = v.nottiRichieste!.indexOf(g); return k < 0 ? valoriStriscia[i] : vals[k] }) : vals; set('personePerNotte', normalizzaPersonePerNotte(tutte, persone, nottiN)) }} />
+            <p className="so" aria-live="polite">
               {v.nottiRichieste ? 'Persone indicate solo per le notti scelte' : riassuntoPersone(arrivo, valoriStriscia)}
               {v.personePerNotte ? '' : ` · tutte le notti in ${persone}`}
             </p>
           </div>
         )}
+      </section>
 
-        <div>
-          <p className={ETICHETTA}>Telefono / WhatsApp</p>
-          <input type="tel" inputMode="tel" value={v.telefono} onChange={e => set('telefono', e.target.value)} placeholder="+39 333 1234567" className={INPUT} />
-          {v.telefono.trim() && (() => {
-            const t = normalizzaTelefono(v.telefono)
-            return (
-              <p className={`text-xs mt-1 ${t.avviso ? 'text-[#8C3B2E] font-semibold' : 'text-stone'}`}>
-                {t.avviso ? `${t.avviso} · verrà salvato come ${telefonoLeggibile(t)}` : `Verrà salvato come ${telefonoLeggibile(t)}`}
-              </p>
-            )
-          })()}
-        </div>
+      {/* NOTE */}
+      <section className="sec">
+        <p className="k">Note</p>
+        <textarea value={v.note} onChange={e => set('note', e.target.value)} rows={2} placeholder="Es. arriva tardi, chiede il letto aggiuntivo…" aria-label="Note" className="ric-fld area" />
+      </section>
 
-        <div>
-          <p className={ETICHETTA}>Note</p>
-          <textarea value={v.note} onChange={e => set('note', e.target.value)} rows={2} placeholder="Es. arriva tardi, chiede il letto aggiuntivo…" className={`${INPUT} resize-none`} />
-        </div>
+      {errore && <p role="alert" className="ric-avviso">{errore}</p>}
+
+      <div className="sec">
+        <button type="button" onClick={salva} disabled={saving || !!salvato} className="ric-cta" data-salva-richiesta>{saving ? 'Salvataggio…' : etichettaSalva}</button>
+        {notaSotto && <p className="so centro">{notaSotto}</p>}
       </div>
-
-      {errore && (
-        <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>
+      {salvato && (
+        <div className="mz fixed inset-0 z-[80]" data-salvato-richiesta>
+          <SalvatoMaison salvato={salvato} onFine={() => onSalvato?.()} />
+        </div>
       )}
-
-      <button type="button" onClick={salva} disabled={saving}
-        className="w-full mt-4 bg-green-mid text-cream-text rounded-xl py-3.5 font-semibold text-[15px] disabled:opacity-50 active:opacity-80 transition-opacity">
-        {saving ? 'Salvataggio…' : etichettaSalva}
-      </button>
-      {notaSotto && <p className="text-xs text-stone text-center mt-2">{notaSotto}</p>}
-    </>
+    </div>
   )
 }
 

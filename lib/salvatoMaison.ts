@@ -23,4 +23,5 @@ export const COSA_SALVATA = {
   rimandata: (camera: string) => `Pulizia di ${camera} rimandata`,
   saltata: (camera: string) => `Pulizia di ${camera} saltata`,
   prenotazione: (nome: string) => `Prenotazione di ${nome}`,
+  richiesta: (nome: string) => `Richiesta di ${nome}`,
 } as const

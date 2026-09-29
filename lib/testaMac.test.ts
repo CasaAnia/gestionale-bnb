@@ -65,8 +65,12 @@ test('le pagine non ancora Maison: TestaMac con la sola scrittina, zoom compensa
   assert.match(leggi('app/prenotazioni/page.tsx'), /\{ricerca\('mb-3 lg:hidden'\)\}/)
   assert.match(leggi('app/clienti/page.tsx'), /\{ricerca\('w-full mb-4 lg:hidden'\)\}/)
   // le pagine interne (scheda cliente, nuovo cliente, nuova e modifica richiesta): scrittina anche lì
-  for (const file of ['app/clienti/[id]/page.tsx', 'app/clienti/nuovo/page.tsx', 'app/richieste/nuova/page.tsx', 'app/richieste/[id]/modifica/page.tsx']) {
+  for (const file of ['app/clienti/[id]/page.tsx', 'app/clienti/nuovo/page.tsx']) {
     assert.match(leggi(file), /titolo-mac testa-mac-sopra/, file)
+  }
+  // nuova e modifica richiesta sono «Maison» dal 29/09/2026: la scrittina della scheda (.sch-scritta)
+  for (const file of ['app/richieste/nuova/page.tsx', 'app/richieste/[id]/modifica/page.tsx']) {
+    assert.match(leggi(file), /<p className="sch-scritta">/, file)
   }
   assert.match(css.slice(css.indexOf('.titolo-mac.titolo-mac')), SCRITTA)
   assert.match(css, /\.testa-mac-sopra \{ margin-top: calc\(64px \/ var\(--zoom-pagina, 1\) - 16px\); \}/)
