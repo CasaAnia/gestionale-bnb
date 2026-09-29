@@ -695,7 +695,7 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-angolo { position: sticky; left: 0; z-index: 31; background: var(--m-bg); flex: none; }
 @media (min-width: 1024px) { .cal-righello > span { font-size: 10.5px; padding-top: 6px; } }
 .cal-corsia { position: absolute; left: 0; display: flex; border-bottom: 1px solid var(--m-line); cursor: pointer; }
-.cal-camera { position: sticky; left: 0; z-index: 10; height: 100%; background: var(--m-bg); border-right: 1px solid var(--m-line); padding: 10px 0 0 12px; font-family: var(--m-disp); font-size: 14px; font-weight: 500; color: var(--m-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+.cal-camera { position: sticky; left: 0; z-index: 25; height: 100%; background: var(--m-bg); border-right: 1px solid var(--m-line); padding: 10px 0 0 12px; font-family: var(--m-disp); font-size: 14px; font-weight: 500; color: var(--m-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
 .cal-filo-mese { position: absolute; width: 2px; background: #A8894F; opacity: .7; z-index: 1; pointer-events: none; }
 .cal-filo-oggi { position: absolute; width: 1px; background: #2D6A4F; z-index: 20; pointer-events: none; }
 
