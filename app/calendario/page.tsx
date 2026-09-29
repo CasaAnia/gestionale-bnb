@@ -8,18 +8,18 @@ import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeDiverso, nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { EXTRA_BED_MAX } from '@/lib/tariffe'
-import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
+import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
 import type { Booking, Guest, Room } from '@/lib/types'
 import { COLORE_LETTI_ESAURITI, statoLettiAggiuntivi } from '@/lib/calendarioLetti'
 import {
   CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, geometriaScheda, statoScheda, tintaScheda, testoStato,
-  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, arrivoToccatoNelBuco, CAMBIO_CAMERA, FILO_SINISTRO, fondoConAcconti,
+  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, arrivoToccatoNelBuco, CAMBIO_CAMERA, FILO_SINISTRO, fondoConAcconti, trattiLetto,
 } from '@/lib/calendarioSchede'
 import { leggiArrivo } from '@/lib/arrivo'
 import { oraRoma } from '@/lib/opzioni'
 import BackLink from '@/components/BackLink'
 import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione'
-import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro } from '@/components/calendario/Nastro'
+import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro, FiloLetto } from '@/components/calendario/Nastro'
 import FoglioMaison from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese } from '@/lib/schedaPrenotazione'
@@ -879,6 +879,7 @@ export default function Calendario() {
                         classi={`${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : ''} ${isSelected ? 'catena' : ''} ${isCurrent ? 'trovata' : ''}`}
                         top={tocco.top} height={tocco.height} left={NAME_W + g.left} width={g.width} zIndex={isCurrent ? 16 : isSelected ? 15 : 5}
                         sito={isWebPending} cutLeft={cutLeft} letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
+                        lettoTratti={trattiLetto(nottiLettoExtra(booking), dayIndex, startIdx, endIdx, CELL_W)}
                         fondo={tinta.fondo} testo={tinta.testo} filo={tinta.filo} clipPath={clipPath}
                         cuneoDestra={cutRight ? tintaBase.filo : undefined} cuneoSinistra={cutLeft ? tinta.filo : undefined}
                         testoLeft={NAME_W + ARIA_SCHEDA + 8} testoWidth={larghezzaTesto(startIdx, endIdx)}>
@@ -908,6 +909,7 @@ export default function Calendario() {
                         style={{ top: rowTop + SCHEDA_TOP, height: SCHEDA_H, left: NAME_W + g.left, width: g.width, zIndex: 5 }}>
                         <div className="cal-scheda-in" data-letto={barra.lettoNotti.length > 0 ? 1 : undefined}
                           style={{ background: tinta.fondo, color: tinta.testo, borderLeftColor: tinta.filo, borderRadius: 6 }}>
+                          <FiloLetto tratti={trattiLetto(barra.lettoNotti, dayIndex, startIdx, endIdx, CELL_W)} bordoSinistro={FILO_SINISTRO} />
                           <span className="tx" style={{ left: NAME_W + ARIA_SCHEDA + 8, width: larghezzaTesto(startIdx, endIdx) }}>
                             <em>{rigaDate(barra.arrivo, barra.partenza, 'opzione')}</em>
                             <b>{barra.lettoNotti.length > 0 && <span className="ic">🛏 </span>}{barra.ospite}</b>

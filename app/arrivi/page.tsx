@@ -28,6 +28,7 @@ import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
 import InterruttorePillola from '@/components/InterruttorePillola'
 import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro } from '@/components/calendario/Nastro'
+import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
 import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
 import { IconeContatto } from '@/components/scheda/TestataMaison'
@@ -43,7 +44,7 @@ import { dataConGiorno } from '@/lib/dateItaliane'
 import { iconeFoglietto, LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import {
   CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, FILO_SINISTRO, geometriaScheda, iconeScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco,
-  daConfermareDalSito,
+  daConfermareDalSito, trattiLetto,
 } from '@/lib/calendarioSchede'
 import {
   statoArrivo, orarioScheda, tintaArrivo, coloreRigaArrivo, rigaArrivoArrivi, rigaDateArrivi, arrivoPassato, primoTratto, haOrario,
@@ -461,7 +462,8 @@ export default function Arrivi() {
                         onClick={e => { e.stopPropagation(); tocca(booking, chainKey) }}
                         classi={`${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : ''} ${isSelected ? 'catena' : ''} ${isCurrent ? 'trovata' : ''}`}
                         top={tocco.top} height={tocco.height} left={NAME_W + g.left} width={g.width} zIndex={isCurrent ? 16 : isSelected ? 15 : 5}
-                        sito={isWebPending} cutLeft={cutLeft}
+                        sito={isWebPending} cutLeft={cutLeft} letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
+                        lettoTratti={trattiLetto(nottiLettoExtra(booking), dayIndex, startIdx, endIdx, CELL_W)}
                         fondo={tinta.fondo} testo={tinta.testo} filo={tinta.filo} clipPath={clipPath}
                         cuneoDestra={cutRight ? tinta.filo : undefined} cuneoSinistra={cutLeft ? tinta.filo : undefined}
                         stileInterno={passato ? { opacity: OPACITA_ARRIVATA } : undefined}

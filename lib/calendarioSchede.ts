@@ -39,6 +39,29 @@ export function geometriaScheda(da: number, a: number, giorno: number): { left: 
   return { left: da * giorno + ARIA_SCHEDA, width: Math.max(0, (a - da) * giorno - ARIA_SCHEDA * 2) }
 }
 
+/**
+ * Il filo rosso del letto extra (29/09/2026): solo sotto le notti col letto,
+ * un tratto per ogni gruppo di notti di fila. `notti` = le date iso delle notti
+ * col letto (nottiLettoExtra: extra_bed_dates, o tutte se c'è il vecchio
+ * extra_bed senza date); `indice` = la colonna di una data nel nastro; la scheda
+ * va dalla colonna `da` (inclusa) ad `a` (esclusa). Tratti in px dal bordo
+ * sinistro della scheda, tagliati alla scheda.
+ */
+export function trattiLetto(notti: Iterable<string>, indice: (iso: string) => number, da: number, a: number, giorno: number): { left: number; width: number }[] {
+  const colonne = [...new Set([...notti].map(indice))].filter(i => i >= da && i < a).sort((x, y) => x - y)
+  const scheda = geometriaScheda(da, a, giorno)
+  const tratti: { left: number; width: number }[] = []
+  for (let k = 0; k < colonne.length; k++) {
+    let fine = k
+    while (fine + 1 < colonne.length && colonne[fine + 1] === colonne[fine] + 1) fine++
+    const sx = Math.max(0, colonne[k] * giorno - scheda.left)
+    const dx = Math.min(scheda.width, (colonne[fine] + 1) * giorno - scheda.left)
+    if (dx > sx) tratti.push({ left: sx, width: dx - sx })
+    k = fine
+  }
+  return tratti
+}
+
 // ── Lo stato e il colore ───────────────────────────────────────────────────
 export type StatoScheda = 'prenotazione' | 'bonifico' | 'pagato' | 'dalSito' | 'esclusiva' | 'colore'
 export const COLORE_ESCLUSIVA = '#f97316'

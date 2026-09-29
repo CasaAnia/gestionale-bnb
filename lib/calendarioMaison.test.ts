@@ -5,6 +5,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { trattiLetto, ARIA_SCHEDA } from './calendarioSchede.ts'
+import { nottiLettoExtra } from './lettiAggiuntivi.ts'
 import { PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, GIORNO_TELEFONO } from './calendarioMobile.ts'
 
 const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
@@ -98,7 +100,8 @@ test('il colore dice SOLO il pagamento (o «Nota e colore»): il letto extra non
   // il filo rosso dei letti è uno, con uno o con due letti, e sta DENTRO la scheda
   const css = leggi('app/maison.css')
   assert.equal(ROSSO_LETTO, '#D0261B')
-  assert.match(css, /\.cal-scheda-in\[data-letto\] \{ box-shadow: inset 0 -3px 0 #D0261B; \}/)
+  assert.match(css, /\.cal-letto \{ position: absolute; bottom: 0; height: 3px; background: #D0261B;/)
+  assert.doesNotMatch(css, /box-shadow: inset 0 -3px 0 #D0261B/)
   assert.match(pagina, /letto=\{hasExtraBed \? lettiPoolPrenotazione\(booking\) : undefined\}/)
   assert.match(nastro, /data-letto=\{letto \|\| undefined\}/)
   // niente più righe diagonali né colore-letto sulla barra
@@ -343,4 +346,46 @@ test('buco 2 → 6 ott, tocco sulla colonna del 5 → check_in=2026-10-05; fuori
     assert.match(src, /e\.currentTarget\.closest\('\.cal-nastro'\)\?\.getBoundingClientRect\(\)\.left/, f)
     assert.doesNotMatch(src, /L'arrivo è l'inizio del buco/, f)
   }
+})
+
+// ── Il filo rosso del letto extra solo sotto le notti col letto (Ania, 29/09/2026) ──
+test('filo del letto: Ledi 27 → 29 set col letto solo il 28 → un tratto sotto la colonna del 28, niente sotto il 27', () => {
+  const G = 60
+  const indice = (iso: string) => ['2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29'].indexOf(iso)
+  const ledi = { check_in: '2026-09-27', check_out: '2026-09-29', extra_bed: true, extra_bed_dates: ['2026-09-28'] }
+  const scheda = geometriaScheda(1, 3, G)
+  const tratti = trattiLetto(nottiLettoExtra(ledi), indice, 1, 3, G)
+  assert.equal(tratti.length, 1)
+  // comincia al bordo della colonna del 28 e arriva in fondo alla scheda
+  assert.equal(scheda.left + tratti[0].left, 2 * G)
+  assert.equal(tratti[0].left + tratti[0].width, scheda.width)
+  // sotto il 27 niente
+  assert.ok(tratti[0].left >= G - ARIA_SCHEDA)
+})
+
+test('filo del letto: tutte le notti (anche il vecchio extra_bed senza date) → un solo tratto largo quanto la scheda', () => {
+  const G = 40
+  const indice = (iso: string) => (Date.parse(iso) - Date.parse('2026-09-26')) / 86400000
+  const scheda = geometriaScheda(1, 4, G)
+  const conDate = { check_in: '2026-09-27', check_out: '2026-09-30', extra_bed_dates: ['2026-09-27', '2026-09-28', '2026-09-29'] }
+  const vecchio = { check_in: '2026-09-27', check_out: '2026-09-30', extra_bed: true, extra_bed_dates: null }
+  for (const b of [conDate, vecchio]) {
+    assert.deepEqual(trattiLetto(nottiLettoExtra(b), indice, 1, 4, G), [{ left: 0, width: scheda.width }])
+  }
+  // notti non di fila → più tratti
+  const saltate = trattiLetto(['2026-09-27', '2026-09-29'], indice, 1, 4, G)
+  assert.equal(saltate.length, 2)
+  // la scheda tagliata dal bordo della vista: il tratto resta dentro la scheda
+  assert.deepEqual(trattiLetto(['2026-09-25', '2026-09-26', '2026-09-27'], indice, 0, 2, G), [{ left: 0, width: geometriaScheda(0, 2, G).width }])
+})
+
+test('filo del letto: nessun letto → nessun tratto; le pagine e il nastro disegnano i tratti, non più tutta la scheda', () => {
+  const indice = (iso: string) => (Date.parse(iso) - Date.parse('2026-09-26')) / 86400000
+  assert.deepEqual(trattiLetto(nottiLettoExtra({ check_in: '2026-09-27', check_out: '2026-09-29' }), indice, 1, 3, 60), [])
+  assert.deepEqual(trattiLetto(nottiLettoExtra({ check_in: '2026-09-27', check_out: '2026-09-29', extra_bed: false, extra_bed_dates: [] }), indice, 1, 3, 60), [])
+  const arrivi = leggi('app/arrivi/page.tsx')
+  for (const p of [pagina, arrivi]) assert.match(p, /lettoTratti=\{trattiLetto\(nottiLettoExtra\(booking\), dayIndex, startIdx, endIdx, CELL_W\)\}/)
+  assert.match(pagina, /<FiloLetto tratti=\{trattiLetto\(barra\.lettoNotti,/)
+  assert.match(nastro, /<FiloLetto tratti=\{lettoTratti\}/)
+  assert.match(nastro, /data-filo-letto className="cal-letto"/)
 })

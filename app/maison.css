@@ -715,7 +715,8 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-scheda-in > .tx { position: sticky; display: block; margin-left: 8px; }
 .cal-scheda-in.cl > .tx { margin-left: 14px; }
 .cal-scheda-in.sito { border: 1.5px dashed; border-radius: 6px; }
-.cal-scheda-in[data-letto] { box-shadow: inset 0 -3px 0 #D0261B; }
+/* il filo rosso del letto: solo sotto le notti col letto (FiloLetto, 29/09/2026) */
+.cal-letto { position: absolute; bottom: 0; height: 3px; background: #D0261B; pointer-events: none; }
 .cal-scheda-in .tx > em { display: block; font-style: normal; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin-bottom: 2px; white-space: nowrap; overflow: hidden; }
 .cal-scheda-in .tx > b { display: block; font-family: var(--m-disp); font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; }
 .cal-scheda-in .tx > b .ic { font-family: var(--home-ui-font); font-size: 10px; }

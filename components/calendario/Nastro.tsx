@@ -13,7 +13,7 @@
 //                      camera, testo che resta in vista sulle schede lunghe
 // ============================================================================
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
-import { SCHEDA_H, filoObliquo } from '@/lib/calendarioSchede'
+import { SCHEDA_H, FILO_SINISTRO, filoObliquo } from '@/lib/calendarioSchede'
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -92,7 +92,7 @@ export function BucoNastro({ chiave, etichetta, riga, left, top, width, testoLef
  * taglio stesso è `clipPath`. Il testo (`children`) sta nello `.tx` che resta
  * in vista quando la scheda comincia fuori, a sinistra.
  */
-export function SchedaNastro({ id, dati, classi, top, height, left, width, zIndex, onClick, sito, cutLeft, letto, fondo, testo, filo, clipPath, cuneoDestra, cuneoSinistra, testoLeft, testoWidth, stileInterno, children }: {
+export function SchedaNastro({ id, dati, classi, top, height, left, width, zIndex, onClick, sito, cutLeft, letto, lettoTratti, fondo, testo, filo, clipPath, cuneoDestra, cuneoSinistra, testoLeft, testoWidth, stileInterno, children }: {
   id: string
   /** attributi data-* in più (data-stato, data-arrivo…) */
   dati?: Record<string, string | number | undefined>
@@ -102,8 +102,10 @@ export function SchedaNastro({ id, dati, classi, top, height, left, width, zInde
   /** richiesta dal sito da confermare: bordo tratteggiato del colore del filo */
   sito?: boolean
   cutLeft?: boolean
-  /** letti extra (filo rosso in fondo) */
+  /** letti extra (quanti letti del pool) */
   letto?: number
+  /** il filo rosso in fondo, solo sotto le notti col letto (trattiLetto) */
+  lettoTratti?: { left: number; width: number }[]
   fondo: string; testo: string; filo: string
   clipPath?: string
   cuneoDestra?: string
@@ -125,11 +127,28 @@ export function SchedaNastro({ id, dati, classi, top, height, left, width, zInde
         }}>
         {cuneoDestra && <span aria-hidden data-filo-obliquo="uscita" className="cal-cuneo" style={{ background: cuneoDestra, clipPath: filoObliquo('destra', width, SCHEDA_H) }} />}
         {cuneoSinistra && <span aria-hidden data-filo-obliquo="arrivo" className="cal-cuneo" style={{ background: cuneoSinistra, clipPath: filoObliquo('sinistra', width, SCHEDA_H) }} />}
+        <FiloLetto tratti={lettoTratti} bordoSinistro={sito ? 1.5 : FILO_SINISTRO} />
         {/* il testo resta in vista anche quando la scheda comincia fuori, a sinistra */}
         <span className="tx" style={{ left: testoLeft, width: testoWidth }}>
           {children}
         </span>
       </div>
     </div>
+  )
+}
+
+/**
+ * Il filo rosso del letto extra, 3 px in fondo alla scheda, solo sotto le notti
+ * col letto (29/09/2026). I tratti sono misurati dal bordo della scheda; dentro
+ * il corpo si parte dopo il filo sinistro, e il taglio/gli angoli li rifilano.
+ */
+export function FiloLetto({ tratti, bordoSinistro }: { tratti?: { left: number; width: number }[]; bordoSinistro: number }) {
+  if (!tratti || tratti.length === 0) return null
+  return (
+    <>
+      {tratti.map(t => (
+        <span key={t.left} aria-hidden data-filo-letto className="cal-letto" style={{ left: t.left - bordoSinistro, width: t.width }} />
+      ))}
+    </>
   )
 }
