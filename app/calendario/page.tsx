@@ -32,7 +32,7 @@ import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } 
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { giornoDaParametro } from '@/lib/daControllare'
 import { vuoleRicevuta as clienteVuoleRicevuta } from '@/lib/valutazione'
-import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
+import { PannelloLegenda } from '@/components/LegendaCalendario'
 import { areaTocco, CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, TINTE_SCHEDA, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono } from '@/lib/calendarioMobile'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import {
@@ -203,10 +203,9 @@ export default function Calendario() {
   const primoGiornoRef = useRef<number | null>(null)
   // Da controllare in Home (06/09/2026): «Apri calendario» arriva con ?giorno=AAAA-MM-GG
   const giornoUrlRef = useRef<string | null | undefined>(undefined)
-  // Telefono (07/09/2026): legenda nel pannello «?» in alto a destra; posizione
+  // Legenda nel foglio aperto da «LEGENDA» sotto «Oggi», telefono e Mac (29/09/2026); posizione
   // da riprendere tornando dalla scheda prenotazione (sessionStorage, una volta sola)
   const [legendaAperta, setLegendaAperta] = useState(false)
-  const legendaInRiga = isDesktop && !orizzontale
   const posizioneRef = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
@@ -963,23 +962,16 @@ export default function Calendario() {
         <RigaMesi maison colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
       )}
       {/* «LEGENDA» maiuscoletto sottolineato, centrata sotto «Oggi» nella stessa
-          colonna (29/09/2026, al posto del «?»): apre la legenda nel foglio dal basso */}
-      {!loading && !legendaInRiga && (
-        <div className={`shrink-0 flex ${orizzontale ? 'px-2' : ''}`}>
+          colonna (29/09/2026, al posto del «?»): apre la legenda nel foglio dal basso.
+          Anche dal Mac, al posto della legenda in riga (Ania, 29/09/2026) */}
+      {!loading && (
+        <div className={`shrink-0 flex ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`}>
           <div className="cal-lg" style={{ width: NAME_W, minWidth: NAME_W }}>
             <button type="button" className="mz-lnk" aria-label="Legenda" onClick={() => setLegendaAperta(true)}>Legenda</button>
           </div>
         </div>
       )}
 
-      {/* Legenda in riga solo dal Mac (07/09/2026): sul telefono sta nel foglio sotto «Oggi» */}
-      {legendaInRiga && (
-        <div className="shrink-0 px-4 pt-4 pb-4 flex flex-wrap gap-3 items-center">
-          <VociLegenda />
-          {/* Niente voce «Cambio camera» nella legenda (richiesta di Ania, 04/09/2026): le schede tagliate a incastro si spiegano da sole */}
-          {/* La versione sta in fondo al menu del Mac (29/09/2026), in un posto solo */}
-        </div>
-      )}
       {legendaAperta && <PannelloLegenda onChiudi={() => setLegendaAperta(false)} />}
 
       {/* ── FOGLIETTO DELLA CAMERA TENUTA (15/09/2026; dal 29/09/2026 nel foglio Maison ad altezza fissa) ──

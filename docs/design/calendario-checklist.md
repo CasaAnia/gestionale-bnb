@@ -143,7 +143,7 @@ sono esempi.
 - L2 Otto righe col quadretto 14 px e il filo #DDD3C2: Prenotazione · Bonifico in attesa · Pagato · Dal sito, da confermare (tratteggiato) · Camera tenuta in opzione (3 ore) · Letto extra in questa prenotazione (filo rosso sotto la scheda) · Letti extra finiti quella notte (riga «🛏 extra» rossa, 2/2) · 🔒 Esclusiva e altri colori scelti in «Nota e colore».
 - L3 Riga delle icone: «Icone, prima del nome: ⭐ ottimo · 🧾 ricevuta · 🛏 letto in più · ⇄ cambio camera · 🌐 dal sito · 🔒 esclusiva».
 - L4 «CHIUDI» tenue.
-- L5 VOCI_LEGENDA aggiornate di conseguenza; dal Mac la legenda in riga resta, rivestita.
+- L5 VOCI_LEGENDA aggiornate di conseguenza. Dal 29/09/2026 anche dal Mac niente legenda in riga: «LEGENDA» sotto «Oggi» apre lo stesso foglio, centrato a 620 px; la versione sta solo in fondo al menu del Mac.
 
 ## X. Non sono testi della pagina
 

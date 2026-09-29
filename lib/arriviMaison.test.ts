@@ -138,3 +138,10 @@ test('le schede della pagina: colore per stato, arrivi passati attenuati, stessi
   assert.doesNotMatch(pagina, /cal-extra|ombraNavetta/)
   assert.match(leggi('app/maison.css'), /\.cal-scheda-in \.tx > b \.hr \{ font-family: var\(--m-disp\); font-size: 19px; font-weight: 700;[^}]*color: #000; \}/)
 })
+
+test('dal Mac niente legenda in riga: «LEGENDA» sotto «Oggi» apre lo stesso foglio del telefono', () => {
+  assert.doesNotMatch(pagina, /VociLegenda/)
+  assert.match(pagina, /\{!loading && \(\n        <div className=\{`shrink-0 flex \$\{orizzontale \? 'px-2' : isDesktop \? 'px-4' : ''\}`\}>\n          <div className="cal-lg"/)
+  assert.match(pagina, /<PannelloLegenda voci=\{VOCI_LEGENDA_ARRIVI\} icone=\{ICONE_LEGENDA_ARRIVI\}/)
+  assert.doesNotMatch(pagina, /NEXT_PUBLIC_BUILD_TAG/)
+})

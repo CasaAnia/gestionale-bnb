@@ -109,7 +109,7 @@ quello che il riferimento degli Arrivi mostra, e si segna cosa cambia.
 
 ## 9. Dal Mac
 
-- M1 Come il Calendario Maison dal Mac: stesse misure del Mac, legenda in riga sotto il nastro al posto di «LEGENDA».
+- M1 Come il Calendario Maison dal Mac: stesse misure del Mac; dal 29/09/2026 anche dal Mac «LEGENDA» sotto «Oggi» apre il foglio della legenda, centrato a 620 px (niente più legenda in riga).
 - M2 Il foglio al centro.
 
 ## 10. Novità (le uniche modifiche di comportamento)

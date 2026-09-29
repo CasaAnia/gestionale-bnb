@@ -29,7 +29,7 @@ import RigaMesi from '@/components/RigaMesi'
 import InterruttorePillola from '@/components/InterruttorePillola'
 import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro } from '@/components/calendario/Nastro'
 import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
-import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
+import { PannelloLegenda } from '@/components/LegendaCalendario'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
 import { IconeContatto } from '@/components/scheda/TestataMaison'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
@@ -506,18 +506,13 @@ export default function Arrivi() {
           onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(indiceOggi())} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`}
           className={`shrink-0 ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
       )}
-      {/* «LEGENDA» sotto «Oggi» (novità del 29/09/2026): apre la legenda nel foglio dal basso */}
-      {!loading && !(isDesktop && !orizzontale) && (
-        <div className={`shrink-0 flex ${orizzontale ? 'px-2' : ''}`}>
+      {/* «LEGENDA» sotto «Oggi» (novità del 29/09/2026): apre la legenda nel foglio dal basso,
+          anche dal Mac al posto della legenda in riga (Ania, 29/09/2026) */}
+      {!loading && (
+        <div className={`shrink-0 flex ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`}>
           <div className="cal-lg" style={{ width: NAME_W, minWidth: NAME_W }}>
             <button type="button" className="mz-lnk" aria-label="Legenda" onClick={() => setLegendaAperta(true)}>Legenda</button>
           </div>
-        </div>
-      )}
-      {/* Dal Mac la legenda in riga, come il Calendario */}
-      {!loading && isDesktop && !orizzontale && (
-        <div className="shrink-0 px-4 pt-4 pb-4 flex flex-wrap gap-3 items-center">
-          <VociLegenda voci={VOCI_LEGENDA_ARRIVI} />
         </div>
       )}
       {legendaAperta && (

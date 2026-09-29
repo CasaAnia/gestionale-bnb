@@ -43,11 +43,16 @@ test('posizione: solo una data ISO, e solo se il giorno è disegnato', () => {
   assert.equal(CHIAVE_POSIZIONE, 'ca_calendario_posizione')
 })
 
-test('layout della pagina: «Legenda» sotto «Oggi» con etichetta, legenda in riga solo dal Mac, area di tocco sulle schede, posizione salvata prima di aprire una scheda', () => {
+test('layout della pagina: «Legenda» sotto «Oggi» con etichetta, anche dal Mac (niente più legenda in riga), area di tocco sulle schede, posizione salvata prima di aprire una scheda', () => {
   assert.ok(occorrenze(pagina, 'aria-label="Legenda"') >= 1)
   assert.ok(occorrenze(pagina, '>Legenda</button>') >= 1)                   // la parola, non più il «?» (29/09/2026)
   assert.ok(occorrenze(pagina, '<PannelloLegenda') >= 1)
-  assert.ok(occorrenze(pagina, 'isDesktop && !orizzontale') >= 1)          // legenda in riga solo dal Mac
+  // dal Mac niente più legenda in riga sotto i mesi (29/09/2026): la stessa «LEGENDA» del telefono
+  assert.equal(occorrenze(pagina, 'VociLegenda'), 0)
+  assert.equal(occorrenze(pagina, 'legendaInRiga'), 0)
+  assert.equal(occorrenze(legenda, 'VociLegenda'), 0)
+  assert.ok(occorrenze(pagina, '{!loading && (\n        <div className={`shrink-0 flex ${orizzontale ? \'px-2\' : isDesktop ? \'px-4\' : \'\'}`}>\n          <div className="cal-lg"') === 1)
+  assert.ok(occorrenze(legenda, 'larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}') === 1)   // dal Mac centrato a 620 px
   // la scheda (con data-tocco) è il pezzo condiviso con gli Arrivi (29/09/2026)
   assert.ok(occorrenze(pagina, '<SchedaNastro') >= 1)
   assert.ok(occorrenze(readFileSync(new URL('../components/calendario/Nastro.tsx', import.meta.url), 'utf8'), 'data-tocco') >= 1)

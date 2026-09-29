@@ -82,3 +82,5 @@ build puliti.
 - Ricerca «macauda»: «13 prenotazioni trovate · Rosa Macauda», navigatore «1 DI 13 · 23 – 25 giu · Lena», una scheda col contorno verde, 178 attenuate.
 - Catena di Dario Barone: il foglietto dice «AMELIA · 20 → 30 SET · 10 NOTTI · CONFERMATA», Camere «Allegra 1 notte, poi Amelia 9», Ospiti «2 · letto in più dal 26 set», Prezzo «730 €», Pagamento «ricevuti 730 € · saldato», Arrivo «dom 20 set alle 18:40 · arrivo autonomo», Note vuota, Cliente «già ospite 1 volta · da Nida · 890 € con questa»; i due tratti della catena pieni con l'ombra.
 - Buco «30 SET → 4 OTT» toccato: si apre la Nuova prenotazione con la camera e l'arrivo al 30 settembre (non salvata).
+
+- 29/09/2026 (Ania): dal Mac tolta la legenda in riga sotto i mesi; come sul telefono «LEGENDA» maiuscoletto sottolineato centrata sotto «Oggi» apre il FoglioMaison della legenda (stesse voci, riga delle icone), centrato a 620 px. La versione «v. …» sta solo in fondo alla colonna del menu del Mac.

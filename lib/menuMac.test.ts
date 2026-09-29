@@ -36,10 +36,13 @@ test('bollini come oggi: calendario dal sito, richieste nuove in ottone e in att
   assert.match(css, /\.mz-lato a \.bds \{ margin-left: auto; display: flex; gap: 6px; \}/)
 })
 
-test('la versione sta in fondo al menu del Mac e non più nella legenda del Calendario', () => {
+test('la versione sta in fondo al menu del Mac e da nessun’altra parte', () => {
   assert.match(colonna, /<p className="ft" data-versione>v\. \{process\.env\.NEXT_PUBLIC_BUILD_TAG\}<\/p>/)
   assert.match(leggi('app/maison.css'), /\.mz-lato \.ft \{ position: absolute; bottom: 18px;[^}]*font-size: 10px; color: #8A8072; letter-spacing: \.08em; \}/)
-  assert.doesNotMatch(leggi('app/calendario/page.tsx'), /NEXT_PUBLIC_BUILD_TAG/)
+  for (const f of ['app/calendario/page.tsx', 'app/arrivi/page.tsx', 'components/LegendaCalendario.tsx', 'components/RigaMesi.tsx']) {
+    assert.doesNotMatch(leggi(f), /NEXT_PUBLIC_BUILD_TAG/)
+  }
+  assert.equal(leggi('components/BottomNav.tsx').split('NEXT_PUBLIC_BUILD_TAG').length - 1, 1)
 })
 
 test('colonna da 200 px, marchio senza cerchio, voci attive col filo d’ottone', () => {
