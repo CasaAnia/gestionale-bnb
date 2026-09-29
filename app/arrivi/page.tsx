@@ -1,52 +1,87 @@
 'use client'
+// ============================================================================
+// ARRIVI «MAISON» (riferimento approvato da Ania il 29/09/2026:
+// docs/design/arrivi-riferimento.html, checklist in docs/design/arrivi-checklist.md).
+//
+// Lo stesso nastro del Calendario «Maison» — stessa testa, stessa riga di
+// navigazione, stesse misure, gli stessi pezzi (components/calendario/Nastro)
+// — ma la scheda parla di ARRIVO: l'orario grande davanti al nome, sotto
+// luogo · mezzo · navetta e prelievo (lib/arriviSchede), e il colore dice lo
+// stato dell'arrivo: verde tutto a posto, ottone arrivo autonomo con l'orario,
+// blu manca qualcosa. Gli arrivi già avvenuti sono attenuati. Il tocco apre
+// il foglio «Arrivo e navetta» (components/scheda/FoglioArrivo, lo stesso
+// della Home e della scheda) con lo storico e le azioni di sempre.
+//
+// Tutto il resto è come prima: 90 giorni (7 prima di oggi, 83 dopo), la
+// ricerca, il box dei cambi camera, i mesi, ?apri=<id> dalla Home.
+// ============================================================================
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUpcomingRoomChanges, buildChangeGroups, coloriCatene, percorsoBarraArrotondata } from '@/lib/roomChanges'
+import { getUpcomingRoomChanges, buildChangeGroups, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
-import { ombraNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
+import InterruttorePillola from '@/components/InterruttorePillola'
+import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro } from '@/components/calendario/Nastro'
+import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
+import FoglioArrivo from '@/components/scheda/FoglioArrivo'
+import { IconeContatto } from '@/components/scheda/TestataMaison'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI } from '@/lib/richiesteCalendario'
-import { salvaArrivoPrenotazione } from '@/lib/arrivoDati'
-import ArrivoNavetta from '@/components/ArrivoNavetta'
-import { leggiArrivo, arrivoInScheda, navettaInScheda, type Arrivo } from '@/lib/arrivo'
-import AvvisoAzione from '@/components/AvvisoAzione'
+import { leggiArrivo, arrivoInScheda, navettaInScheda, TITOLO_ARRIVO } from '@/lib/arrivo'
 import { idDaParametro } from '@/lib/daControllare'
 import { BottoniOrario } from '@/components/BottoniWhatsApp'
 import { whatsappRichiestaOrario } from '@/lib/messaggiWhatsApp'
-import { vuoleRicevuta, BADGE_RICEVUTA, ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
+import { vuoleRicevuta } from '@/lib/valutazione'
+import { dataConGiorno } from '@/lib/dateItaliane'
+import { iconeFoglietto, LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
+import {
+  CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, FILO_SINISTRO, geometriaScheda, iconeScheda, buchiLiberi, rigaBuco,
+  daConfermareDalSito,
+} from '@/lib/calendarioSchede'
+import {
+  statoArrivo, orarioScheda, tintaArrivo, coloreRigaArrivo, rigaArrivoArrivi, rigaDateArrivi, arrivoPassato, primoTratto, haOrario,
+} from '@/lib/arriviSchede'
+import {
+  areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, OPACITA_ARRIVATA, VOCI_LEGENDA_ARRIVI, ICONE_LEGENDA_ARRIVI,
+} from '@/lib/calendarioMobile'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
-// Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
-const GRID_SCALE = 1.2
-function gs(n: number) { return Math.round(n * GRID_SCALE) }
-const CELL_W_DESKTOP = gs(84)
-// Dal Mac (04/09/2026): stessa griglia leggera del Calendario e delle Richieste
-// — righe 54, colonna camere 116 senza descrizione (tooltip), intestazione
-// compatta, barre su una riga. Sul telefono le misure di sempre.
-// Misure IDENTICHE al calendario delle Richieste e al Calendario: righe 44,
-// giorni 40, camere 96, testi 11–13; niente striscia dei mesi sopra i giorni.
-const ROW_H_DESKTOP = 44
-const HEADER_MONTH_H_DESKTOP = 0
-const HEADER_DAY_H_DESKTOP = 40
+// Le misure del Calendario «Maison» (app/calendario): righello 22 px sul
+// telefono e 26 dal Mac, colonna delle camere 66 sul telefono e 84 dal Mac,
+// corsie da 92 con le schede da 72 (lib/calendarioSchede)
+const RULER_H_MOBILE = 22
+const RULER_H_DESKTOP = 26
 const NAME_W_MOBILE = 66   // telefono (05/09/2026): come le Richieste, uguale in Calendario/Arrivi/Richieste (richiesta di Ania)
 const NAME_W_DESKTOP = 84   // solo il nome della camera, senza numero
+const CELL_W_DESKTOP = 101
 // Selettore «Mese | 2 settimane» (stessa scelta ricordata del Calendario)
 type ModoGriglia = 'mese' | 'quindici'
 const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 31, quindici: GIORNI_QUINDICINA }   // 31: a mese si vede il mese intero (05/09/2026)
 const CHIAVE_MODO = 'ca_calendario_modo'
+const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoGriglia, string])[]
 const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 90
 const DAYS_BEFORE = 7
-const HEADER_BG = '#ffffff'
+// La legenda degli Arrivi nel foglio: cinque voci, alcune su due righe
+const ALTEZZA_LEGENDA_ARRIVI = 470
+
+// Una prenotazione come la leggono gli Arrivi (bookings + guests)
+type Riga = {
+  id: string; room_id: string; guest_id?: string | null; group_id?: string | null
+  check_in: string; check_out: string; check_in_time?: string | null
+  status?: string | null; source?: string | null; color?: string | null
+  extra_bed?: boolean | null; extra_bed_dates?: string[] | null
+  guest_name?: string | null
+  guests?: { id?: string; full_name?: string | null; phone?: string | null; rating?: string | null; vuole_ricevuta?: boolean | null } | null
+  [colonna: string]: unknown
+}
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)
@@ -67,23 +102,26 @@ function roomPreposition(room: string) {
   return /^[aeiouAEIOU]/.test(room) ? 'ad' : 'a'
 }
 
+// Gli arrivi sono le prenotazioni confermate e concluse, come prima; più le
+// richieste dal sito da confermare, tratteggiate come nel Calendario
+const eArrivo = (b: Riga) => b.status === 'confermata' || b.status === 'completata' || daConfermareDalSito(b)
+
 export default function Arrivi() {
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [rooms, setRooms] = useState<any[]>([])
-  const [bookings, setBookings] = useState<any[]>([])
+  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([])
+  // tutte le prenotazioni non annullate: servono per i buchi liberi veri; a schermo vanno gli arrivi
+  const [bookings, setBookings] = useState<Riga[]>([])
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
   const orizzontale = useOrizzontaleTelefono()
   useSchermoIntero()
-  const [popup, setPopup] = useState<{ id: string; name: string; arrivo: Arrivo } | null>(null)
+  // Il foglio «Arrivo e navetta» aperto: la prenotazione toccata
+  const [popup, setPopup] = useState<{ id: string } | null>(null)
   const [showStorico, setShowStorico] = useState(false)
-  const [savingTime, setSavingTime] = useState(false)
-  // il freno sincrono: `savingTime` arriva al giro dopo, due tocchi vicini passano prima
-  const salvandoArrivo = useRef(false)
-  // Errori di salvataggio visibili, parte 2 (05/09/2026): avviso nel pannello
-  // al posto dell'alert del browser; con errore il pannello resta aperto
-  const [erroreOrario, setErroreOrario] = useState<string | null>(null)
+  // Primo tocco su una scheda con cambio camera: la catena resta piena, il resto attenuato
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [legendaAperta, setLegendaAperta] = useState(false)
 
   // Titolo sticky mese+anno: segue il mese più a sinistra attualmente in vista (come nel calendario)
   function fmtMonth(d: Date) {
@@ -100,16 +138,21 @@ export default function Arrivi() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  const arrivi = useMemo(() => bookings.filter(eArrivo), [bookings])
+  const confermati = useMemo(() => arrivi.filter(b => !daConfermareDalSito(b)), [arrivi])
+
   const [primoVisibile, setPrimoVisibile] = useState(DAYS_BEFORE)
-  // Ricerca per nome o telefono (stesso campo del Calendario, dal Mac): gli
-  // arrivi trovati restano pieni, gli altri si attenuano; si scorre al primo.
+  // Il primo giorno INTERO in vista (per tenere il testo delle schede lunghe dentro la parte che si vede)
+  const [colonnaSinistra, setColonnaSinistra] = useState(DAYS_BEFORE)
+  // Ricerca per nome o telefono (stesso campo del Calendario): gli arrivi
+  // trovati col contorno verde, gli altri attenuati; si scorre al primo.
   const [query, setQuery] = useState('')
   const matches = useMemo(() => {
     const t = query.trim()
     if (!t) return []
-    return bookings.filter((b: any) => matchPrenotazione(b, t)).sort((a: any, b: any) => a.check_in.localeCompare(b.check_in))
-  }, [bookings, query])
-  const matchedIds = useMemo(() => new Set(matches.map((m: any) => m.id)), [matches])
+    return arrivi.filter(b => matchPrenotazione(b, t)).sort((a, b) => a.check_in.localeCompare(b.check_in))
+  }, [arrivi, query])
+  const matchedIds = useMemo(() => new Set(matches.map(m => m.id)), [matches])
   const cercando = query.trim() !== ''
   const searchAttiva = matches.length > 0
   const [modo, setModo] = useState<ModoGriglia>('quindici')
@@ -123,27 +166,20 @@ export default function Arrivi() {
   const primoGiornoRef = useRef<number | null>(null)
   // Da controllare in Home (06/09/2026): ?apri=<id> → giorno di arrivo da cui far partire la griglia
   const apriUrlRef = useRef<string | null>(null)
-  // Dal Mac le colonne riempiono il riquadro: 14 giorni (2 settimane) o 30 (mese)
-  // Griglia del Mac OVUNQUE (05/09/2026): sul telefono colonna camere 80 px e
-  // colonne di almeno 60 px (40 a mese) che scorrono di lato dentro il riquadro.
   // Colonna delle camere: larga solo sul Mac vero; sul telefono, dritto o
   // girato, quella stretta delle Richieste (uguale nelle tre pagine, 05/09/2026)
   const colonnaLarga = isDesktop && !orizzontale
   const NAME_W = colonnaLarga ? NAME_W_DESKTOP : NAME_W_MOBILE
   // Telefono girato (scelta di Ania, 05/09/2026): a mese tutti i 31 giorni e a
   // 2 settimane tutte le 14 caselle nella larghezza dello schermo, senza
-  // scorrimento di lato e senza caselle a metà (colonne da ~20 px a mese: i
-  // numeri restano leggibili, i nomi sulle barre si riducono a una lettera).
-  const colonnaMin = isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : (modo === 'quindici' ? 60 : 40)
-  // Senza minimo (telefono girato a mese) la colonna NON si arrotonda: così
-  // in vista ci sono esattamente 31 caselle, non 31 e qualcosa (Ania, 05/09/2026)
+  // scorrimento di lato e senza caselle a metà. Sul telefono dritto 60 px a
+  // «2 settimane» e 40 a «Mese», come il Calendario.
+  const colonnaMin = isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
   const CELL_W = larghezzaGriglia > 0
     ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
     : (isDesktop ? CELL_W_DESKTOP : 60)
-  const ROW_H = ROW_H_DESKTOP
-  const HEADER_MONTH_H = HEADER_MONTH_H_DESKTOP
-  const HEADER_DAY_H = HEADER_DAY_H_DESKTOP
-  const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
+  const ROW_H = CORSIA_H
+  const RULER_H = isDesktop && !orizzontale ? RULER_H_DESKTOP : RULER_H_MOBILE
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -161,43 +197,46 @@ export default function Arrivi() {
 
   // Cambi camera (di soggiorni collegati) la cui nuova camera inizia oggi o domani
   const roomChanges = useMemo(
-    () => getUpcomingRoomChanges(bookings, roomNameById, [todayStr, tomorrowStr]),
-    [bookings, roomNameById, todayStr, tomorrowStr]
+    () => getUpcomingRoomChanges(confermati, roomNameById, [todayStr, tomorrowStr]),
+    [confermati, roomNameById, todayStr, tomorrowStr]
   )
 
-  // Catene cambio camera: stesse del calendario, per il taglio a incastro delle barre
-  const { outgoingIds, incomingIds } = useMemo(() => {
-    const { edges } = buildChangeGroups(bookings)
+  // Catene cambio camera: stesse del calendario, per il taglio a incastro delle schede
+  const changeGroups = useMemo(() => buildChangeGroups(arrivi), [arrivi])
+  const { outgoingIds, incomingIds, poiCamera, daCamera } = useMemo(() => {
     const outgoing = new Set<string>()
     const incoming = new Set<string>()
-    edges.forEach(e => { outgoing.add(e.fromId); incoming.add(e.toId) })
-    return { outgoingIds: outgoing, incomingIds: incoming }
-  }, [bookings])
-  // Colore del pezzetto tagliato: uguale per le due metà dello stesso soggiorno (Ania, 06/09/2026)
-  const coloreCatena = useMemo(() => coloriCatene(bookings), [bookings])
+    const poi: Record<string, string> = {}, da: Record<string, string> = {}
+    changeGroups.edges.forEach(e => {
+      outgoing.add(e.fromId); incoming.add(e.toId)
+      poi[e.fromId] = roomNameById[arrivi.find(b => b.id === e.toId)?.room_id ?? ''] ?? ''
+      da[e.toId] = roomNameById[arrivi.find(b => b.id === e.fromId)?.room_id ?? ''] ?? ''
+    })
+    return { outgoingIds: outgoing, incomingIds: incoming, poiCamera: poi, daCamera: da }
+  }, [changeGroups, arrivi, roomNameById])
 
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
       supabase.from('bookings')
         .select('*, guests(*)')
-        .in('status', ['confermata', 'completata']),
+        .neq('status', 'annullata'),
     ]).then(([{ data: r }, { data: b }]) => {
-      const sorted = (r || []).sort((a: any, b: any) => {
+      const sorted = ((r || []) as { id: string; name: string }[]).sort((a, b) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
         const bi = ROOM_ORDER.findIndex(o => b.name.includes(o))
         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
       })
       setRooms(sorted)
-      setBookings(b || [])
+      setBookings((b || []) as Riga[])
       // Da controllare in Home (06/09/2026): «Apri arrivo» arriva con ?apri=<id>
-      // e trova la finestra dell'orario già aperta su quella prenotazione
+      // e trova il foglio dell'arrivo già aperto su quella prenotazione
       const apri = idDaParametro(window.location.search, 'apri')
-      const daAprire = apri ? (b || []).find((x: { id: string }) => x.id === apri) : null
+      const daAprire = apri ? ((b || []) as Riga[]).find(x => x.id === apri && eArrivo(x)) : null
       if (daAprire) {
         apriUrlRef.current = daAprire.check_in
         setShowStorico(false)
-        setPopup({ id: daAprire.id, name: nomeConAltri(daAprire), arrivo: leggiArrivo(daAprire) })
+        setPopup({ id: daAprire.id })
       }
       setLoading(false)
     })
@@ -219,7 +258,7 @@ export default function Arrivi() {
       }
       updateVisibleMonth()
     }
-  }, [loading, CELL_W, isDesktop])
+  }, [loading, CELL_W, isDesktop]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (loading || !scrollRef.current) return
@@ -239,7 +278,7 @@ export default function Arrivi() {
     setQuery(v)
     const t = v.trim()
     if (!t) return
-    const primo = bookings.filter((b: any) => matchPrenotazione(b, t)).sort((a: any, b: any) => a.check_in.localeCompare(b.check_in))[0]
+    const primo = arrivi.filter(b => matchPrenotazione(b, t)).sort((a, b) => a.check_in.localeCompare(b.check_in))[0]
     if (primo) vaiAIndice(dayIndex(primo.check_in) - 1)
   }
   // Prima casella quando si torna a oggi: 3 giorni prima di oggi a 2 settimane,
@@ -250,9 +289,10 @@ export default function Arrivi() {
   function vaiAIndice(idx: number) {
     scrollRef.current?.scrollTo({ left: Math.max(0, Math.min(days.length - 1, idx)) * CELL_W, behavior: 'smooth' })
   }
-  // Frecce ‹ ›: a 2 settimane spostano di 14 giorni, a mese vanno al 1° del mese prima/dopo (entro i 90 giorni)
+  // Frecce ‹ ›: a 2 settimane spostano di UNA settimana (novità del 29/09/2026,
+  // come nel Calendario), a mese vanno al 1° del mese prima/dopo (entro i 90 giorni)
   function freccia(direzione: -1 | 1) {
-    if (modo === 'quindici') { scrollRef.current?.scrollBy({ left: direzione * GIORNI_QUINDICINA * CELL_W, behavior: 'smooth' }); return }
+    if (modo === 'quindici') { scrollRef.current?.scrollBy({ left: direzione * PASSO_FRECCE_QUINDICI * CELL_W, behavior: 'smooth' }); return }
     const d = days[Math.min(days.length - 1, Math.max(0, primoVisibile))]
     const primo = new Date(d.getFullYear(), d.getMonth() + (direzione === 1 ? 1 : (d.getDate() === 1 ? -1 : 0)), 1)
     vaiAIndice(Math.round((primo.getTime() - startDate.getTime()) / 86400000))
@@ -266,37 +306,8 @@ export default function Arrivi() {
     // Per l'etichetta «1 – 14 set» conta il primo giorno visibile per più di metà
     const primo = Math.min(days.length - 1, Math.max(0, Math.round(sl / CELL_W)))
     setPrimoVisibile(prev => (prev === primo ? prev : primo))
-  }
-
-  // «Arrivo e navetta» (21/09/2026): lo stesso modulo e lo stesso salvataggio
-  // della scheda e dell'inserimento (lib/arrivoDati), con la riga chiesta
-  // indietro e riletta. Solo un «ok» chiude il pannello: con un errore, un
-  // esito incerto o un dettaglio che il gestionale non sa ancora tenere, la
-  // bozza resta qui e l'avviso lo dice.
-  async function saveTime() {
-    if (!popup || salvandoArrivo.current) return
-    salvandoArrivo.current = true      // freno sincrono al doppio tocco
-    setSavingTime(true)
-    setErroreOrario(null)
-    const id = popup.id
-    try {
-      const esito = await salvaArrivoPrenotazione(
-        campi => supabase.from('bookings').update(campi).eq('id', id).select('id'),
-        popup.arrivo,
-        () => supabase.from('bookings').select('*').eq('id', id).limit(1),
-      )
-      if (esito.esito !== 'ok' || !esito.campi) {
-        // Nulla è cambiato a schermo: il pannello resta aperto con l'avviso
-        setErroreOrario(esito.messaggio)
-        return
-      }
-      const campi = esito.campi
-      setBookings(bookings.map(b => b.id === id ? { ...b, ...campi } : b))
-      setPopup(null)
-    } finally {
-      salvandoArrivo.current = false
-      setSavingTime(false)
-    }
+    const intero = Math.max(0, Math.ceil(sl / CELL_W - 0.01))
+    setColonnaSinistra(prev => (prev === intero ? prev : intero))
   }
 
   function dayIndex(dateStr: string) {
@@ -304,260 +315,165 @@ export default function Arrivi() {
     return Math.round((d.getTime() - startDate.getTime()) / 86400000)
   }
 
-  function bookingsForRoom(roomId: string) {
-    return bookings.filter(b =>
-      b.room_id === roomId &&
-      b.check_out > toStr(startDate) &&
-      b.check_in < toStr(endDate)
-    )
+  // Tocco su una scheda: il foglio «Arrivo e navetta»; se la scheda è di una
+  // catena di cambio camera, la catena resta piena e il resto si attenua
+  function tocca(booking: Riga, chainKey: string | undefined) {
+    setShowStorico(false)
+    setPopup({ id: booking.id })
+    setSelectedGroupId(chainKey ?? null)
+  }
+  function chiudiFoglio() {
+    setPopup(null)
+    setSelectedGroupId(null)
   }
 
   const totalW = NAME_W + DAYS_TOTAL * CELL_W
-  const totalH = HEADER_H + rooms.length * ROW_H
+  const totalH = RULER_H + rooms.length * ROW_H
+  // La parte di scheda che si vede: il testo non è mai più largo di così
+  const corsiaVisibile = Math.max(0, larghezzaGriglia - NAME_W - ARIA_SCHEDA * 2)
+  const parteInVista = (da: number, a: number) => {
+    const w = geometriaScheda(Math.max(da, colonnaSinistra) < a ? Math.max(da, colonnaSinistra) : da, a, CELL_W).width
+    return corsiaVisibile > 0 ? Math.min(w, corsiaVisibile) : w
+  }
+  const larghezzaTesto = (da: number, a: number) => Math.max(0, parteInVista(da, a) - 16 - FILO_SINISTRO)
 
-  // Mesi per header
-  const monthGroups: { label: string; startIdx: number; count: number }[] = []
-  days.forEach((d, i) => {
-    const label = d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
-    const last = monthGroups[monthGroups.length - 1]
-    if (last && last.label === label) last.count++
-    else monthGroups.push({ label, startIdx: i, count: 1 })
-  })
+  const aperta = popup ? arrivi.find(b => b.id === popup.id) ?? null : null
 
   return (
-    <div className="flex flex-col">
-      {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
+    <div className="maison cal flex flex-col" data-senza-sottolinea data-arrivi-maison>
       {/* La testa è quella condivisa da Calendario, Arrivi e Richieste:
           components/TestaPagina (spazio in alto uguale per tutt'e tre) */}
       <TestaPagina titolo="Arrivi" desktop={isDesktop} indietro={<BackLink href="/" />}
-        comandi={<CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />}>
+        comandi={<CampoRicerca maison value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />}>
         {cercando && matches.length === 0 && (
-          <div className="text-[13.5px] font-bold" style={{ color: '#8c6a52' }}>Nessun arrivo trovato nei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</div>
+          <div className="cal-nessuno">Nessun arrivo trovato nei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</div>
         )}
         {searchAttiva && (
-          <div className="text-[13px] font-bold text-green-dark truncate">🔎 {matches.length === 1 ? nomeConAltri(matches[0]) : `${matches.length} arrivi trovati`}</div>
+          <div className="cal-res" data-risultati-ricerca><div className="uno">🔎 {matches.length === 1 ? nomeConAltri(matches[0]) : `${matches.length} arrivi trovati`}</div></div>
         )}
       </TestaPagina>
 
-      {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
-          delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      {/* stesse distanze delle Richieste: riquadro, 12 px, riga «Oggi · mesi» allineata alla colonna delle camere */}
-      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} overflow-hidden`} style={{ borderTop: '1px solid rgba(169,136,78,0.55)' }}>
+      {/* Dal telefono il nastro va da bordo a bordo, come il Calendario */}
+      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : isDesktop ? 'mx-4' : ''} overflow-hidden`}>
       {!loading && (
-        <>
-          {/* Riga di navigazione: la stessa del calendario delle Richieste */}
-          <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: 'var(--color-card-border)' }}>
-            <button type="button" onClick={() => freccia(-1)} aria-label={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'}
-              className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
-              <ChevronLeft size={20} strokeWidth={2} aria-hidden />
-            </button>
-            <span className={`font-serif text-green-dark whitespace-nowrap ${isDesktop ? 'text-[17px]' : 'text-[14px]'}`}>
-              {modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth}
-            </span>
-            <div className="flex items-center gap-1">
-              <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
-                {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
-                  <button key={v} type="button" onClick={() => cambiaModo(v)} aria-pressed={modo === v}
-                    className={`rounded-full whitespace-nowrap font-semibold transition-colors ${isDesktop ? 'px-3 py-1 text-xs' : 'px-2 py-1 text-[11px]'} ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <button type="button" onClick={() => freccia(1)} aria-label={modo === 'quindici' ? 'Due settimane dopo' : 'Mese successivo'}
-                className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
-                <ChevronRight size={20} strokeWidth={2} aria-hidden />
-              </button>
-            </div>
-          </div>
-        </>
+        // Riga di navigazione (veste «Maison», come il Calendario): ‹ · periodo · Mese | 2 settimane · ›
+        <div className="cal-nav shrink-0" data-riga-navigazione>
+          <button type="button" className="ar" onClick={() => freccia(-1)} aria-label={etichettaFreccia(modo, -1)}>‹</button>
+          <span className="per">{modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth}</span>
+          <span className="dx">
+            <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />
+            <button type="button" className="ar" onClick={() => freccia(1)} aria-label={etichettaFreccia(modo, 1)}>›</button>
+          </span>
+        </div>
       )}
 
-      {/* Dal Mac niente barra di scorrimento visibile sotto la griglia (sembrava un'ombra
-          diversa dalle Richieste): si scorre con due dita, con le frecce e con i mesi */}
+      {/* Dal Mac niente barra di scorrimento visibile sotto la griglia: si scorre con due dita, con le frecce e con i mesi */}
       {loading ? (
-        <div className="text-center py-10 text-gray-400">Caricamento...</div>
+        <div className="mz-caricamento">Caricamento…</div>
       ) : (
         <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div style={{ width: totalW, position: 'relative', height: totalH }}>
+          <div className="cal-nastro" style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
-            {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
-            <div style={{ position: 'sticky', top: 0, zIndex: 31, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
-              {HEADER_MONTH_H > 0 && monthGroups.map((mg, i) => i === 0 ? null : (
-                <div key={i} style={{
-                  position: 'absolute',
-                  left: NAME_W + mg.startIdx * CELL_W + 6,
-                  height: HEADER_MONTH_H,
-                  display: 'flex', alignItems: 'center',
-                  fontSize: isDesktop ? gs(10) : gs(9), fontWeight: 600, letterSpacing: '1.5px',
-                  color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                }}>
-                  {mg.label.split(' ')[0]}
-                </div>
-              ))}
-              <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
-              </div>
-            </div>
+            {/* ── IL RIGHELLO «lun 28» E I FILI (ottone al 1° del mese, verde su oggi) — gli stessi del Calendario ── */}
+            <RighelloNastro giorni={days} oggi={todayStr} colonnaCamere={NAME_W} giorno={CELL_W} altezza={RULER_H} />
+            <FiliNastro giorni={days} indiceOggi={dayIndex(todayStr)} colonnaCamere={NAME_W} giorno={CELL_W} top={RULER_H} altezza={totalH - RULER_H} />
 
-            {/* ── HEADER GIORNI ── */}
-            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #D6CFBD' }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #ECE8DD' }} />
-              {days.map((d, i) => {
-                const isToday = toStr(d) === todayStr
-                const isSun = d.getDay() === 0
-                return (
-                  <div key={i} style={{
-                    width: CELL_W, minWidth: CELL_W, textAlign: 'center', paddingTop: 4,
-                    background: isToday ? '#F3ECD8' : 'transparent',
-                    borderLeft: '1px solid #ECE8DD',
-                  }}>
-                    <div style={{ fontSize: modo === 'quindici' ? 10 : 8, fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2, lineHeight: 1 }}>
-                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, modo === 'quindici' ? 3 : 2)}
-                    </div>
-                    <div style={{
-                      fontSize: 12, fontWeight: 700,
-                      color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
-                      background: isToday ? '#2D6A4F' : 'transparent',
-                      borderRadius: '50%',
-                      width: 20, height: 20,
-                      lineHeight: '20px',
-                      margin: '0 auto',
-                    }}>
-                      {d.getDate()}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* ── SEPARATORI DI MESE: linea ottone al 1° del mese, sotto le barre ── */}
-            {monthGroups.map((mg, i) => i === 0 ? null : (
-              <div key={`sep-${i}`} style={{
-                position: 'absolute',
-                left: NAME_W + mg.startIdx * CELL_W - 1,
-                top: HEADER_H,
-                width: 2,
-                height: totalH - HEADER_H,
-                background: '#A9884E',
-                opacity: 0.55,
-                zIndex: 4,
-                pointerEvents: 'none',
-              }} />
-            ))}
-
-            {/* ── RIGHE CAMERE ── */}
+            {/* ── LE CORSIE DELLE CAMERE (niente riga «🛏 extra» negli Arrivi) ── */}
             {rooms.map((room, ri) => {
-              const rowTop = HEADER_H + ri * ROW_H
-              const isEven = ri % 2 === 0
+              const rowTop = RULER_H + ri * ROW_H
+              const shortName = room.name.split(' ').slice(-1)[0]
+              const prenotazioni = arrivi.filter(b => b.room_id === room.id && b.check_out > toStr(startDate) && b.check_in < toStr(endDate))
+              // I buchi liberi guardano TUTTE le prenotazioni della camera (anche quelle
+              // che negli Arrivi non si disegnano): un buco è libero davvero
+              const occupate = bookings.filter(b => b.room_id === room.id)
+              const buchi = buchiLiberi(occupate.map(b => ({ da: b.check_in, a: b.check_out })), toStr(startDate), toStr(endDate))
+              const occupato = (iso: string) => occupate.some(b => b.check_in <= iso && iso < b.check_out)
               return (
                 <div key={room.id}>
-                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: ri === rooms.length - 1 ? '2px solid #D6CFBD' : '1px solid #ECE8DD' }}>
-                    {/* Nome camera */}
-                    {(() => {
-                      const shortName = room.name.split(' ').slice(-1)[0]
-                      return (
-                    <div title={ROOM_DESC_BY_NAME[shortName] || ''} style={{
-                      width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
-                      background: 'white', borderRight: '2px solid #D6CFBD',
-                      display: 'flex', alignItems: 'center', gap: 6, padding: colonnaLarga ? '0 8px' : '0 6px',
-                    }}>
-                      {/* niente numero 01–04: solo il nome della camera, ovunque (05/09/2026) */}
-                      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 13 : 12, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {shortName}
-                        </span>
-                      </span>
-                    </div>
-                      )
-                    })()}
-                    {/* Celle giorni */}
-                    {days.map((d, i) => {
-                      const isToday = toStr(d) === todayStr
-                      const isSun = d.getDay() === 0
-                      const dateStr = toStr(d)
-                      return (
-                        <div key={i}
-                          style={{
-                            width: CELL_W, minWidth: CELL_W, height: '100%',
-                            background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
-                            borderLeft: '1px solid #ECE8DD',
-                          }} />
-                      )
-                    })}
-                  </div>
+                  <CorsiaNastro top={rowTop} larghezza={totalW} altezza={ROW_H} colonnaCamere={NAME_W} nome={shortName} descrizione={ROOM_DESC_BY_NAME[shortName]}
+                    onClick={e => {
+                      // Un giorno libero toccato fuori dai buchi disegnati: nuova prenotazione da lì
+                      const x = e.clientX - e.currentTarget.getBoundingClientRect().left - NAME_W
+                      const idx = Math.floor(x / CELL_W)
+                      const dateStr = days[idx] ? toStr(days[idx]) : ''
+                      if (!dateStr || occupato(dateStr)) return
+                      router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)
+                    }} />
 
-                  {/* Barre prenotazioni — mostra solo il check-in day con l'orario */}
-                  {bookingsForRoom(room.id).map((booking: any) => {
-                    const startIdx = dayIndex(booking.check_in)
+                  {/* I buchi liberi: riquadro tratteggiato, le date e il «+»; il tocco apre la nuova prenotazione con camera e data */}
+                  {buchi.map(h => {
+                    const da = Math.max(0, dayIndex(h.da)), a = Math.min(DAYS_TOTAL, dayIndex(h.a))
+                    if (a - da <= 0) return null
+                    const g = geometriaScheda(da, a, CELL_W)
+                    return (
+                      <BucoNastro key={`buco-${h.da}`} chiave={`${h.da}_${h.a}`} etichetta={`Nuova prenotazione in ${shortName} dal ${h.da}`} riga={rigaBuco(h)}
+                        left={NAME_W + g.left} top={rowTop + SCHEDA_TOP} width={g.width} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
+                        onClick={e => {
+                          e.stopPropagation()
+                          // L'arrivo è l'inizio del buco; se l'inizio è fuori vista (a sinistra), il primo giorno del buco in vista
+                          const primo = Math.floor((scrollRef.current?.scrollLeft ?? 0) / CELL_W)
+                          const dateStr = toStr(days[Math.min(a - 1, Math.max(da, primo))])
+                          router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)
+                        }} />
+                    )
+                  })}
+
+                  {/* Le schede: date · ORARIO, icone e nome · l'arrivo in breve · (vuota) */}
+                  {prenotazioni.map(booking => {
+                    const startIdx = Math.max(0, dayIndex(booking.check_in))
                     const endIdx = Math.min(DAYS_TOTAL, dayIndex(booking.check_out))
-                    if (startIdx < 0 || startIdx >= DAYS_TOTAL || endIdx <= startIdx) return null
-
-                    const time = booking.check_in_time || ''
-                    const barWidth = (endIdx - startIdx) * CELL_W - 4
-                    // Taglio a incastro identico al calendario per i soggiorni con cambio camera
+                    if (endIdx - startIdx <= 0) return null
+                    const chainKey = changeGroups.chainKeyOf[booking.id]
+                    const isMultiRoom = !!chainKey
                     const hasIncoming = incomingIds.has(booking.id)
                     const hasOutgoing = outgoingIds.has(booking.id)
-                    // Il segmento in arrivo di un cambio camera non è un vero check-in con
-                    // orario: al posto del "?" mostra le freccine ⇄ del cambio camera.
-                    const isCambio = hasIncoming
-                    const tinta = coloreCatena[booking.id]
-
+                    const isSelected = isMultiRoom && selectedGroupId === chainKey
+                    const isWebPending = daConfermareDalSito(booking)
+                    // L'arrivo è uno solo: il tratto che arriva da un cambio camera prende il colore del primo tratto
+                    const origine = hasIncoming ? arrivi.find(b => b.id === primoTratto(booking.id, changeGroups.edges)) ?? booking : booking
+                    const arrivo = leggiArrivo(origine)
+                    const stato = statoArrivo(arrivo)
+                    const tinta = tintaArrivo(stato, isWebPending)
+                    const passato = arrivoPassato(booking.check_in, todayStr)
+                    // Ricerca attiva: le schede trovate col contorno verde, le altre attenuate.
+                    // Foglio aperto: la scheda toccata (o la sua catena) piena, il resto attenuato.
+                    const isMatch = matchedIds.has(booking.id)
+                    const toccata = popup?.id === booking.id
+                    const isCurrent = (searchAttiva && isMatch) || (toccata && !isMultiRoom)
+                    const isDimmed = searchAttiva
+                      ? !isMatch
+                      : selectedGroupId !== null ? !isSelected : popup !== null && !toccata
+                    const g = geometriaScheda(startIdx, endIdx, CELL_W)
+                    // Cambio camera: il tratto che parte tagliato in basso a destra, quello che arriva in basso a sinistra
+                    const cutLeft = hasIncoming && startIdx === dayIndex(booking.check_in)
+                    const cutRight = hasOutgoing && endIdx === dayIndex(booking.check_out)
+                    const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(g.width, SCHEDA_H, cutLeft, cutRight, 6, TAGLIO_CAMBIO) : undefined
+                    const tocco = areaTocco(rowTop + SCHEDA_TOP, SCHEDA_H)
+                    const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
+                    const icone = iconeScheda({
+                      esclusiva: booking.color === '#f97316', ottimo: booking.guests?.rating === 'ottimo', ricevuta: vuoleRicevuta(booking.guests),
+                      letto: !!hasExtraBed, cambio: isMultiRoom, dalSito: booking.source === 'sito_web' && !isWebPending,
+                    })
+                    const coloreRiga = hasIncoming ? undefined : coloreRigaArrivo(arrivo, stato)
                     return (
-                      <div key={booking.id}
-                        onClick={() => { setShowStorico(false); setPopup({ id: booking.id, name: nomeConAltri(booking), arrivo: leggiArrivo(booking) }) }}
-                        style={{
-                          position: 'absolute',
-                          top: rowTop + 6,
-                          left: NAME_W + startIdx * CELL_W + 2,
-                          width: barWidth,
-                          height: ROW_H - 12,
-                          background: '#7D9DB0',
-                          borderRadius: 6,
-                          // Lato tagliato con gli angoli arrotondati come le altre barre (Ania, 06/09/2026)
-                          clipPath: hasIncoming || hasOutgoing ? percorsoBarraArrotondata(barWidth, ROW_H - 12, hasIncoming, hasOutgoing) : undefined,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center',
-                          overflow: 'hidden',
-                          zIndex: searchAttiva && matchedIds.has(booking.id) ? 15 : 5,
-                          opacity: searchAttiva && !matchedIds.has(booking.id) ? 0.3 : 1,
-                          boxShadow: searchAttiva && matchedIds.has(booking.id) ? '0 3px 10px rgba(31,61,47,0.45)' : '0 1px 3px rgba(0,0,0,0.2)',
-                          transition: 'opacity 0.15s, box-shadow 0.15s',
-                        }}>
-                        {/* Pezzetto tagliato colorato: la barra è già ritagliata (clipPath), quindi del cuneo resta solo una striscia di 4 px lungo il taglio (Ania: «meno marcato») */}
-                        {tinta && hasOutgoing && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(17px 0, 100% 0, 100% 100%, 5px 100%)', opacity: 1, pointerEvents: 'none' }} />}
-                        {tinta && hasIncoming && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 5px 0, 17px 100%, 12px 100%)', opacity: 1, pointerEvents: 'none' }} />}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%', position: 'relative' }}>
-                          {/* Orario. Cambio camera (Ania, 06/09/2026): NESSUN simbolo, si vede già dal taglio della barra */}
-                          {!isCambio && <span style={{
-                            color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
-                            fontSize: isCambio ? 12 : 11,
-                            fontWeight: 800,
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                            lineHeight: 1,
-                            textAlign: 'center',
-                            // Riquadro «⇄» del cambio camera un 20% più corto di prima (richiesta di Ania, 04/09/2026: 44 → 40 → 36)
-                            minWidth: isCambio ? 36 : undefined,
-                            background: isCambio ? 'rgba(255,255,255,0.30)' : (time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'),
-                            borderRadius: 4,
-                            padding: '1px 5px',
-                            // Navetta confermata = ombra ottone sotto l'orario (scelta di Ania, 06/09/2026):
-                            // si vede anche nella casella da una notte, dove il 🚌 dopo il nome restava nascosto
-                            boxShadow: ombraNavetta(booking.shuttle, isCambio),
-                          }}>
-                            {time || '?'}
-                          </span>}
-                          {/* Nome */}
-                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                            {nomeConAltri(booking)}{vuoleRicevuta(booking.guests) ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
-                          </span>
-                        </div>
-                        {/* Navetta SOLO se confermata, come ombra ottone sotto l'orario:
-                            ogni ombra nella griglia significa una cosa sola. "No" e
-                            "Da definire" non mostrano nulla qui (restano nel popup
-                            e nei promemoria). */}
-                      </div>
+                      <SchedaNastro key={booking.id} id={booking.id} dati={{ arrivo: isWebPending ? 'dalSito' : stato, passato: passato ? 1 : undefined }}
+                        onClick={e => { e.stopPropagation(); tocca(booking, chainKey) }}
+                        classi={`${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : ''} ${isSelected ? 'catena' : ''} ${isCurrent ? 'trovata' : ''}`}
+                        top={tocco.top} height={tocco.height} left={NAME_W + g.left} width={g.width} zIndex={isCurrent ? 16 : isSelected ? 15 : 5}
+                        sito={isWebPending} cutLeft={cutLeft}
+                        fondo={tinta.fondo} testo={tinta.testo} filo={tinta.filo} clipPath={clipPath}
+                        cuneoDestra={cutRight ? tinta.filo : undefined} cuneoSinistra={cutLeft ? tinta.filo : undefined}
+                        stileInterno={passato ? { opacity: OPACITA_ARRIVATA } : undefined}
+                        testoLeft={NAME_W + ARIA_SCHEDA + 8} testoWidth={larghezzaTesto(startIdx, endIdx)}>
+                        <em>{rigaDateArrivi(booking.check_in, booking.check_out, { dalSito: isWebPending, passato })}</em>
+                        <b>
+                          {!hasIncoming && <span className={`hr ${haOrario(arrivo) ? '' : 'manca'}`} data-orario>{orarioScheda(arrivo)}</span>}
+                          {icone && <span className="ic">{icone} </span>}{nomeConAltri(booking)}
+                        </b>
+                        <small style={coloreRiga ? { color: coloreRiga } : undefined} data-riga-arrivo>
+                          {rigaArrivoArrivi(arrivo, { poi: hasOutgoing ? poiCamera[booking.id] : null, da: hasIncoming ? daCamera[booking.id] : null })}
+                        </small>
+                      </SchedaNastro>
                     )
                   })}
                 </div>
@@ -566,30 +482,57 @@ export default function Arrivi() {
           </div>
         </div>
       )}
+      </div>
 
+      {/* Il box «⇄ Cambi camera» di oggi e domani, rivestito */}
       {!loading && roomChanges.length > 0 && (
-        <div className="shrink-0 px-4 py-2 bg-sand border-t border-card-border">
-          <p className="text-xs font-semibold text-green-dark mb-1">⇄ Cambi camera</p>
+        <div className="cal-cambi shrink-0" data-cambi-camera>
+          <div className="ck">⇄ Cambi camera</div>
           {roomChanges.map(m => (
-            <p key={m.id} className="text-xs text-green-mid">
-              <span className="font-medium">{m.guest}</span> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}
-              <span className="text-green-mid"> ({m.date === todayStr ? 'oggi' : 'domani'})</span>
+            <p key={m.id}>
+              {m.guest} da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}
+              <span> ({m.date === todayStr ? 'oggi' : 'domani'})</span>
             </p>
           ))}
         </div>
       )}
 
-      {/* Popup orario + navetta, con la memoria degli arrivi precedenti */}
-      {popup && (() => {
+      {/* Sotto il nastro: «Oggi», i mesi cliccabili (quelli dei 90 giorni) e la nota, come il Calendario */}
+      {!loading && (
+        <RigaMesi maison colonna={NAME_W} mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
+          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(indiceOggi())} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`}
+          className={`shrink-0 ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
+      )}
+      {/* «LEGENDA» sotto «Oggi» (novità del 29/09/2026): apre la legenda nel foglio dal basso */}
+      {!loading && !(isDesktop && !orizzontale) && (
+        <div className={`shrink-0 flex ${orizzontale ? 'px-2' : ''}`}>
+          <div className="cal-lg" style={{ width: NAME_W, minWidth: NAME_W }}>
+            <button type="button" className="mz-lnk" aria-label="Legenda" onClick={() => setLegendaAperta(true)}>Legenda</button>
+          </div>
+        </div>
+      )}
+      {/* Dal Mac la legenda in riga, come il Calendario */}
+      {!loading && isDesktop && !orizzontale && (
+        <div className="shrink-0 px-4 pt-4 pb-4 flex flex-wrap gap-3 items-center">
+          <VociLegenda voci={VOCI_LEGENDA_ARRIVI} />
+        </div>
+      )}
+      {legendaAperta && (
+        <PannelloLegenda voci={VOCI_LEGENDA_ARRIVI} icone={ICONE_LEGENDA_ARRIVI} titolo="Legenda degli arrivi" altezza={ALTEZZA_LEGENDA_ARRIVI}
+          dati="legenda-arrivi" onChiudi={() => setLegendaAperta(false)} />
+      )}
+
+      {/* ── IL FOGLIO «ARRIVO E NAVETTA»: il FoglioArrivo Maison della Home e della scheda, con lo storico ── */}
+      {popup && aperta && (() => {
         // Storico arrivi del cliente (24/08/2026): visite precedenti dello
         // stesso cliente (scheda, non nome), solo veri arrivi — i segmenti
         // preceduti da un check-out dello stesso ospite nello stesso giorno
         // (prolungamenti e cambi camera) non contano.
-        const cur = bookings.find(b => b.id === popup.id)
-        const precedenti = cur?.guest_id
-          ? bookings
+        const cur = aperta
+        const precedenti = cur.guest_id
+          ? confermati
               .filter(b => b.id !== cur.id && b.guest_id === cur.guest_id && b.check_in < cur.check_in
-                && !bookings.some(x => x.id !== b.id && x.guest_id === b.guest_id && x.check_out === b.check_in))
+                && !confermati.some(x => x.id !== b.id && x.guest_id === b.guest_id && x.check_out === b.check_in))
               .sort((a, b) => b.check_in.localeCompare(a.check_in))
           : []
         const ultimoConOra = precedenti.find(b => b.check_in_time)
@@ -605,81 +548,63 @@ export default function Arrivi() {
           if (n === 'da_assegnare') return ' · 🚌'
           return ` · 🚌 ${navettaInScheda(leggiArrivo(b as Record<string, unknown>)).titolo}`
         }
+        const nome = nomeConAltri(cur)
+        const icone = iconeFoglietto(vuoleRicevuta(cur.guests), cur.guests?.rating === 'ottimo')
+        // Stessi bottoni WhatsApp della Home (08/09/2026): «Chiedi orario» · «Apri chat»; senza numero non compaiono
+        const wa = whatsappRichiestaOrario(cur)
         return (
-        <div className="fixed inset-0 ed-velo flex items-center justify-center z-[60] p-4" role="dialog" aria-modal="true" aria-label="Arrivo e navetta" onClick={() => setPopup(null)}>
-          <div className="ed-foglio rounded-2xl p-5 w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <p className="font-bold text-lg mb-1 flex flex-wrap items-center gap-2">{popup.name}
-              {vuoleRicevuta(bookings.find(b => b.id === popup.id)?.guests) && <span data-ricevuta className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-sage text-green-mid">{ETICHETTA_RICEVUTA_BREVE}</span>}</p>
-            {/* Il riassunto in una riga: lo stesso testo della scheda */}
-            <p className="text-sm text-gray-500 mb-4" data-riassunto-arrivo>
-              {arrivoInScheda(popup.arrivo).titolo} · Navetta: {navettaInScheda(popup.arrivo).titolo}
-            </p>
-            {/* Stessi bottoni WhatsApp della Home (08/09/2026): «Chiedi orario» · «Apri chat»; senza numero non compaiono */}
-            {(() => { const wa = whatsappRichiestaOrario(bookings.find(b => b.id === popup.id) || {}); return wa ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-4" data-whatsapp-arrivi><BottoniOrario wa={wa} /></div> : null })()}
-            {/* Il modulo è quello condiviso: le stesse regole della scheda e
-                dell'inserimento, in un punto solo (components/ArrivoNavetta) */}
-            <div className="mb-4">
-              <ArrivoNavetta arrivo={popup.arrivo} onArrivo={a => setPopup({ ...popup, arrivo: a })} prefisso="arrivi-" />
-            </div>
-            {/* Memoria: "arriviamo come sempre" — cosa significa davvero.
-                Solo consultazione: niente viene compilato da solo. */}
-            {precedenti.length > 0 && (
-              <div className="rounded-xl p-3 mb-4" style={{ background: '#F5F1E8' }}>
-                {ultimoConOra ? (
-                  <p className="text-sm text-green-dark">
-                    Ultimo arrivo registrato: <span className="font-bold">{dataIt(ultimoConOra.check_in)} — {ultimoConOra.check_in_time}</span>{navettaTxt(ultimoConOra)}
-                  </p>
-                ) : (
-                  <p className="text-sm text-gray-500">Già ospite {precedenti.length === 1 ? 'una volta' : `${precedenti.length} volte`}, ma senza orari registrati</p>
-                )}
-                <div className="flex flex-wrap items-center gap-3 mt-1.5">
-                  <button type="button" onClick={() => setShowStorico(s => !s)}
-                    className="text-xs text-stone underline decoration-dotted underline-offset-2">
-                    {showStorico ? 'nascondi storico' : `Vedi storico arrivi (${precedenti.length})`}
-                  </button>
-                  {ultimoConOra && (
-                    <button type="button"
-                      onClick={() => setPopup({ ...popup, arrivo: leggiArrivo(ultimoConOra) })}
-                      className="text-xs font-semibold rounded-full border border-[#C9BFA8] px-3 py-1"
-                      style={{ color: '#2D6A4F' }}>
-                      Usa come l&apos;ultima volta
-                    </button>
-                  )}
+          <FoglioArrivo key={cur.id} bookingId={cur.id} prenotazione={cur} dati="arrivo-arrivi" veloChiaro larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
+            onChiudi={chiudiFoglio}
+            onSalvato={campi => { setBookings(prima => prima.map(b => b.id === cur.id ? { ...b, ...campi } : b)); chiudiFoglio() }}
+            testa={
+              <div className="cal-fog-testa" data-testa-arrivo>
+                <div className="k">{TITOLO_ARRIVO} · {roomNameById[cur.room_id] ?? ''} · {dataConGiorno(cur.check_in)}</div>
+                <div className="hd2">
+                  <div className="ti">{icone && <span className="ic">{icone} </span>}{nome}</div>
+                  <IconeContatto telefono={cur.guests?.phone ?? null} nome={nome} dati="arrivi" />
                 </div>
+              </div>
+            }
+            // Il riassunto in una riga: lo stesso testo della scheda, e segue la bozza
+            sopra={a => (
+              <p className="cal-fa-so" data-riassunto-arrivo>
+                {arrivoInScheda(a).titolo} · Navetta: {navettaInScheda(a).titolo}
+              </p>
+            )}
+            // Memoria: "arriviamo come sempre" — cosa significa davvero.
+            // Solo consultazione: niente viene compilato da solo.
+            sotto={(_, onArrivo) => precedenti.length > 0 && (
+              <div className="cal-fa-st" data-storico-arrivi>
+                {ultimoConOra ? (
+                  <>Ultimo arrivo registrato: <b>{dataIt(ultimoConOra.check_in)} — {ultimoConOra.check_in_time}</b>{navettaTxt(ultimoConOra)}{' · '}
+                    <button type="button" className="mz-lnk" onClick={() => onArrivo(leggiArrivo(ultimoConOra))}>Usa come l&apos;ultima volta</button>{' · '}</>
+                ) : (
+                  <>Già ospite {precedenti.length === 1 ? 'una volta' : `${precedenti.length} volte`}, ma senza orari registrati{' · '}</>
+                )}
+                <button type="button" className="mz-lnk q" onClick={() => setShowStorico(s => !s)}>
+                  {showStorico ? 'nascondi storico' : `Vedi storico arrivi (${precedenti.length})`}
+                </button>
                 {showStorico && (
-                  <div className="mt-2 pt-2" style={{ borderTop: '1px solid #E5DCCB' }}>
+                  <div className="righe">
                     {precedenti.map(b => (
-                      <p key={b.id} className="text-xs text-green-dark mb-1 last:mb-0">
-                        <span className="font-semibold">{dataIt(b.check_in)}</span>
-                        {b.check_in_time ? ` — arrivo ${b.check_in_time}` : <span className="text-gray-400"> — orario non registrato</span>}
+                      <p key={b.id}>
+                        <b>{dataIt(b.check_in)}</b>
+                        {b.check_in_time ? ` — arrivo ${b.check_in_time}` : <span className="no"> — orario non registrato</span>}
                         {navettaTxt(b)}
-                        {roomNameById[b.room_id] ? <span className="text-stone"> · {roomNameById[b.room_id]}</span> : null}
+                        {roomNameById[b.room_id] ? <span className="no"> · {roomNameById[b.room_id]}</span> : null}
                       </p>
                     ))}
                   </div>
                 )}
               </div>
             )}
-            <div className="flex gap-2">
-              <button onClick={() => router.push(`/scheda/${popup.id}`)} className="flex-1 border border-card-border text-gray-600 rounded-xl py-3 font-semibold text-sm">
-                Apri prenotazione
-              </button>
-              <button onClick={saveTime} disabled={savingTime} className="flex-1 bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">
-                {savingTime ? 'Salvo...' : 'Salva'}
-              </button>
-            </div>
-            {erroreOrario && <AvvisoAzione testo={erroreOrario} className="mt-2" />}
-          </div>
-        </div>
+            azioni={<>
+              {wa && <BottoniOrario wa={wa} maison />}
+              <button type="button" className="mz-lnk q" onClick={() => router.push(`/scheda/${popup.id}`)}>Apri prenotazione</button>
+            </>}
+            salvaPieno={{ salvando: 'Salvo...' }} />
         )
       })()}
-      </div>
-      {!loading && (
-        <RigaMesi colonna={NAME_W} mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
-          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(indiceOggi())} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
-      )}
-
-      {/* Niente legenda in Arrivi (richiesta di Ania, 04/09/2026): i simboli si spiegano da soli */}
     </div>
   )
 }

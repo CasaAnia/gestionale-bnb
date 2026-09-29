@@ -578,15 +578,15 @@ test('un arrivo con un guaio non tocca il server', async () => {
 // La lezione della regola fissa n. 1 (i nomi, persi tre volte): un dato, un
 // modulo, un salvataggio.
 
+// Gli Arrivi (29/09/2026, veste «Maison») non hanno più un modulo e un
+// salvataggio loro: montano il foglio della scheda (FoglioArrivo), qui sotto.
 const PUNTI_DI_INGRESSO = [
   'app/nuova-prenotazione/page.tsx',
   'app/nuova/page.tsx',
-  'app/arrivi/page.tsx',
   'app/prenotazioni/[id]/page.tsx',
   'components/scheda/FoglioArrivo.tsx',
 ]
 const INGRESSI_CHE_MODIFICANO = [
-  'app/arrivi/page.tsx',
   'app/prenotazioni/[id]/page.tsx',
   'components/scheda/FoglioArrivo.tsx',
 ]
@@ -597,6 +597,10 @@ test('tutti i punti in cui l’arrivo si scrive montano lo stesso modulo', () =>
     assert.match(leggi(f), /<ArrivoNavetta(Maison)? /, `${f} non monta il modulo condiviso`)
   }
   assert.match(leggi('components/maison/ArrivoNavettaMaison.tsx'), /pianoModuloArrivo\(arrivo\)/)
+  // gli Arrivi passano dal foglio della scheda: stesso modulo e stesso salvataggio
+  const arrivi = leggi('app/arrivi/page.tsx')
+  assert.match(arrivi, /<FoglioArrivo /)
+  assert.doesNotMatch(arrivi, /salvaArrivoPrenotazione|\.update\(/, 'gli Arrivi salvano da sé')
 })
 
 test('nessuna pagina si scrive campi dell’arrivo suoi: check_in_time e shuttle li decide lib/arrivo', () => {
