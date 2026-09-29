@@ -47,7 +47,7 @@ test('la versione sta in fondo al menu del Mac e da nessun’altra parte', () =>
 
 test('colonna da 200 px, marchio senza cerchio, voci attive col filo d’ottone', () => {
   const css = leggi('app/maison.css')
-  assert.match(css, /width: 200px; background: #F6F2EA; border-right: 1px solid #E1D9CB;\s*padding: 34px 0 0;/)
+  assert.match(css, /width: 200px; background: #F6F2EA; border-right: 1px solid #E1D9CB;\s*padding: 64px 0 0;/)
   assert.match(css, /\.mz-lato a\.on::before \{ content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: #A8894F; \}/)
   assert.match(colonna, /<div className="wm"><b>Casa Ania<\/b><small>Rozzano<\/small><\/div>/)
   assert.doesNotMatch(colonna, />CA</)

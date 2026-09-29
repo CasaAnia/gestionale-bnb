@@ -24,22 +24,41 @@ import type { ReactNode } from 'react'
 //    nascosto NON riserva più il suo spazio — il campo di ricerca sta 16 px
 //    sotto la barra bianca (alta 52 px, vedi MobileTopBar), come sulla Home.
 //    Dal Mac non cambia nulla.
+//  · `sottotitolo` (29/09/2026, Ania): la testa del Mac. Le pagine lo passano
+//    solo dal Mac (mai dal telefono, dove non cambia nulla). Niente riga
+//    «← Indietro» (basta il menu a sinistra); titolo Cormorant 30 px col
+//    bordo alto a 64 px, alla stessa altezza del marchio «Casa Ania» della
+//    colonna; sotto, a 6 px, il sottotitolo maiuscoletto d'ottone; la ricerca
+//    a destra sulla stessa riga. Misure in app/maison.css (.testa-mac-*).
 // ============================================================================
 
 export const FASCIA = 'shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm'
 // la stessa fascia sotto la barra Maison, alta 52 px invece di 48
 export const FASCIA_MAISON = 'shrink-0 sticky top-[52px] lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm'
 
-export default function TestaPagina({ titolo, titoloNascosto = false, maison = false, desktop, indietro, comandi, children, className = '' }: {
+export default function TestaPagina({ titolo, titoloNascosto = false, maison = false, sottotitolo, desktop, indietro, comandi, children, className = '' }: {
   titolo: string
   titoloNascosto?: boolean
   maison?: boolean
+  sottotitolo?: string
   desktop: boolean
   indietro?: ReactNode
   comandi?: ReactNode
   children?: ReactNode
   className?: string
 }) {
+  if (sottotitolo !== undefined) return (
+    <div data-testa-pagina data-testa-mac className={`${maison ? FASCIA_MAISON : FASCIA} ${className}`}>
+      <div className="testa-mac-riga mb-2 flex items-end gap-4">
+        <div className="mr-auto min-w-0">
+          <h1 className="testa-mac-titolo">{titolo}</h1>
+          <p className="testa-mac-sotto">{sottotitolo}</p>
+        </div>
+        {comandi}
+      </div>
+      {children}
+    </div>
+  )
   return (
     <div data-testa-pagina className={`${maison ? FASCIA_MAISON : FASCIA} ${className}`}>
       {indietro && <div className="indietro-barra hidden lg:block">{indietro}</div>}

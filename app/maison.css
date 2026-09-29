@@ -827,7 +827,7 @@ body:has(.cal) { background: var(--home-bg); }
   --m-disp: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
   --m-ui: var(--font-jost), Jost, system-ui, sans-serif;
   width: 200px; background: #F6F2EA; border-right: 1px solid #E1D9CB;
-  padding: 34px 0 0; font-family: var(--m-ui); color: #241F1A;
+  padding: 64px 0 0; font-family: var(--m-ui); color: #241F1A;
 }
 .mz-lato .wm { padding: 0 24px 30px; }
 .mz-lato .wm b { display: block; font-family: var(--m-disp); font-weight: 400; font-size: 26px; line-height: 1; letter-spacing: .01em; }
@@ -852,3 +852,11 @@ body:has(.cal) { background: var(--home-bg); }
 @media (max-width: 1023px) {
   body:has(.barra-maison) main.contenuto { padding-top: 52px; }
 }
+
+/* ── Testa delle pagine dal Mac (29/09/2026, Ania): Calendario, Arrivi,
+   Richieste (components/TestaPagina con `sottotitolo`). Il bordo alto del
+   titolo sta a 64 px dall'alto come il marchio «Casa Ania» della colonna
+   (16 px della fascia + 48 qui); sotto, a 6 px, il sottotitolo d'ottone. ── */
+[data-testa-mac] .testa-mac-riga { margin-top: 48px; }
+[data-testa-mac] .testa-mac-titolo { margin: 0; font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 400; line-height: 1; color: #241F1A; letter-spacing: normal; }
+[data-testa-mac] .testa-mac-sotto { margin: 6px 0 0; min-height: 13px; font-family: var(--font-jost), Jost, system-ui, sans-serif; font-size: 9.5px; letter-spacing: .24em; text-transform: uppercase; color: #A8894F; line-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

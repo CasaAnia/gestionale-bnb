@@ -7,6 +7,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
+import { sottotitoloRichieste } from '@/lib/testaMac'
+import { bolliniRichieste } from '@/lib/richiesteContatore'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
 import { TastoNuovaRichiesta } from '@/components/richieste/ComandiPagina'
 import FasciaComandi from '@/components/richieste/FasciaComandi'
@@ -393,17 +395,19 @@ function Richieste() {
     <div className="flex flex-col">
       {/* La testa è quella condivisa con Calendario e Arrivi
           (components/TestaPagina): la pagina comincia allo stesso punto delle
-          altre. Il titolo «Richieste» resta NASCOSTO anche sul Mac — Ania non
-          lo vuole più, lo dice già la barra in alto — ma il suo spazio resta,
-          ed è quello spazio che tiene allineate le tre pagine. La riga
+          altre. Dal telefono il titolo «Richieste» resta NASCOSTO (lo dice la
+          barra in alto) ma il suo spazio resta. Dal Mac (29/09/2026, Ania) la
+          testa nuova: titolo con sotto «N da gestire» (il numero del bollino
+          d'ottone del menu), senza la riga «← Indietro». Dal telefono girato
           «← Indietro» torna alla Home; solo arrivando dalla scheda di una
           prenotazione (?apri=) si torna davvero indietro, a quella scheda. */}
       <TestaPagina titolo="Richieste" titoloNascosto desktop={desktop && !orizzontale}
+        sottotitolo={desktop && !orizzontale ? sottotitoloRichieste(loading || richiesteNonLette ? null : bolliniRichieste(tutte, adesso).nuove) : undefined}
         indietro={<BackLink onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />}
         comandi={desktop && !orizzontale ? (
           <>
             <InterruttoreVista vista={vista} onChange={setVista} />
-            <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[260px]" />
+            <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[340px]" />
             <TastoNuovaRichiesta />
           </>
         ) : (
