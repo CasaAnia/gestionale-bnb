@@ -267,3 +267,21 @@ test('foglietto: arrivo coi testi della scheda, «orario da chiedere», il primo
   assert.deepEqual(clienteFoglietto(4, 'da Nida', true, 64000, 38000), [{ testo: 'già ospite 4 volte · da Nida · vuole ricevuta · ' }, { testo: '1.020 €', tipo: 'mat' }, { testo: ' con questa' }])
   assert.deepEqual(clienteFoglietto(0, null, false, 0, 20000)[0], { testo: 'prima volta · ' })
 })
+
+// ── Sotto il nastro, legenda, camera tenuta (pezzo 6) ───────────────────────
+test('«Oggi» e «Legenda» sotto la colonna delle camere; la camera tenuta e la conferma nel foglio Maison, senza bottoni pieni', () => {
+  const riga = leggi('components/RigaMesi.tsx')
+  assert.match(pagina, /<RigaMesi maison colonna=\{NAME_W\}/)
+  assert.match(riga, /<div className="og" style=\{\{ width: colonna, minWidth: colonna \}\}>/)
+  assert.match(pagina, /<div className="cal-lg" style=\{\{ width: NAME_W, minWidth: NAME_W \}\}>/)
+  assert.doesNotMatch(pagina, />\?<\/button>/)                                  // niente più «?»
+  assert.match(pagina, /dati="tenuta-calendario"/)
+  assert.match(pagina, /· camera tenuta<\/div>/)
+  for (const t of ['Libera e fai una prenotazione nuova', 'Libera la camera', 'Apri la richiesta di {barraAperta.ospite}']) assert.ok(pagina.includes(t), t)
+  assert.match(pagina, /dati="conferma-tenuta"/)
+  // le sole pastiglie piene sono quelle del riferimento: nessun mz-cta, nessun ed-pillola nel calendario
+  assert.doesNotMatch(pagina, /mz-cta|ed-pillola/)
+  const css = leggi('app/maison.css')
+  assert.match(css, /\.cal-rm \.ms button\.on \{ background: var\(--m-ink\); color: #F6F2EA; \}/)
+  assert.match(css, /\.cal-rm \.og button \{[^}]*border: 1px solid var\(--m-ink\); border-radius: 999px;[^}]*text-transform: uppercase;/)
+})

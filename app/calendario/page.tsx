@@ -19,14 +19,16 @@ import { leggiArrivo } from '@/lib/arrivo'
 import { oraRoma } from '@/lib/opzioni'
 import BackLink from '@/components/BackLink'
 import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione'
+import FoglioMaison from '@/components/maison/FoglioMaison'
+import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
+import { periodoConMese } from '@/lib/schedaPrenotazione'
 import TestaPagina from '@/components/TestaPagina'
 import CampoRicerca from '@/components/CampoRicerca'
-import RigaMesi, { BORDO_RIQUADRO } from '@/components/RigaMesi'
+import RigaMesi from '@/components/RigaMesi'
 import InterruttorePillola from '@/components/InterruttorePillola'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
-import { formatIntervallo as formatIntervalloBreve } from '@/lib/richieste'
 import { giornoDaParametro } from '@/lib/daControllare'
 import { vuoleRicevuta as clienteVuoleRicevuta } from '@/lib/valutazione'
 import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
@@ -72,6 +74,10 @@ const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const sa
 const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
+// Le altezze fisse dei fogli della camera tenuta (29/09/2026)
+const ALTEZZA_TENUTA = 400
+const ALTEZZA_CONFERMA_TENUTA = 320
+const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 // Colori delle schede: blu prenotazione, viola bonifico in attesa, verde pagato… — da lib/calendarioMobile (stessa fonte della legenda)
 
 type CalendarBooking = Omit<Booking, 'guests' | 'rooms'> & {
@@ -995,80 +1001,75 @@ export default function Calendario() {
       </div>
       {/* Sotto il calendario: «Oggi» e i 12 mesi cliccabili (riga condivisa con Arrivi e Richieste), telefono e Mac */}
       {!loading && (
-        <RigaMesi colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 pt-3 ${legendaInRiga ? 'pb-4' : 'pb-1'} ${orizzontale ? 'px-2' : 'px-4'}`} />
+        <RigaMesi maison colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
       )}
-      {/* Legenda a pannello dove non c'è quella in riga (Ania, 07/09/2026): il «?» sta
-          SOTTO «Oggi», centrato nella stessa colonna, non più in alto accanto a «Indietro» */}
+      {/* «LEGENDA» maiuscoletto sottolineato, centrata sotto «Oggi» nella stessa
+          colonna (29/09/2026, al posto del «?»): apre la legenda nel foglio dal basso */}
       {!loading && !legendaInRiga && (
-        <div className={`shrink-0 flex pb-3 ${orizzontale ? 'px-2' : 'px-4'}`}>
-          <div className="shrink-0 flex justify-center" style={{ width: BORDO_RIQUADRO + NAME_W, minWidth: BORDO_RIQUADRO + NAME_W }}>
-            <button type="button" aria-label="Legenda" title="Legenda" onClick={() => setLegendaAperta(true)}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-green-mid font-serif text-[18px] leading-none active:bg-sage/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">?</button>
+        <div className={`shrink-0 flex ${orizzontale ? 'px-2' : ''}`}>
+          <div className="cal-lg" style={{ width: NAME_W, minWidth: NAME_W }}>
+            <button type="button" className="mz-lnk" aria-label="Legenda" onClick={() => setLegendaAperta(true)}>Legenda</button>
           </div>
         </div>
       )}
 
-      {/* Legenda in riga solo dal Mac (07/09/2026): sul telefono sta nel pannello «?» sotto «Oggi» */}
+      {/* Legenda in riga solo dal Mac (07/09/2026): sul telefono sta nel foglio sotto «Oggi» */}
       {legendaInRiga && (
-        <div className="shrink-0 px-4 pb-4 flex flex-wrap gap-3 items-center">
+        <div className="shrink-0 px-4 pt-4 pb-4 flex flex-wrap gap-3 items-center">
           <VociLegenda />
-          {/* Niente voce «Cambio camera» nella legenda (richiesta di Ania, 04/09/2026): le barre tagliate a incastro si spiegano da sole */}
+          {/* Niente voce «Cambio camera» nella legenda (richiesta di Ania, 04/09/2026): le schede tagliate a incastro si spiegano da sole */}
           <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
         </div>
       )}
       {legendaAperta && <PannelloLegenda onChiudi={() => setLegendaAperta(false)} />}
 
-      {/* ── FOGLIETTO DELLA CAMERA TENUTA (15/09/2026) ──
-          Si apre toccando una barra tratteggiata: per chi è tenuta, fino a
+      {/* ── FOGLIETTO DELLA CAMERA TENUTA (15/09/2026; dal 29/09/2026 nel foglio Maison ad altezza fissa) ──
+          Si apre toccando una scheda in ottone: per chi è tenuta, fino a
           quando, come doveva pagare. Da qui si libera la camera, o si libera e
           si scrive subito una prenotazione nuova per chi è al telefono. */}
       {barraAperta && !confermaLibera && (
-        <div role="dialog" aria-label="Camera tenuta" data-foglietto-tenuta
-          onClick={() => setBarraAperta(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(31,61,47,0.35)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={e => e.stopPropagation()}
-            className="ed-riquadro w-full"
-            style={{ maxWidth: 520, borderRadius: '14px 14px 0 0', padding: '14px 16px 22px' }}>
-            <div style={{ width: 38, height: 4, borderRadius: 99, background: '#D9D3C4', margin: '0 auto 12px' }} />
-            <p className="ed-sezione">Camera tenuta</p>
-            <p className="titolo-classico" style={{ fontSize: 22, margin: '0 0 2px' }}>{barraAperta.ospite}</p>
-            <p className="text-[13px] text-gray-600 leading-relaxed">
-              <b>{barraAperta.cameraNome}</b> · {formatIntervalloBreve(barraAperta.arrivo, barraAperta.partenza)} · {barraAperta.notti.length} {barraAperta.notti.length === 1 ? 'notte' : 'notti'} · {barraAperta.persone} {barraAperta.persone === 1 ? 'persona' : 'persone'}{barraAperta.lettoNotti.length > 0 ? ' + letto' : ''}
-            </p>
-            {barraAperta.alternativa && (
-              <p className="text-[12px] text-gray-500 mt-1">Camera proposta come alternativa, insieme alle altre.</p>
-            )}
-            <div className="ed-riga mt-2">
-              <p className="text-[13px] text-gray-600">
-                {comeDovevaPagare(barraAperta)}
-                {' · '}
-                <span style={{ color: barraAperta.scaduta ? '#8C3B2E' : '#7a5f2c', fontWeight: 700 }}>{testoTenuta(barraAperta, adesso)}</span>
-              </p>
+        <FoglioMaison titolo="Camera tenuta" altezza={ALTEZZA_TENUTA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} onChiudi={() => setBarraAperta(null)} dati="tenuta-calendario"
+          testa={
+            <div className="cal-fog-testa" data-foglietto-tenuta>
+              <div className="k">{barraAperta.cameraNome.split(' ').slice(-1)[0]} · {periodoConMese(barraAperta.arrivo, barraAperta.partenza)} · camera tenuta</div>
+              <div className="hd2"><div className="ti">{barraAperta.ospite}</div></div>
             </div>
-            {barraAperta.prezzo !== null && (
-              <div className="ed-riga">
-                <p className="text-[13px] text-gray-600">Prezzo proposto <b>{barraAperta.prezzo.toLocaleString('it-IT')} €</b></p>
-                <p className="text-[12px] text-gray-400 mt-0.5">Questo accordo era per {barraAperta.ospite}: nella prenotazione nuova non viene portato dietro.</p>
-              </div>
-            )}
-            {avvisoTenuta && <p className="text-[13px] mt-3" style={{ color: '#8C3B2E' }}>{avvisoTenuta}</p>}
-            <div className="flex flex-col gap-2 mt-4">
-              <button type="button" className="ed-pillola" style={{ minHeight: 44 }}
+          }
+          piede={
+            <div className="cal-ten-ac">
+              <button type="button" className="mz-lnk"
                 onClick={() => { setAvvisoTenuta(null); setConfermaLibera({ barra: barraAperta, prenotaDopo: true }) }}>
                 Libera e fai una prenotazione nuova
               </button>
-              <button type="button" className="ed-pillola-contorno" style={{ minHeight: 44 }}
+              <button type="button" className="mz-lnk"
                 onClick={() => { setAvvisoTenuta(null); setConfermaLibera({ barra: barraAperta, prenotaDopo: false }) }}>
                 Libera la camera
               </button>
-              <button type="button" className="ed-pillola-tenue" style={{ minHeight: 44 }}
+              <button type="button" className="mz-lnk"
                 onClick={() => { ricordaPosizione(); router.push(`/richieste/${barraAperta.richiestaId}`) }}>
                 Apri la richiesta di {barraAperta.ospite}
               </button>
-              <button type="button" className="ed-azione self-center" onClick={() => setBarraAperta(null)}>Chiudi</button>
+              <button type="button" className="mz-lnk q" onClick={() => setBarraAperta(null)}>Chiudi</button>
             </div>
+          }>
+          <div className="cal-ten">
+            <p className="so">
+              {maiuscola(comeDovevaPagare(barraAperta))}
+              {' · '}
+              <b className={barraAperta.scaduta ? 'scad' : 'ten'}>{testoTenuta(barraAperta, adesso)}</b>
+            </p>
+            {barraAperta.prezzo !== null && (
+              <>
+                <p className="so">Prezzo proposto <b>{barraAperta.prezzo.toLocaleString('it-IT')} €</b></p>
+                <p className="hint">Questo accordo era per {barraAperta.ospite}: nella prenotazione nuova non viene portato dietro.</p>
+              </>
+            )}
+            {barraAperta.alternativa && (
+              <p className="hint">Camera proposta come alternativa, insieme alle altre.</p>
+            )}
+            {avvisoTenuta && <p className="avv" role="alert">{avvisoTenuta}</p>}
           </div>
-        </div>
+        </FoglioMaison>
       )}
 
       {/* ── IL FOGLIETTO DI DETTAGLIO (29/09/2026): sale dal basso al primo tocco su una scheda ── */}
@@ -1077,7 +1078,7 @@ export default function Calendario() {
           onApri={() => apriScheda(aperta)} onChiudi={chiudiFoglietto} onVelo={toccoSulVelo} />
       )}
 
-      {/* ── IL POP-UP: niente si muove senza un sì (Ania, 15/09/2026) ── */}
+      {/* ── LA CONFERMA: niente si muove senza un sì (Ania, 15/09/2026; foglio Maison dal 29/09/2026) ── */}
       {confermaLibera && (() => {
         const { barra, prenotaDopo } = confermaLibera
         const testo = testoConferma({
@@ -1085,23 +1086,19 @@ export default function Calendario() {
           quando: quandoInParole(barra.notti), prenotaDopo,
         })
         return (
-          <div role="dialog" aria-label={testo.titolo} data-conferma-tenuta
-            style={{ position: 'fixed', inset: 0, background: 'rgba(31,61,47,0.45)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div className="ed-riquadro w-full" style={{ maxWidth: 420, padding: 18 }}>
-              <p className="titolo-classico" style={{ fontSize: 22, margin: '0 0 10px' }}>{testo.titolo}</p>
-              {testo.righe.map(r => <p key={r} className="text-[13px] text-gray-600 leading-relaxed mb-1.5">{r}</p>)}
-              <div className="flex flex-col gap-2 mt-4">
-                <button type="button" className="ed-pillola" style={{ minHeight: 44 }} disabled={liberando}
-                  onClick={() => liberaCamera(barra, prenotaDopo)}>
-                  {liberando ? 'Un attimo…' : testo.conferma}
-                </button>
-                <button type="button" className="ed-pillola-tenue" style={{ minHeight: 44 }} disabled={liberando}
-                  onClick={() => setConfermaLibera(null)}>
-                  Annulla
-                </button>
+          <FoglioMaison titolo={testo.titolo} altezza={ALTEZZA_CONFERMA_TENUTA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
+            onChiudi={() => { if (!liberando) setConfermaLibera(null) }} dati="conferma-tenuta"
+            piede={
+              // niente bottoni pieni (regola del riferimento): l'azione è la parola sottolineata
+              <div className="cal-fog-ac">
+                <button type="button" className="mz-lnk" data-azione-foglio="libera" disabled={liberando} onClick={() => liberaCamera(barra, prenotaDopo)}>{liberando ? 'Un attimo…' : testo.conferma}</button>
+                <button type="button" className="mz-lnk q" disabled={liberando} onClick={() => setConfermaLibera(null)}>Annulla</button>
               </div>
+            }>
+            <div className="cal-conf" data-conferma-tenuta>
+              {testo.righe.map(r => <p key={r}>{r}</p>)}
             </div>
-          </div>
+          </FoglioMaison>
         )
       })()}
     </div>

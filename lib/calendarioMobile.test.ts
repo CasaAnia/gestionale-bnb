@@ -43,14 +43,18 @@ test('posizione: solo una data ISO, e solo se il giorno è disegnato', () => {
   assert.equal(CHIAVE_POSIZIONE, 'ca_calendario_posizione')
 })
 
-test('layout della pagina: bottone «?» con etichetta, legenda in riga solo dal Mac, area di tocco sulle barre, posizione salvata prima di aprire una scheda', () => {
+test('layout della pagina: «Legenda» sotto «Oggi» con etichetta, legenda in riga solo dal Mac, area di tocco sulle schede, posizione salvata prima di aprire una scheda', () => {
   assert.ok(occorrenze(pagina, 'aria-label="Legenda"') >= 1)
+  assert.ok(occorrenze(pagina, '>Legenda</button>') >= 1)                   // la parola, non più il «?» (29/09/2026)
   assert.ok(occorrenze(pagina, '<PannelloLegenda') >= 1)
   assert.ok(occorrenze(pagina, 'isDesktop && !orizzontale') >= 1)          // legenda in riga solo dal Mac
   assert.ok(occorrenze(pagina, 'data-tocco') >= 1)
   assert.ok(occorrenze(pagina, 'areaTocco(') >= 1)
   assert.ok(occorrenze(pagina, 'ricordaPosizione()') >= 2)                  // prima di ogni router.push verso la scheda
   assert.ok(occorrenze(pagina, 'indicePosizione(') >= 1)
-  assert.ok(occorrenze(legenda, 'min-h-[44px]') >= 1)                       // «Chiudi» toccabile
-  assert.ok(occorrenze(legenda, 'role="dialog"') >= 1)
+  // la legenda dal telefono è un foglio Maison ad altezza fissa, con «Chiudi» e la riga delle icone
+  assert.ok(occorrenze(legenda, '<FoglioMaison') >= 1)
+  assert.ok(occorrenze(legenda, 'altezza={ALTEZZA_LEGENDA}') >= 1)
+  assert.ok(occorrenze(legenda, '>Chiudi</button>') >= 1)
+  assert.ok(occorrenze(legenda, '{ICONE_LEGENDA}') >= 1)
 })

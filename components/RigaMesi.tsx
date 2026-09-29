@@ -14,9 +14,30 @@ import type { MeseCliccabile } from '@/lib/mesiCliccabili'
 export const BORDO_RIQUADRO = 1
 const COLORE_TRATTINO = '#D6CFBD'
 
-export default function RigaMesi({ mesi, attivo, onMese, onOggi, nota, colonna, className = '' }:
-  { mesi: MeseCliccabile[]; attivo?: string | null; onMese: (m: MeseCliccabile) => void; onOggi: () => void; nota?: string; colonna: number; className?: string }) {
+export default function RigaMesi({ mesi, attivo, onMese, onOggi, nota, colonna, className = '', maison = false }:
+  { mesi: MeseCliccabile[]; attivo?: string | null; onMese: (m: MeseCliccabile) => void; onOggi: () => void; nota?: string; colonna: number; className?: string; maison?: boolean }) {
   const larghezzaOggi = BORDO_RIQUADRO + colonna
+  // Veste «Maison» (Calendario, 29/09/2026): «OGGI» cerchio a filo in
+  // maiuscoletto, i mesi 12,5 px, quello in vista acceso d'inchiostro, l'anno
+  // nuovo in Cormorant ottone. Stessa disposizione e stessi tocchi.
+  if (maison) {
+    return (
+      <div data-senza-sottolinea className={`cal-rm ${className}`}>
+        <div className="og" style={{ width: colonna, minWidth: colonna }}>
+          <button type="button" onClick={onOggi}>Oggi</button>
+        </div>
+        <div className="ms no-scrollbar">
+          {mesi.map(m => (
+            <span key={m.chiave} className="inline-flex items-center shrink-0">
+              {m.nuovoAnno && <i>{m.anno}</i>}
+              <button type="button" onClick={() => onMese(m)} aria-pressed={attivo === m.chiave} className={attivo === m.chiave ? 'on' : ''}>{m.label}</button>
+            </span>
+          ))}
+          {nota && <span className="shrink-0 ml-2">{nota}</span>}
+        </div>
+      </div>
+    )
+  }
   return (
     <div data-senza-sottolinea /* «Oggi» e i mesi sono pulsanti di scelta, senza filo sotto (Ania, 20/09/2026) */ className={`flex items-center ${className}`}>
       <div className="relative shrink-0 flex items-center justify-center self-stretch" style={{ width: larghezzaOggi, minWidth: larghezzaOggi }}>

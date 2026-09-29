@@ -1,40 +1,40 @@
 'use client'
-import { useEffect } from 'react'
-import { VOCI_LEGENDA } from '@/lib/calendarioMobile'
+import FoglioMaison from '@/components/maison/FoglioMaison'
+import { VOCI_LEGENDA, ICONE_LEGENDA } from '@/lib/calendarioMobile'
 
-// Legenda del Calendario (07/09/2026): le stesse voci in due forme.
+// Legenda del Calendario: le stesse voci in due forme.
 //  · <VociLegenda /> in riga, in fondo alla pagina dal Mac (come prima).
-//  · <PannelloLegenda /> a scomparsa dal bottone «?» in alto a destra: foglio
-//    dal basso sul telefono, scheda centrata sul Mac (velo e foglio come le
-//    altre finestre), così la griglia non perde spazio.
-export function VociLegenda({ verticale = false }: { verticale?: boolean }) {
+//  · <PannelloLegenda /> dal telefono: dal 29/09/2026 (calendario «Maison»)
+//    si apre toccando «LEGENDA» sotto «Oggi» ed è un foglio dal basso ad
+//    altezza fissa (FoglioMaison), con la riga delle icone e «Chiudi».
+export const ALTEZZA_LEGENDA = 470
+
+const quadretto = (v: (typeof VOCI_LEGENDA)[number], lato: number) => ({
+  width: lato, height: lato, borderRadius: lato > 10 ? 3 : 2, background: v.tratteggiata ? 'transparent' : v.colore,
+  border: v.tratteggiata ? '1.5px dashed #2D6A4F' : undefined, flex: 'none' as const,
+})
+
+export function VociLegenda() {
   return (
-    <div className={verticale ? 'flex flex-col gap-2.5' : 'flex flex-wrap gap-3 items-center'}>
+    <div className="cal-leg-riga">
       {VOCI_LEGENDA.map(v => (
-        <div key={v.testo} className="flex items-center gap-2">
-          <div style={{ width: verticale ? 16 : 12, height: verticale ? 16 : 12, borderRadius: 3, background: v.colore, border: v.tratteggiata ? '1.5px dashed #2D6A4F' : undefined, flex: 'none' }} />
-          <span className={verticale ? 'text-sm text-green-dark' : 'text-xs text-gray-500'}>{v.testo}</span>
-        </div>
+        <span key={v.testo}><i style={quadretto(v, 10)} />{v.testo}</span>
       ))}
     </div>
   )
 }
 
 export function PannelloLegenda({ onChiudi }: { onChiudi: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onChiudi() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onChiudi])
   return (
-    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Legenda del calendario" data-legenda>
-      <div className="velo-in absolute inset-0 ed-velo" onClick={onChiudi} />
-      <div className="scheda-in relative ed-foglio rounded-2xl shadow-lg p-5 w-full max-w-sm">
-        <p className="ed-titolo-medio">Legenda</p>
-        <p className="text-xs text-stone mt-1 mb-4">Colori delle barre nel calendario. Le barre tagliate a incastro sono un cambio camera.</p>
-        <VociLegenda verticale />
-        <button type="button" onClick={onChiudi} className="ed-pillola-contorno w-full mt-5 min-h-[44px] text-sm font-semibold">Chiudi</button>
+    <FoglioMaison titolo="Legenda del calendario" altezza={ALTEZZA_LEGENDA} onChiudi={onChiudi} dati="legenda-calendario"
+      testa={<div className="cal-leg-k">Legenda</div>}
+      piede={<div className="cal-fog-ac"><button type="button" className="mz-lnk q" onClick={onChiudi}>Chiudi</button></div>}>
+      <div data-legenda>
+        {VOCI_LEGENDA.map(v => (
+          <div key={v.testo} className="cal-leg-r"><i style={quadretto(v, 14)} />{v.testo}</div>
+        ))}
+        <p className="cal-leg-ic">{ICONE_LEGENDA}</p>
       </div>
-    </div>
+    </FoglioMaison>
   )
 }

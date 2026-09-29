@@ -753,3 +753,34 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-fog .mat { color: var(--m-mat); font-weight: 500; }
 .cal-fog .verde { color: #2D6A4F; font-weight: 500; }
 .cal-fog-ac { display: flex; gap: 16px; align-items: center; margin-top: 12px; flex: none; }
+
+/* Sotto il nastro: «OGGI» e i mesi, «LEGENDA» sotto «Oggi» */
+.cal-rm { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.cal-rm .og { flex: none; display: flex; justify-content: center; border-right: 2px solid #D6CFBD; padding: 2px 0; }
+.cal-rm .og button { position: relative; border: 1px solid var(--m-ink); border-radius: 999px; padding: 5px 10px; font-family: var(--home-ui-font); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--m-ink); background: transparent; line-height: 1.2; }
+.cal-rm .og button::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.cal-rm .ms { display: flex; align-items: center; gap: 2px; overflow-x: auto; flex: 1; min-width: 0; padding-left: 6px; }
+.cal-rm .ms button { position: relative; padding: 5px 8px; border-radius: 999px; font-family: var(--home-ui-font); font-size: 12.5px; white-space: nowrap; color: var(--m-ink); background: transparent; border: 0; line-height: 1.2; }
+.cal-rm .ms button::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.cal-rm .ms button.on { background: var(--m-ink); color: #F6F2EA; }
+.cal-rm .ms i { font-family: var(--m-disp); font-style: normal; font-size: 11px; color: var(--m-acc); padding: 6px 4px 0; letter-spacing: .06em; }
+.cal-lg { display: flex; justify-content: center; margin-top: 10px; padding-bottom: 12px; }
+.cal-lg .mz-lnk { font-size: 10.5px; letter-spacing: .14em; }
+
+/* La legenda: nel foglio dal basso (telefono) e in riga (Mac) */
+.cal-leg-k { font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }
+.cal-leg-r { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #DDD3C2; font-size: 13px; color: var(--m-ink); }
+.cal-leg-r i { flex: none; display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
+.cal-leg-ic { font-size: 12px; color: var(--m-mut); margin: 8px 0 0; line-height: 1.45; }
+.cal-leg-riga { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 11px; color: var(--m-mut); }
+.cal-leg-riga span i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+
+/* Il foglietto della camera tenuta e la conferma per liberarla */
+.cal-ten .so { font-size: 12.5px; color: var(--m-mut); margin-top: 3px; }
+.cal-ten .so b { font-weight: 500; color: var(--m-ink); }
+.cal-ten .so b.ten { color: #7a5f2c; }
+.cal-ten .so b.scad { color: var(--m-mat); }
+.cal-ten .hint { font-size: 11.5px; color: var(--m-mut); margin-top: 3px; line-height: 1.4; }
+.cal-ten .avv { font-size: 12.5px; color: var(--m-mat); margin-top: 10px; }
+.cal-ten-ac { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin-top: 14px; flex: none; }
+.cal-conf p { font-size: 13px; color: var(--m-mut); line-height: 1.5; margin: 0 0 6px; }
