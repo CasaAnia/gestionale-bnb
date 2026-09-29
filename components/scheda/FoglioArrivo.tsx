@@ -24,8 +24,15 @@
 // che non cambia cambiando tipo; titolo = nome, sotto «Camera · Arrivo e
 // navetta»; dopo il salvataggio la conferma B (spunta e «Salvato»), poi il
 // foglio si chiude da solo. Salvataggio e regole identici.
+//
+// Dal 29/09/2026 lo usano anche gli Arrivi (riferimento approvato da Ania:
+// docs/design/arrivi-riferimento.html), con le opzioni: una testa propria
+// («ARRIVO E NAVETTA · AMBRA · GIO 1 OTT», nome e cerchi), il riassunto al
+// posto della frase d'aiuto, lo storico sotto il modulo (che può riempire la
+// bozza: «Usa come l'ultima volta»), le azioni e il tasto pieno «Salva» a
+// tutta larghezza. Salvataggio, rilettura, conferma B: gli stessi.
 // ============================================================================
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import type { Salvataggio } from '@/components/maison/SalvatoMaison'
 import AvvisoAzione from '@/components/AvvisoAzione'
@@ -43,7 +50,7 @@ export { TITOLO_ARRIVO }
  *  fascia supera di poco: lì il foglio scorre dentro, senza cambiare misura. */
 export const ALTEZZA_FOGLIO_ARRIVO = 752
 
-export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChiudi, onSalvato }: {
+export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChiudi, onSalvato, testa, sopra, sotto, azioni, salvaPieno, veloChiaro, larghezzaDesktop, dati = 'arrivo' }: {
   /** prima era il sottotitolo; dalla veste «Maison» il sottotitolo è «Camera · Arrivo e navetta» */
   etichetta?: string
   bookingId: string
@@ -51,6 +58,20 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
   prenotazione: Record<string, unknown> | null | undefined
   onChiudi: () => void
   onSalvato: (campi: Record<string, unknown>) => void
+  /** Arrivi: la testa disegnata dalla pagina, al posto del titolo */
+  testa?: ReactNode
+  /** Arrivi: sopra il modulo, al posto della frase d'aiuto (segue la bozza) */
+  sopra?: (arrivo: Arrivo) => ReactNode
+  /** Arrivi: sotto il modulo (lo storico), può riempire la bozza */
+  sotto?: (arrivo: Arrivo, onArrivo: (a: Arrivo) => void) => ReactNode
+  /** Arrivi: le azioni in fondo, sopra «Salva» */
+  azioni?: ReactNode
+  /** Arrivi: il tasto pieno «Salva» a tutta larghezza, con questo testo mentre salva */
+  salvaPieno?: { salvando: string }
+  veloChiaro?: boolean
+  larghezzaDesktop?: number
+  /** il nome del foglio (data-foglio-maison): gli Arrivi hanno le loro misure */
+  dati?: string
 }) {
   const [arrivo, setArrivo] = useState<Arrivo>(() => leggiArrivo(prenotazione))
   const [salvando, setSalvando] = useState(false)
@@ -85,10 +106,17 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
 
   return (
     <FoglioMaison titolo={nome || TITOLO_ARRIVO} sottotitolo={camera ? `${camera} · ${TITOLO_ARRIVO}` : TITOLO_ARRIVO} altezza={ALTEZZA_FOGLIO_ARRIVO}
-      onChiudi={onChiudi} dati="arrivo" salvato={salvato} onFineSalvato={() => salvato && onSalvato(salvato.campi)}
-      piede={<PiedeMaison azione="Salva" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="arrivo" />}>
-      <p className="mz-hint">{SOTTOTITOLO_ARRIVO}</p>
+      onChiudi={onChiudi} dati={dati} salvato={salvato} onFineSalvato={() => salvato && onSalvato(salvato.campi)}
+      testa={testa} veloChiaro={veloChiaro} larghezzaDesktop={larghezzaDesktop}
+      piede={salvaPieno ? (
+        <div className="cal-fa-piede" data-piede-foglio>
+          {azioni && <div className="cal-fa-ac">{azioni}</div>}
+          <button type="button" className="cal-fa-cta" data-azione-foglio="arrivo" onClick={salva} disabled={salvando}>{salvando ? salvaPieno.salvando : 'Salva'}</button>
+        </div>
+      ) : <PiedeMaison azione="Salva" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="arrivo" />}>
+      {sopra ? sopra(arrivo) : <p className="mz-hint">{SOTTOTITOLO_ARRIVO}</p>}
       <ArrivoNavettaMaison arrivo={arrivo} onArrivo={setArrivo} />
+      {sotto?.(arrivo, setArrivo)}
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}
     </FoglioMaison>
   )

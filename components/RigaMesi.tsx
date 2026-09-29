@@ -33,7 +33,8 @@ export default function RigaMesi({ mesi, attivo, onMese, onOggi, nota, colonna, 
               <button type="button" onClick={() => onMese(m)} aria-pressed={attivo === m.chiave} className={attivo === m.chiave ? 'on' : ''}>{m.label}</button>
             </span>
           ))}
-          {nota && <span className="shrink-0 ml-2">{nota}</span>}
+          {/* la nota degli Arrivi («arrivi dei prossimi 83 giorni») in grigio */}
+          {nota && <span className="nt shrink-0">{nota}</span>}
         </div>
       </div>
     )

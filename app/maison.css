@@ -228,6 +228,10 @@ body:has(.mz-home) { background: var(--home-bg); }
 .mz-velo.chiaro { background: rgba(36,31,26,.12); }
 .mz-foglio { position: absolute; left: 0; right: 0; bottom: 0; background: #F6F2EA; border-top: 1px solid #DDD3C2; padding: 18px 22px calc(22px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; max-height: 92dvh; }
 .mz-foglio.desktop { left: 50%; right: auto; bottom: auto; top: 50%; transform: translate(-50%, -50%); width: var(--foglio-w, 440px); border: 1px solid #DDD3C2; padding-bottom: 22px; }
+/* dal Mac il foglio sta al centro anche DOPO l'entrata: l'animazione «scheda-in» finiva con
+   transform: none e lo lasciava con l'angolo in alto a sinistra al centro (29/09/2026) */
+@keyframes foglio-centro-in { from { opacity: 0; transform: translate(-50%, -48%) scale(.98); } to { opacity: 1; transform: translate(-50%, -50%); } }
+.mz-foglio.desktop.scheda-in { animation-name: foglio-centro-in; }
 .mz-foglio::before { content: ""; display: block; width: 36px; height: 3px; background: #DDD3C2; margin: 0 auto 14px; flex: none; }
 .mz-foglio .corpo { flex: 1; min-height: 0; overflow-y: auto; }
 .mz-foglio h2 { font-family: var(--m-disp); font-size: 24px; font-weight: 500; margin: 0; line-height: 1.05; color: var(--m-ink); }
@@ -786,3 +790,30 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-ten .avv { font-size: 12.5px; color: var(--m-mat); margin-top: 10px; }
 .cal-ten-ac { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; margin-top: 14px; flex: none; }
 .cal-conf p { font-size: 13px; color: var(--m-mut); line-height: 1.5; margin: 0 0 6px; }
+
+/* ── ARRIVI «MAISON» (29/09/2026, docs/design/arrivi-riferimento.html): lo stesso nastro del Calendario,
+   la scheda parla di arrivo. L'orario grande in Cormorant 19 px grassetto nero, «?» in mattone ── */
+.cal-scheda-in .tx > b .hr { font-family: var(--m-disp); font-size: 19px; font-weight: 600; margin-right: 7px; letter-spacing: .01em; color: #000; }
+.cal-scheda-in .tx > b .hr.manca { color: var(--m-mat); }
+/* il box «⇄ Cambi camera» sotto il nastro */
+.cal-cambi { margin: 10px 16px 0; border: 1px solid var(--m-line); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: var(--m-ink); }
+.cal-cambi .ck { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--m-acc); margin-bottom: 3px; }
+.cal-cambi p { margin: 0; }
+.cal-cambi p span { color: var(--m-mut); }
+/* la nota «arrivi dei prossimi 83 giorni» dopo i mesi */
+.cal-rm .ms .nt { color: var(--m-mut); font-family: var(--home-ui-font); font-size: 11px; white-space: nowrap; padding: 0 4px; }
+/* il foglio «Arrivo e navetta» degli Arrivi (FoglioArrivo con le opzioni) */
+.mz[data-foglio-maison="arrivo-arrivi"] .mz-foglio, .mz[data-foglio-maison="legenda-arrivi"] .mz-foglio { padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); }
+.mz[data-foglio-maison="arrivo-arrivi"] .mz-foglio::before, .mz[data-foglio-maison="legenda-arrivi"] .mz-foglio::before { margin-bottom: 12px; }
+.cal-fa-so { font-size: 12.5px; color: var(--m-mut); margin-top: 3px; line-height: 1.4; }
+.cal-fa-st { font-size: 12.5px; color: var(--m-mut); margin-top: 12px; line-height: 1.6; }
+.cal-fa-st b { font-weight: 500; color: var(--m-ink); }
+.cal-fa-st .mz-lnk { margin-left: 2px; }
+.cal-fa-st .righe { margin-top: 6px; padding-top: 6px; border-top: 1px solid #DDD3C2; }
+.cal-fa-st .righe p { margin: 0 0 3px; font-size: 12px; color: var(--m-ink); }
+.cal-fa-st .righe p b { font-weight: 600; }
+.cal-fa-st .righe .no { color: var(--m-mut); }
+.cal-fa-piede { flex: none; margin-top: 10px; }
+.cal-fa-ac { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.cal-fa-cta { display: block; width: 100%; margin-top: 12px; background: var(--m-ink); color: #F6F2EA; text-align: center; padding: 10px; border: 0; border-radius: 999px; font-family: var(--home-ui-font); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+.cal-fa-cta:disabled { opacity: .5; }
