@@ -744,6 +744,7 @@ let erroreSpostaNotti = null
 // 0049 sulle prenotazioni con prenotazione_id (Ventiquattro Notti), finte ma
 // con le stesse regole: idempotenti per p_chiave, importo a due decimali,
 // risposta con contratto 'prenotazione_v1'. Interruttori, per la chiamata
+// (modo=appesa: scrive e non risponde mai, 29/09/2026)
 // successiva soltanto: GET /finto/errore-pagamento?modo=errore (500, niente
 // scritto) · ?modo=persa (SCRIVE, poi risponde 503 come un gateway caduto) ·
 // ?modo=caduta (503 PRIMA di scrivere) · ?modo=tardiva&dopo=ms (503 subito,
@@ -833,7 +834,7 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/errore-pagamenti') { errorePagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { errorePagamenti }) }
   // modo=caduta: la connessione cade PRIMA di scrivere (503 senza codice): esito incerto per l'app, ma niente registrato
   if (url.pathname === '/finto/errore-pagamento') {
-    const modo = url.searchParams.get('modo'); errorePagamentoRpc = ['errore', 'persa', 'caduta', 'tardiva'].includes(modo) ? modo : null
+    const modo = url.searchParams.get('modo'); errorePagamentoRpc = ['errore', 'persa', 'caduta', 'tardiva', 'appesa'].includes(modo) ? modo : null
     if (url.searchParams.get('dopo')) ritardoScrittura = Number(url.searchParams.get('dopo'))
     return rispondi(res, 200, { errorePagamentoRpc, ritardoScrittura, scrittureInCorso: [...scrittureInCorso.keys()] })
   }
@@ -999,6 +1000,9 @@ const finto = createServer((req, res) => {
         }
       }
       const nuovo = { id: randomUUID(), booking_id: b.id, amount, method: corpo.p_metodo || 'contanti', paid_on: corpo.p_paid_on, chiave_operazione: corpo.p_chiave, soggiorno, created_at: new Date().toISOString() }
+      // «appesa» (29/09/2026, il pagamento di Ledi): il movimento si scrive ma la
+      // risposta non arriva MAI; il foglio deve dirlo dopo 10 secondi
+      if (modoGuasto === 'appesa') { payments.push(nuovo); console.log(`[finto supabase] RPC ${rpc[1]} ← ${amount}: scritto, risposta APPESA (non arriva mai)`); return }
       if (modoGuasto === 'tardiva') {
         const attesa = new Promise(fine => setTimeout(() => { payments.push(nuovo); scrittureInCorso.delete(soggiorno); console.log(`[finto supabase] scrittura TARDIVA confermata: ${amount} ${nuovo.method} su ${b.id.slice(-4)} (chiave …${String(corpo.p_chiave).slice(-4)})`); fine() }, ritardoScrittura))
         scrittureInCorso.set(soggiorno, attesa)

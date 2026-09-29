@@ -23,7 +23,7 @@ import { chiavePrenotazione, contoPrenotazione, leggiPrenotazioneUnica, type Rig
 import { leggiMemoria, scriviMemoria } from './memoriaBrowser'
 import { colonnaMancante } from './colonnaMancante'
 import { messaggioNonSalvato } from './scritturaSicura'
-import { AVVISO_BOLLINO_NON_TOLTO } from './pagamentoFoglio'
+import { AVVISO_BOLLINO_NON_TOLTO, pagamentoGemello } from './pagamentoFoglio'
 
 export const AVVISO_NOTA_SENZA_0055 = 'Pagamento registrato; la nota però no: serve la proposta 0055 applicata su Supabase.'
 export const AVVISO_NOTA_NON_SALVATA = 'Pagamento registrato, ma la nota non è stata salvata.'
@@ -192,6 +192,21 @@ export async function registraPagamento(
   if (inSospeso && !(Math.round(Number(inSospeso.amount) * 100) === Math.round(dati.importo * 100)
     && inSospeso.method === dati.metodo && inSospeso.paid_on === dati.giorno)) {
     return { esito: 'errore', messaggio: MESSAGGIO_TENTATIVO_DA_VERIFICARE, pagamenti: null, incerto: tentativoIncerto(booking, righe) ?? undefined }
+  }
+  // Il gemello (29/09/2026, Ania): prima di scrivere si rileggono i pagamenti
+  // e se uno identico — stesso importo, giorno e modo — è nato negli ultimi 2
+  // minuti non se ne scrive un secondo: è lo stesso tocco (una risposta persa,
+  // un «Salva» ripremuto dopo il limite di tempo). Si conferma quello.
+  let lettiPrima: { data: unknown; error: unknown } | null = null
+  try { lettiPrima = await rileggi() } catch { lettiPrima = null }
+  const pagamentiPrima = lettiPrima && !lettiPrima.error && Array.isArray(lettiPrima.data) ? lettiPrima.data as (PagamentoLetto & { created_at?: string | null; chiave_operazione?: string | null })[] : null
+  const gemello = pagamentiPrima ? pagamentoGemello(pagamentiPrima, dati, Date.now()) : null
+  if (gemello && pagamentiPrima) {
+    // è il nostro per chiave solo se porta la chiave del tentativo custodito
+    const identificato = !!inSospeso && gemello.chiave_operazione === inSospeso.chiave
+    try { localStorage.removeItem(chiaveMemoria) } catch { /* senza memoria non c'è nulla da togliere */ }
+    const completato = await completaDopoMovimento(booking, righe, dati, gemello.id, pagamentiPrima, identificato)
+    return completato.esito === 'ok' ? { ...completato, giaRegistrato: true } : completato
   }
   // l'intero conto com'è adesso: le camere della prenotazione (come le legge la scheda) e i loro pagamenti
   const rileggiConto = async (): Promise<ContoRiletto | null> => {

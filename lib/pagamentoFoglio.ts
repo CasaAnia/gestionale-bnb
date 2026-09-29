@@ -156,3 +156,41 @@ export function restaSenza(totaleCent: number, ricevutiCent: number, importoCent
 export function bollinoDaTogliere(pagato: boolean, totaleCent: number, ricevutiCent: number, importoCent: number): boolean {
   return pagato && restaSenzaCent(totaleCent, ricevutiCent, importoCent) > 0
 }
+
+// ── IL SALVATAGGIO NON RESTA APPESO (29/09/2026) ─────────────────────────
+// Il pagamento di Ledi (Lena, 27 → 29 set, 170 € contanti) è rimasto su
+// «Salvo…» per sempre: una richiesta che non torna non deve bloccare il
+// foglio. Dopo 10 secondi si dice di riprovare e il tasto torna attivo.
+// Riprovare non raddoppia: il tentativo custodito ha la sua chiave, e prima
+// di scrivere si cerca un pagamento gemello (qui sotto).
+export const LIMITE_SALVATAGGIO_MS = 10_000
+export const ERRORE_SALVATAGGIO_SCADUTO = 'Non sono riuscita a salvare: controlla la connessione e riprova'
+export const ERRORE_LETTURA_SCADUTA = 'Non riesco a leggere il conto: controlla la connessione e riprova'
+
+export type Scadenza<T> = { scaduto: true } | { scaduto: false; valore: T }
+
+/** La promessa entro `ms`, altrimenti { scaduto: true }. La promessa resta
+ *  viva (la risposta può arrivare dopo); un suo errore passa com'è. */
+export function conLimite<T>(promessa: Promise<T>, ms: number): Promise<Scadenza<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const scadenza = new Promise<Scadenza<T>>(ok => { timer = setTimeout(() => ok({ scaduto: true }), ms) })
+  return Promise.race([promessa.then(valore => ({ scaduto: false as const, valore })), scadenza])
+    .finally(() => { if (timer !== undefined) clearTimeout(timer) })
+}
+
+// Un pagamento identico (stesso importo, stesso giorno, stesso modo) nato
+// negli ultimi 2 minuti è quasi certamente lo stesso tocco arrivato prima:
+// non si scrive un secondo movimento, si conferma quello (Ania, 29/09/2026).
+export const FINESTRA_GEMELLO_MS = 2 * 60 * 1000
+
+export function pagamentoGemello<T extends { amount: number | string; method?: string | null; paid_on?: string | null; created_at?: string | null }>(
+  pagamenti: T[], dati: { importo: number; metodo: string; giorno: string }, adessoMs: number,
+): T | null {
+  const cent = Math.round(dati.importo * 100)
+  return pagamenti.find(p => {
+    if (Math.round(Number(p.amount) * 100) !== cent || p.method !== dati.metodo || p.paid_on !== dati.giorno || !p.created_at) return false
+    const nato = Date.parse(p.created_at)
+    // anche un orologio del telefono un po' indietro: conta la distanza, in tutt'e due i versi
+    return Number.isFinite(nato) && Math.abs(adessoMs - nato) <= FINESTRA_GEMELLO_MS
+  }) ?? null
+}

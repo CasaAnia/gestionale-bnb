@@ -41,7 +41,7 @@ import { periodoCompatto, MESI_LUNGHI } from '@/lib/dateItaliane'
 import {
   TITOLO_PAGAMENTO, SALVA_PAGAMENTO, ETICHETTA_QUANTO, ETICHETTA_QUANDO, ETICHETTA_COME, ETICHETTA_NOTA, ERRORE_IMPORTO, ERRORE_GIORNO,
   RESTA_DA_INCASSARE, MODO_SALDO, MODO_ALTRO, GRUPPO_MODI, SPIEGA_SALDO, SPIEGA_ALTRO, DOPO_IL_PAGAMENTO_RESTA, NIENTE_DA_SALDARE,
-  OLTRE_IL_TOTALE_FOGLIO, CONTO_CAMBIATO,
+  OLTRE_IL_TOTALE_FOGLIO, CONTO_CAMBIATO, LIMITE_SALVATAGGIO_MS, ERRORE_SALVATAGGIO_SCADUTO, conLimite, type Scadenza,
   MODI_PAGAMENTO, modoProposto, modoIniziale, importoProposto, importoInCent, residuoPrevisto,
   type ModoPagamento, type ModoImporto,
 } from '@/lib/pagamentoFoglio'
@@ -105,6 +105,9 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   // farebbero partire altrettanti salvataggi (li salverebbe solo la chiave
   // idempotente). Con il ref il secondo tocco trova la porta già chiusa.
   const inCorso = useRef(false)
+  // Il numero del salvataggio: una risposta arrivata dopo il limite di tempo
+  // vale solo se nel frattempo non ne è partito un altro
+  const giroSalva = useRef(0)
   // Conferma B (28/09/2026): la spunta, poi il foglio si chiude da solo e la scheda (o la Home) riceve l'esito
   const [salvato, setSalvato] = useState<(Salvataggio & { esito: PagamentoSalvato }) | null>(null)
   const nome = nomeConAltri(booking) || 'Ospite'
@@ -170,13 +173,33 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     const dati = incerto
       ? { importo: incerto.importo, metodo: (incerto.metodo === 'bonifico' ? 'bonifico' : 'contanti') as ModoPagamento, giorno: incerto.giorno, nota: incerto.nota }
       : { importo: cent / 100, metodo, giorno, nota }
-    let esito: EsitoPagamento
+    // Mai più «Salvo…» per sempre (29/09/2026, pagamento di Ledi): dopo 10
+    // secondi il foglio lo dice e «Salva» torna attivo. Riprovare non
+    // raddoppia (stessa chiave custodita, e il controllo del gemello).
+    const giro = ++giroSalva.current
+    const richiesta = registraPagamento(booking, righe, dati, { totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent })
+    let risposta: Scadenza<EsitoPagamento> | null
     try {
-      esito = await registraPagamento(booking, righe, dati, { totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent })
+      risposta = await conLimite(richiesta, LIMITE_SALVATAGGIO_MS)
+    } catch {
+      risposta = null   // la richiesta è finita con un errore: lo si dice, niente «Salvo…»
     } finally {
       inCorso.current = false
       setSalvando(false)
     }
+    if (!risposta || risposta.scaduto) {
+      setErrore(ERRORE_SALVATAGGIO_SCADUTO)
+      // la risposta arriva tardi ed è buona: se intanto non è partito un altro
+      // salvataggio, il foglio si chiude con «Salvato» come sempre
+      if (risposta) richiesta.then(tardi => {
+        if (tardi.esito === 'ok' && giro === giroSalva.current && !inCorso.current) {
+          setErrore(null)
+          setSalvato({ cosa: COSA_SALVATA.pagamento(nome, !!tardi.giaRegistrato), quando: new Date(), esito: { ...tardi, importo: dati.importo, metodo: dati.metodo, ritrovato: !!tardi.giaRegistrato } })
+        }
+      }).catch(() => { /* già detto: riprova */ })
+      return
+    }
+    const esito = risposta.valore
     if (esito.esito === 'errore') {
       if (esito.incerto) {
         setIncerto(esito.incerto)
