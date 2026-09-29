@@ -705,9 +705,16 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-filo-oggi { position: absolute; width: 1px; background: #2D6A4F; z-index: 1; pointer-events: none; }
 
 /* La scheda: il guscio (tocco, attenuazione, ombra della catena) e il corpo (colore, taglio, testo) */
-.cal-scheda { position: absolute; cursor: pointer; transition: opacity .15s, filter .15s; }
-.cal-scheda.dim { opacity: .3; }
-.cal-scheda.scaduta { opacity: .55; }
+/* Le schede attenuate (arrivate, smorzate, scadute) sono trasparenti: sotto
+   hanno un fondo PIENO del colore della pagina, della loro stessa forma, così
+   i fili di oggi e del 1° del mese non le attraversano (Ania, 29/09/2026:
+   dal Mac passavano sopra Dario Barone e Susanna Massarenti). La
+   trasparenza sta sul corpo (.cal-scheda-in), mai sulla scheda intera. */
+.cal-scheda { position: absolute; cursor: pointer; transition: filter .15s; }
+.cal-scheda::before { content: ""; position: absolute; inset: 0; background: var(--m-bg); border-radius: var(--cal-raggio, 6px); clip-path: var(--cal-taglio, none); pointer-events: none; }
+.cal-scheda > .cal-scheda-in { transition: opacity .15s; }
+.cal-scheda.dim > .cal-scheda-in { opacity: .3; }
+.cal-scheda.scaduta > .cal-scheda-in { opacity: .55; }
 .cal-scheda.catena { filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
 .cal-scheda.trovata { outline: 2px solid #2D6A4F; outline-offset: 1px; border-radius: 7px; }
 .cal-scheda-in { position: relative; height: 100%; overflow: clip; padding: 6px 0; border-left: 4px solid transparent; font-size: 12px; line-height: 1.25; }
@@ -724,7 +731,7 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-scheda-in .tx > small.ar2 { color: #7a5f2c; font-weight: 500; }
 .cal-cuneo { position: absolute; inset: 0; pointer-events: none; }
 /* con la ricerca attiva e la catena toccata le schede attenuate valgono 0,35 */
-.cal-nastro .cal-scheda.dim.cerca { opacity: .35; }
+.cal-nastro .cal-scheda.dim.cerca > .cal-scheda-in { opacity: .35; }
 
 /* I buchi liberi: tratteggio, date e «+» */
 .cal-buco { position: absolute; background: var(--m-bg); border: 1px dashed #D5CCBB; border-radius: 6px; padding: 0; color: #B8AE9C; text-align: left; z-index: 2; cursor: pointer; }

@@ -116,7 +116,8 @@ export function SchedaNastro({ id, dati, classi, top, height, left, width, zInde
 }) {
   return (
     <div data-tocco data-scheda={id} {...Object.fromEntries(Object.entries(dati ?? {}).map(([k, v]) => [`data-${k}`, v]))}
-      onClick={onClick} className={`cal-scheda ${classi}`} style={{ top, height, left, width, zIndex }}>
+      onClick={onClick} className={`cal-scheda ${classi}`}
+      style={{ top, height, left, width, zIndex, ...(clipPath ? { '--cal-taglio': clipPath, '--cal-raggio': '0' } : {}) } as CSSProperties}>
       <div className={`cal-scheda-in ${sito ? 'sito' : ''} ${cutLeft ? 'cl' : ''}`} data-letto={letto || undefined}
         style={{
           background: fondo, color: testo,

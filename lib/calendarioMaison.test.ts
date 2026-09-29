@@ -166,8 +166,8 @@ test('cambio camera: «poi Lena» sul tratto che parte, «da Ambra» su quello c
 test('ricerca attiva: la scheda trovata col contorno verde, le altre attenuate a 0,35, i buchi normali', () => {
   const css = leggi('app/maison.css')
   assert.match(css, /\.cal-scheda\.trovata \{ outline: 2px solid #2D6A4F;/)
-  assert.match(css, /\.cal-nastro \.cal-scheda\.dim\.cerca \{ opacity: \.35; \}/)
-  assert.match(css, /\.cal-scheda\.dim \{ opacity: \.3; \}/)
+  assert.match(css, /\.cal-nastro \.cal-scheda\.dim\.cerca > \.cal-scheda-in \{ opacity: \.35; \}/)
+  assert.match(css, /\.cal-scheda\.dim > \.cal-scheda-in \{ opacity: \.3; \}/)
   assert.match(css, /\.cal-scheda\.catena \{ filter: drop-shadow\(0 2px 4px rgba\(0,0,0,\.25\)\); \}/)
   assert.match(pagina, /isDimmed \? \(searchAttiva \? 'dim cerca' : 'dim'\)/)
   // i buchi non hanno mai la classe «dim»
@@ -389,3 +389,18 @@ test('filo del letto: nessun letto → nessun tratto; le pagine e il nastro dise
   assert.match(nastro, /<FiloLetto tratti=\{lettoTratti\}/)
   assert.match(nastro, /data-filo-letto className="cal-letto"/)
 })
+
+// I fili SOTTO anche le schede trasparenti (Ania, 29/09/2026: dal Mac degli
+// Arrivi passavano sopra Dario Barone e Susanna Massarenti, già arrivati e
+// quindi attenuati): sotto ogni scheda un fondo pieno della sua forma, la
+// trasparenza solo sul corpo.
+test('le schede attenuate hanno sotto un fondo pieno: i fili non le attraversano', () => {
+  const css = readFileSync(new URL('../app/maison.css', import.meta.url), 'utf8')
+  assert.match(css, /\.cal-scheda::before \{ content: ""; position: absolute; inset: 0; background: var\(--m-bg\); border-radius: var\(--cal-raggio, 6px\); clip-path: var\(--cal-taglio, none\);/)
+  assert.match(css, /\.cal-scheda\.scaduta > \.cal-scheda-in \{ opacity: \.55; \}/)
+  // mai più l'opacità sulla scheda intera (renderebbe trasparente anche il fondo)
+  assert.equal(/\.cal-scheda(\.[a-z]+)* \{[^}]*opacity/.test(css), false)
+  const nastro = readFileSync(new URL('../components/calendario/Nastro.tsx', import.meta.url), 'utf8')
+  assert.match(nastro, /'--cal-taglio': clipPath, '--cal-raggio': '0'/)
+})
+
