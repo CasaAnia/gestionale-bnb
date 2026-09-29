@@ -792,8 +792,8 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-conf p { font-size: 13px; color: var(--m-mut); line-height: 1.5; margin: 0 0 6px; }
 
 /* ── ARRIVI «MAISON» (29/09/2026, docs/design/arrivi-riferimento.html): lo stesso nastro del Calendario,
-   la scheda parla di arrivo. L'orario grande in Cormorant 19 px grassetto nero, «?» in mattone ── */
-.cal-scheda-in .tx > b .hr { font-family: var(--m-disp); font-size: 19px; font-weight: 600; margin-right: 7px; letter-spacing: .01em; color: #000; }
+   la scheda parla di arrivo. L'orario grande in Cormorant 19 px grassetto nero (700, Ania 29/09/2026), «?» in mattone dello stesso peso ── */
+.cal-scheda-in .tx > b .hr { font-family: var(--m-disp); font-size: 19px; font-weight: 700; margin-right: 7px; letter-spacing: .01em; color: #000; }
 .cal-scheda-in .tx > b .hr.manca { color: var(--m-mat); }
 /* il box «⇄ Cambi camera» sotto il nastro */
 .cal-cambi { margin: 10px 16px 0; border: 1px solid var(--m-line); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: var(--m-ink); }

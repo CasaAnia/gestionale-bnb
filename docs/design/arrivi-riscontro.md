@@ -53,7 +53,7 @@ condivisi), TypeScript, lint dei file toccati e build puliti.
 
 ## 4. Le schede
 
-- K1 fatta. K2 fatta. K3 fatta (Cormorant 600 vero: aggiunto il peso 600 al carattere, prima non c'era). K4 fatta. K5 fatta (verbo con la regola unica, vedi sopra). K6 fatta. K7 fatta. K8 fatta.
+- K1 fatta. K2 fatta. K3 fatta (Cormorant 700 vero, più pesante: richiesta di Ania del 29/09/2026 dopo la prima pubblicazione; caricati i pesi 600 e 700, prima non c'erano; il «?» in mattone ha lo stesso peso). K4 fatta. K5 fatta (verbo con la regola unica, vedi sopra). K6 fatta. K7 fatta. K8 fatta.
 
 ## 5. Il colore
 

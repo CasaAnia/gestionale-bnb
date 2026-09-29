@@ -136,5 +136,5 @@ test('le schede della pagina: colore per stato, arrivi passati attenuati, stessi
   assert.match(pagina, /<SchedaNastro /)
   assert.match(pagina, /<RighelloNastro /)
   assert.doesNotMatch(pagina, /cal-extra|ombraNavetta/)
-  assert.match(leggi('app/maison.css'), /\.cal-scheda-in \.tx > b \.hr \{ font-family: var\(--m-disp\); font-size: 19px; font-weight: 600;[^}]*color: #000; \}/)
+  assert.match(leggi('app/maison.css'), /\.cal-scheda-in \.tx > b \.hr \{ font-family: var\(--m-disp\); font-size: 19px; font-weight: 700;[^}]*color: #000; \}/)
 })

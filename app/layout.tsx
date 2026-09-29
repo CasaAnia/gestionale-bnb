@@ -17,8 +17,8 @@ const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', wei
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', weight: ['400', '500', '600', '700'], display: 'swap' })
 // Stile «Maison» della Home (riferimento approvato da Ania il 28/09/2026):
 // Cormorant Garamond per titoli, nomi, numeri e orari; Jost per il testo.
-// Il 600 vero (29/09/2026) per l'orario grande delle schede degli Arrivi: niente grassetto finto.
-const cormorant = Cormorant_Garamond({ subsets: ['latin'], variable: '--font-cormorant', weight: ['300', '400', '500', '600'], style: ['normal', 'italic'], display: 'swap' })
+// Il 700 vero (Ania, 29/09/2026) per l'orario grande delle schede degli Arrivi: niente grassetto finto.
+const cormorant = Cormorant_Garamond({ subsets: ['latin'], variable: '--font-cormorant', weight: ['300', '400', '500', '600', '700'], style: ['normal', 'italic'], display: 'swap' })
 const jost = Jost({ subsets: ['latin'], variable: '--font-jost', weight: ['300', '400', '500'], display: 'swap' })
 // Figtree: il testo della Home sul telefono (prova «E», 28/09/2026), vedi app/maison.css.
 const figtree = Figtree({ subsets: ['latin'], variable: '--font-figtree', weight: ['400', '500', '600'], display: 'swap' })
