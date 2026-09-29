@@ -53,7 +53,7 @@ export function schiarisci(hex: string, quanto = SCHIARITURA_NOTA): string {
   return `#${canali.map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase()}`
 }
 
-export type VoceLegenda = { testo: string; colore: string; tratteggiata?: boolean }
+export type VoceLegenda = { testo: string; colore: string; tratteggiata?: boolean; attenuata?: boolean }
 export const VOCI_LEGENDA: VoceLegenda[] = [
   { testo: 'Prenotazione', colore: COLOR_PRENOTAZIONE },
   { testo: 'Bonifico in attesa', colore: COLOR_BONIFICO },
@@ -66,6 +66,34 @@ export const VOCI_LEGENDA: VoceLegenda[] = [
 ]
 /** La riga delle icone sotto la legenda */
 export const ICONE_LEGENDA = 'Icone, prima del nome: ⭐ ottimo · 🧾 ricevuta · 🛏 letto in più · ⇄ cambio camera · 🌐 dal sito · 🔒 esclusiva'
+
+// ── GLI ARRIVI (riferimento approvato da Ania il 29/09/2026: docs/design/arrivi-riferimento.html) ──
+// Stesso nastro del Calendario; il colore della scheda dice lo STATO DELL'ARRIVO
+// e non il pagamento. Fondi e fili sono quelli delle tinte qui sopra (verde del
+// pagato, ottone della tenuta, blu della prenotazione): cambiandoli lì cambiano
+// anche qui. Il testo è l'inchiostro; la riga dell'arrivo va in blu scuro sulle
+// schede blu e in mattone, col «?», quando manca l'orario.
+export const INCHIOSTRO = '#241F1A'
+export const MATTONE = '#8C3B2E'
+export const TINTE_ARRIVO = {
+  ok: { fondo: TINTE_SCHEDA.pagato.fondo, filo: TINTE_SCHEDA.pagato.filo, testo: INCHIOSTRO },
+  autonomo: { fondo: TINTE_SCHEDA.tenuta.fondo, filo: TINTE_SCHEDA.tenuta.filo, testo: INCHIOSTRO },
+  manca: { fondo: TINTE_SCHEDA.prenotazione.fondo, filo: TINTE_SCHEDA.prenotazione.filo, testo: INCHIOSTRO },
+  dalSito: TINTE_SCHEDA.dalSito,
+} as const satisfies Record<string, TintaScheda>
+/** La riga dell'arrivo sulle schede blu che hanno l'orario (manca la navetta) */
+export const RIGA_NAVETTA_MANCA = TINTE_SCHEDA.prenotazione.testo
+/** L'arrivo già avvenuto: la scheda attenuata */
+export const OPACITA_ARRIVATA = 0.5
+
+export const VOCI_LEGENDA_ARRIVI: VoceLegenda[] = [
+  { testo: 'Verde · tutto a posto: orario in struttura e navetta con autista', colore: TINTE_ARRIVO.ok.filo },
+  { testo: 'Ottone · arrivo autonomo con orario: nessuna navetta da organizzare', colore: TINTE_ARRIVO.autonomo.filo },
+  { testo: 'Blu · manca qualcosa: l’autista da assegnare o da definire, oppure l’orario da chiedere («?» in mattone), o tutt’e due', colore: TINTE_ARRIVO.manca.filo },
+  { testo: 'Dal sito, da confermare', colore: 'white', tratteggiata: true },
+  { testo: 'Arrivo già avvenuto (giorni prima di oggi): scheda attenuata, con «· arrivata» nella prima riga', colore: TINTE_ARRIVO.ok.filo, attenuata: true },
+]
+export const ICONE_LEGENDA_ARRIVI = 'Sulla scheda: orario grande (o «?»), icone e nome, poi luogo · mezzo · navetta con autista e prelievo. Icone: 🔒 esclusiva · ⭐ ottimo · 🧾 ricevuta · 🛏 letto in più · ⇄ cambio camera · 🌐 dal sito'
 
 // Larghezza del giorno sul telefono dritto (come oggi): 60 px a «2 settimane», 40 a «Mese»
 export const GIORNO_TELEFONO = { quindici: 60, mese: 40 } as const
