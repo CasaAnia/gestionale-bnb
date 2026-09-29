@@ -344,7 +344,7 @@ export default function Arrivi() {
     <div className="maison cal flex flex-col" data-senza-sottolinea data-arrivi-maison>
       {/* La testa è quella condivisa da Calendario, Arrivi e Richieste:
           components/TestaPagina (spazio in alto uguale per tutt'e tre) */}
-      <TestaPagina titolo="Arrivi" desktop={isDesktop} indietro={<BackLink href="/" />}
+      <TestaPagina titolo="Arrivi" maison desktop={isDesktop} indietro={<BackLink href="/" />}
         comandi={<CampoRicerca maison value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />}>
         {cercando && matches.length === 0 && (
           <div className="cal-nessuno">Nessun arrivo trovato nei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</div>

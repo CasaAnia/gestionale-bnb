@@ -103,7 +103,7 @@ input[type="week"] {
      vedersi, altrimenti da girati non si potrebbe più tornare. */
   body[data-schermo-intero] .indietro-barra { display: block !important; }
   body[data-schermo-intero] main.contenuto { padding-top: 0 !important; padding-bottom: 0 !important; }
-  body[data-schermo-intero] .top-12 { top: 0 !important; }
+  body[data-schermo-intero] .top-12, body[data-schermo-intero] .top-\[52px\] { top: 0 !important; }
   /* il contenitore «telefono» è largo al massimo 512 px: in orizzontale la griglia prende tutto lo schermo */
   body[data-schermo-intero] .max-w-lg { max-width: none !important; }
 }

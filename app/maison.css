@@ -842,3 +842,13 @@ body:has(.cal) { background: var(--home-bg); }
 .mz-lato a .bds { margin-left: auto; display: flex; gap: 6px; }
 .mz-lato a .bd.blu { background: #7D9DB0; }
 .mz-lato .ft { position: absolute; bottom: 18px; left: 0; width: 200px; padding: 0 24px; font-size: 10px; color: #8A8072; letter-spacing: .08em; }
+
+/* ── Barra in alto del telefono nelle pagine Maison (29/09/2026, Ania):
+   components/MobileTopBar (PAGINE_MAISON). Bianca, 52 px con il filo sotto,
+   freccia ‹ sottile, titolo maiuscoletto. Il contenuto parte 52 px più giù. ── */
+.barra-maison { background: #FFFFFF; border-bottom: 1px solid #E8E3DA; }
+.barra-maison .freccia { font-family: var(--font-jost), Jost, system-ui, sans-serif; font-weight: 300; font-size: 20px; line-height: 1; color: #241F1A; }
+.barra-maison .titolo { font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }
+@media (max-width: 1023px) {
+  body:has(.barra-maison) main.contenuto { padding-top: 52px; }
+}

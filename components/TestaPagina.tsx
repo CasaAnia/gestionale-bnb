@@ -20,13 +20,20 @@ import type { ReactNode } from 'react'
 //    elenchi stanno dove stanno nelle altre pagine. `titoloNascosto` lo tiene
 //    nascosto anche sul Mac (le Richieste, dove Ania non lo vuole più) senza
 //    cambiare di un pixel l'ingombro.
+//  · `maison` (29/09/2026, Ania): nelle pagine Maison dal telefono il titolo
+//    nascosto NON riserva più il suo spazio — il campo di ricerca sta 16 px
+//    sotto la barra bianca (alta 52 px, vedi MobileTopBar), come sulla Home.
+//    Dal Mac non cambia nulla.
 // ============================================================================
 
 export const FASCIA = 'shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm'
+// la stessa fascia sotto la barra Maison, alta 52 px invece di 48
+export const FASCIA_MAISON = 'shrink-0 sticky top-[52px] lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm'
 
-export default function TestaPagina({ titolo, titoloNascosto = false, desktop, indietro, comandi, children, className = '' }: {
+export default function TestaPagina({ titolo, titoloNascosto = false, maison = false, desktop, indietro, comandi, children, className = '' }: {
   titolo: string
   titoloNascosto?: boolean
+  maison?: boolean
   desktop: boolean
   indietro?: ReactNode
   comandi?: ReactNode
@@ -34,10 +41,10 @@ export default function TestaPagina({ titolo, titoloNascosto = false, desktop, i
   className?: string
 }) {
   return (
-    <div data-testa-pagina className={`${FASCIA} ${className}`}>
+    <div data-testa-pagina className={`${maison ? FASCIA_MAISON : FASCIA} ${className}`}>
       {indietro && <div className="indietro-barra hidden lg:block">{indietro}</div>}
       <div className={`mt-0 lg:mt-4 mb-2 ${desktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
-        <h1 className={`${titoloNascosto ? 'invisible' : 'max-lg:invisible'} ${desktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}`}>{titolo}</h1>
+        <h1 className={`${titoloNascosto ? 'invisible' : 'max-lg:invisible'}${maison ? ' max-lg:hidden' : ''} ${desktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}`}>{titolo}</h1>
         {comandi}
       </div>
       {children}

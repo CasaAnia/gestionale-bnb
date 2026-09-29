@@ -625,7 +625,7 @@ export default function Calendario() {
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
       {/* La testa è quella condivisa da Calendario, Arrivi e Richieste:
           components/TestaPagina (spazio in alto uguale per tutt'e tre) */}
-      <TestaPagina titolo="Calendario" desktop={isDesktop} indietro={<BackLink href="/" />}
+      <TestaPagina titolo="Calendario" maison desktop={isDesktop} indietro={<BackLink href="/" />}
         comandi={<CampoRicerca maison value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />}>
         {/* Nessun risultato: messaggio semplice, calendario normale */}
         {cercando && matches.length === 0 && (

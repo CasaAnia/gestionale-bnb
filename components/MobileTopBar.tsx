@@ -19,6 +19,12 @@ const SECTION_TITLES: [string, string][] = [
   ['/impostazioni', 'Impostazioni'],
 ]
 
+// Pagine «Maison» con la barra (29/09/2026, Ania): barra bianca alta 52 px con
+// il filo sotto, freccia ‹ sottile e titolo maiuscoletto (stile in
+// app/maison.css, .barra-maison). Home, Nuova prenotazione e Scheda restano
+// senza barra: hanno la loro testata. Qui si aggiungono le pagine rifatte.
+export const PAGINE_MAISON = ['/calendario', '/arrivi']
+
 export default function MobileTopBar() {
   const pathname = usePathname()
   const indietro = useAzioneIndietro()
@@ -28,6 +34,21 @@ export default function MobileTopBar() {
   if (pathname === '/login' || pathname === '/' || pathname === '/nuova-prenotazione' || pathname.startsWith('/scheda/')) return null
   const entry = SECTION_TITLES.find(([prefix]) => pathname.startsWith(prefix))
   const title = entry ? entry[1] : 'Casa Ania'
+  if (PAGINE_MAISON.some(p => pathname.startsWith(p))) return (
+    <header className="barra-alta barra-maison lg:hidden fixed top-0 left-0 right-0 z-40 h-[52px] flex items-center justify-center">
+      {indietro && (
+        <button
+          type="button"
+          onClick={indietro.chiama}
+          aria-label={indietro.label}
+          className="absolute left-1 top-1 h-11 w-11 flex items-center justify-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-green-mid"
+        >
+          <span aria-hidden="true" className="freccia">‹</span>
+        </button>
+      )}
+      <span className="titolo">{title}</span>
+    </header>
+  )
   return (
     <header className="barra-alta lg:hidden fixed top-0 left-0 right-0 z-40 bg-cream/95 backdrop-blur-sm h-12 flex items-center justify-center">
       {/* Freccia di ritorno: c'è solo dove la pagina ha davvero un indietro.
