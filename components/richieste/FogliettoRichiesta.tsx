@@ -9,11 +9,17 @@
 // «Invia proposta» (o «Conferma») · «Modifica» · «Rifiuta» · «Chiudi».
 // Con più richieste sovrapposte le mostra una sotto l'altra: stessa altezza,
 // si scorre dentro.
+//
+// Ritocchi del 29/09/2026 (A4, come il foglietto del Calendario): il numero
+// per esteso sotto il nome coi cerchi a destra, e la riga TELEFONO non c'è
+// più (Ania: così non è ripetuto); in fondo «Modifica · Rifiuta» sottolineati
+// e sotto, affiancati a metà larghezza, «Invia proposta» / «Conferma» pieno e
+// «Chiudi» a filo (components/calendario/PezziFoglietto).
 // ============================================================================
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import FoglioMaison from '@/components/maison/FoglioMaison'
-import { IconeContatto } from '@/components/scheda/TestataMaison'
+import { TelefonoFoglietto, TastiFoglietto } from '@/components/calendario/PezziFoglietto'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { iconeFoglietto } from '@/lib/calendarioFoglietto'
 import { nomeCompleto, type Richiesta } from '@/lib/richieste'
@@ -44,8 +50,8 @@ export default function FogliettoRichiesta({ gruppo, adesso, libere, cliente, on
         <div className="k">{testaFogliettoRichiesta(r, adesso)}</div>
         <div className="hd2">
           <div className="ti">{icone && <span className="ic">{icone} </span>}{nome}</div>
-          <IconeContatto telefono={r.telefono} nome={nome} dati="foglietto-richiesta" />
         </div>
+        <TelefonoFoglietto telefono={r.telefono} nome={nome} dati="foglietto-richiesta" />
       </div>
     )
   }
@@ -62,38 +68,45 @@ export default function FogliettoRichiesta({ gruppo, adesso, libere, cliente, on
       </div>
     )
   }
-  const azioni = (r: Richiesta, conChiudi: boolean) => (
-    <div className="cal-fog-ac" data-azioni-foglietto-richiesta>
-      {azioniFogliettoRichiesta(r).map(a => (
-        <button key={a.azione} type="button" data-azione={a.azione}
-          className={a.azione === 'proposta' || a.azione === 'conferma' ? 'mz-lnk' : a.azione === 'rifiuta' ? 'mz-lnk q mat' : 'mz-lnk q'}
-          onClick={() => {
-            if (a.azione === 'proposta') router.push(`/richieste/${r.id}/proposta`)
-            else if (a.azione === 'conferma') onConferma(r)
-            else if (a.azione === 'modifica') router.push(`/richieste/${r.id}/modifica`)
-            else onRifiuta(r)
-          }}>
-          {a.testo}
-        </button>
-      ))}
-      {conChiudi && <button type="button" className="mz-lnk q" onClick={onChiudi}>Chiudi</button>}
-    </div>
-  )
+  const azioni = (r: Richiesta, conChiudi: boolean) => {
+    const tutte = azioniFogliettoRichiesta(r)
+    const piena = tutte.find(a => a.azione === 'proposta' || a.azione === 'conferma')
+    const altre = tutte.filter(a => a !== piena)
+    const fai = (azione: string) => {
+      if (azione === 'proposta') router.push(`/richieste/${r.id}/proposta`)
+      else if (azione === 'conferma') onConferma(r)
+      else if (azione === 'modifica') router.push(`/richieste/${r.id}/modifica`)
+      else onRifiuta(r)
+    }
+    return (
+      <div data-azioni-foglietto-richiesta>
+        <TastiFoglietto
+          sopra={altre.length > 0 ? altre.map((a, i) => (
+            <span key={a.azione}>
+              {i > 0 && <span className="sep" aria-hidden> · </span>}
+              <button type="button" data-azione={a.azione} className={a.azione === 'rifiuta' ? 'mz-lnk q mat' : 'mz-lnk q'} onClick={() => fai(a.azione)}>{a.testo}</button>
+            </span>
+          )) : undefined}
+          azione={piena?.testo} onAzione={piena ? () => fai(piena.azione) : undefined} datiAzione={piena ? { 'data-azione': piena.azione } : undefined}
+          onChiudi={conChiudi ? onChiudi : undefined} />
+      </div>
+    )
+  }
 
   if (!piu) {
     const r = gruppo[0]
     return (
       <FoglioMaison titolo={nomeCompleto(r)} testa={testa(r)} altezza={ALTEZZA_FOGLIETTO_RICHIESTA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
-        veloChiaro onChiudi={onChiudi} dati="foglietto-richiesta" piede={azioni(r, true)}>
+        veloChiaro onChiudi={onChiudi} dati="foglietto-richiesta">
         {righe(r)}
+        {azioni(r, true)}
       </FoglioMaison>
     )
   }
   // Più richieste sovrapposte: una sotto l'altra, si scorre dentro il foglio
   return (
     <FoglioMaison titolo={`${gruppo.length} richieste`} testa={<span />} altezza={ALTEZZA_FOGLIETTO_RICHIESTA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
-      veloChiaro onChiudi={onChiudi} dati="foglietto-richiesta"
-      piede={<div className="cal-fog-ac"><button type="button" className="mz-lnk q" onClick={onChiudi}>Chiudi</button></div>}>
+      veloChiaro onChiudi={onChiudi} dati="foglietto-richiesta">
       {gruppo.map(r => (
         <section key={r.id} className="ric-fog-blocco">
           {testa(r)}
@@ -101,6 +114,7 @@ export default function FogliettoRichiesta({ gruppo, adesso, libere, cliente, on
           {azioni(r, false)}
         </section>
       ))}
+      <TastiFoglietto onChiudi={onChiudi} />
     </FoglioMaison>
   )
 }

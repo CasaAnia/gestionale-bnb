@@ -215,7 +215,7 @@ const seg = (s: Partial<SegmentoScheda> & { camera: string }): SegmentoScheda =>
 })
 
 test('foglietto: le righe nell’ordine dato, altezza fissa, «…» finché la lettura non arriva', () => {
-  assert.equal(ALTEZZA_FOGLIETTO, 430)
+  assert.equal(ALTEZZA_FOGLIETTO, 500) // 430 prima dei ritocchi del 29/09/2026 (A4: numero e tasti dentro)
   assert.equal(LARGHEZZA_FOGLIETTO_MAC, 620)
   assert.deepEqual([...ETICHETTE_FOGLIETTO], ['Camere', 'Ospiti', 'Prezzo', 'Pagamento', 'Arrivo', 'Note', 'Cliente'])
   assert.deepEqual(righeInArrivo().map(r => r.etichetta), [...ETICHETTE_FOGLIETTO])

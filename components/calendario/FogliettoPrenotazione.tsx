@@ -11,6 +11,11 @@
 // CAMERE · OSPITI · PREZZO · PAGAMENTO · ARRIVO · NOTE · CLIENTE; in fondo
 // «Apri la scheda» e «Chiudi». Niente documenti.
 //
+// Ritocchi del 29/09/2026 (A4): sotto il nome il numero per esteso in
+// Cormorant 16 coi cerchi a destra sulla stessa riga; in fondo, 28 px sotto
+// l'ultima riga, «Apri la scheda» pieno e «Chiudi» a filo, affiancati a metà
+// larghezza (components/calendario/PezziFoglietto).
+//
 // I dati: quelli che il calendario ha già (prenotazioni, clienti, pagamenti)
 // più UNA lettura al tocco, la stessa della scheda prenotazione
 // (leggiPrenotazioneUnica: tutte le camere della prenotazione, anche quelle
@@ -20,7 +25,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { supabase } from '@/lib/supabase'
 import FoglioMaison from '@/components/maison/FoglioMaison'
-import { IconeContatto } from '@/components/scheda/TestataMaison'
+import { TelefonoFoglietto, TastiFoglietto } from './PezziFoglietto'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import { segmentiAttivi, type SegmentoScheda } from '@/lib/schedaPrenotazione'
 import { statoPrenotazione, rigaPerMessaggi } from '@/lib/messaggiFase'
@@ -134,21 +139,15 @@ export default function FogliettoPrenotazione({ prenotazione, tutte, camere, pag
       </div>
       <div className="hd2">
         <div className="ti" data-foglietto-nome>{icone && <span className="ic">{icone} </span>}{nome}</div>
-        <IconeContatto telefono={guest?.phone ?? null} nome={nome} dati="foglietto" />
       </div>
+      <TelefonoFoglietto telefono={guest?.phone} nome={nome} dati="foglietto" />
       {dorme && <div className="dorme" data-riga-dorme>{dorme}</div>}
     </div>
   )
 
   return (
     <FoglioMaison titolo={nome} testa={testa} altezza={ALTEZZA_FOGLIETTO} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
-      veloChiaro onVelo={onVelo} onChiudi={onChiudi} dati="foglietto-calendario"
-      piede={
-        <div className="cal-fog-ac">
-          <button type="button" className="mz-lnk" data-apri-scheda onClick={onApri}>{APRI_LA_SCHEDA}</button>
-          <button type="button" className="mz-lnk q" onClick={onChiudi}>{CHIUDI}</button>
-        </div>
-      }>
+      veloChiaro onVelo={onVelo} onChiudi={onChiudi} dati="foglietto-calendario">
       <div className="cal-fog" data-foglietto={prenotazione.id} data-caricato={righe ? '1' : undefined}>
         {contenuto.righe.map(r => (
           <div key={r.etichetta} className="dr" data-riga-foglietto={r.etichetta}>
@@ -160,6 +159,7 @@ export default function FogliettoPrenotazione({ prenotazione, tutte, camere, pag
           </div>
         ))}
       </div>
+      <TastiFoglietto azione={APRI_LA_SCHEDA} onAzione={onApri} datiAzione={{ 'data-apri-scheda': '' }} onChiudi={onChiudi} testoChiudi={CHIUDI} />
     </FoglioMaison>
   )
 }

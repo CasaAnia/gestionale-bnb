@@ -30,8 +30,11 @@ import { conPreposizione } from './richiesteTesti.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
 import { ORARIO_DA_CHIEDERE } from './calendarioSchede.ts'
 
-/** L'altezza fissa del foglietto, la stessa per ogni prenotazione */
-export const ALTEZZA_FOGLIETTO = 430
+/** L'altezza fissa del foglietto, la stessa per ogni prenotazione. Dai
+ *  ritocchi del 29/09/2026 (A4) dentro ci sono anche la riga del numero e i
+ *  due tasti 28 px sotto l'ultima riga, con aria sotto: 500 (misurata a 390
+ *  px sul foglietto di Carmela Sabia, righe lunghe, dell'anteprima finta) */
+export const ALTEZZA_FOGLIETTO = 500
 /** Dal Mac lo stesso foglietto, al centro, largo 620 px */
 export const LARGHEZZA_FOGLIETTO_MAC = 620
 export const APRI_LA_SCHEDA = 'Apri la scheda'

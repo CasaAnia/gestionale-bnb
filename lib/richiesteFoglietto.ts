@@ -5,7 +5,7 @@
 //
 //   RICHIESTA · DAL SITO · OGGI 08:41
 //   🧾 ★ Anna Rinaldi                                   (☏) (💬)
-//   TELEFONO  +39 347 812 6690
+//   (il numero per esteso sta sotto il nome, coi cerchi: ritocchi A4)
 //   DATE      30 set → 3 ott · 3 notti
 //   PERSONE   2
 //   CAMERA    qualsiasi · libere: Ambra, Allegra, Lena
@@ -22,9 +22,11 @@ import { personePerNotte } from './richiesteProposta.ts'
 import { personeTesta } from './personeTesta.ts'
 import { periodoConMese, testoNotti } from './schedaPrenotazione.ts'
 import { euroTondi } from './euroTondi.ts'
-import { telefonoPerEsteso } from './whatsapp.ts'
 
-export const ALTEZZA_FOGLIETTO_RICHIESTA = 380
+// 440 dai ritocchi del 29/09/2026 (A4): il numero sotto il nome, «Modifica ·
+// Rifiuta» e i due tasti 28 px sotto l'ultima riga, con aria sotto (misurata
+// a 390 px nell'anteprima finta; prima 380)
+export const ALTEZZA_FOGLIETTO_RICHIESTA = 440
 
 /** «RICHIESTA · DAL SITO · OGGI 08:41» (il maiuscolo lo fa il disegno) */
 export function testaFogliettoRichiesta(r: Pick<Richiesta, 'canale' | 'created_at'>, adesso: Date = new Date()): string {
@@ -74,7 +76,7 @@ export type RigaFogliettoRichiesta = { etichetta: string; valore: string; tipo?:
 export function righeFogliettoRichiesta(r: Richiesta & { condizione_pagamento?: string | null }, dati: { libere: string[]; volte: number; inArchivio: boolean; spesoCent: number }, adesso: Date = new Date()): RigaFogliettoRichiesta[] {
   const nota = (r.note ?? '').trim()
   return [
-    { etichetta: 'Telefono', valore: telefonoPerEsteso(r.telefono) || '—', tipo: 'numero' },
+    // la riga TELEFONO non c'è più (ritocchi del 29/09/2026, A4): il numero sta sotto il nome
     { etichetta: 'Date', valore: dateFoglietto(r) },
     { etichetta: 'Persone', valore: personeFoglietto(r) },
     { etichetta: 'Camera', valore: cameraFoglietto(r, dati.libere) },

@@ -768,6 +768,20 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-fog .mat { color: var(--m-mat); font-weight: 500; }
 .cal-fog .verde { color: #2D6A4F; font-weight: 500; }
 .cal-fog-ac { display: flex; gap: 16px; align-items: center; margin-top: 12px; flex: none; }
+/* Ritocchi del 29/09/2026 (A4), foglietti del Calendario e delle Richieste
+   (components/calendario/PezziFoglietto): sotto il nome il numero per esteso in
+   Cormorant 16 coi cerchi a destra; in fondo, 28 px sotto l'ultima riga, i due
+   tasti affiancati (metà larghezza, 12 px fra i due, alti 44, centrati):
+   l'azione piena d'inchiostro col testo avorio, «Chiudi» a filo */
+.cal-fog-testa .tel { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.cal-fog-testa .tel .num { font-family: var(--m-disp); font-size: 16px; font-weight: 500; letter-spacing: .02em; color: var(--m-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fog-tasti-blocco { margin-top: 28px; }
+.fog-sopra { display: flex; justify-content: center; align-items: center; gap: 4px; margin-bottom: 16px; }
+.fog-sopra .sep { color: var(--m-mut); }
+.fog-tasti { display: flex; justify-content: center; gap: 12px; }
+.fog-tasti button { flex: 0 0 calc(50% - 6px); min-width: 0; height: 44px; padding: 0 8px; font-family: var(--m-ui); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--m-ink); border-radius: 0; cursor: pointer; }
+.fog-tasti .pieno { background: var(--m-ink); color: #F6F2EA; }
+.fog-tasti .filo { background: transparent; color: var(--m-ink); }
 
 /* Sotto il nastro: «OGGI» e i mesi, «LEGENDA» sotto «Oggi» */
 .cal-rm { display: flex; align-items: center; gap: 6px; margin-top: 10px; }

@@ -29,9 +29,9 @@ test('il telefono per esteso: «+39 347 812 6690», gli esteri col loro prefisso
 test('le righe del foglietto, nell’ordine, come nel riferimento', () => {
   assert.equal(testaFogliettoRichiesta(ric(), adesso), 'richiesta · dal sito · oggi 08:41')
   const righe = righeFogliettoRichiesta(ric(), { libere: ['Ambra', 'Allegra', 'Lena'], volte: 3, inArchivio: true, spesoCent: 64000 }, adesso)
-  assert.deepEqual(righe.map(r => r.etichetta), ['Telefono', 'Date', 'Persone', 'Camera', 'Stato', 'Nota', 'Cliente'])
+  // la riga TELEFONO non c'è più: il numero sta sotto il nome (ritocchi del 29/09/2026, A4)
+  assert.deepEqual(righe.map(r => r.etichetta), ['Date', 'Persone', 'Camera', 'Stato', 'Nota', 'Cliente'])
   assert.deepEqual(righe.map(r => r.valore), [
-    '+39 347 812 6690',
     '30 set → 3 ott · 3 notti',
     '2',
     'qualsiasi · libere: Ambra, Allegra, Lena',
@@ -39,11 +39,10 @@ test('le righe del foglietto, nell’ordine, come nel riferimento', () => {
     '«Se possibile la camera con il balcone, grazie»',
     'già ospite 3 volte · 640 € spesi',
   ])
-  assert.equal(righe[0].tipo, 'numero')
-  assert.equal(righe[5].tipo, 'mat')
+  assert.equal(righe[4].tipo, 'mat')
   // senza nota la riga resta, vuota (il foglio ha l'altezza fissa)
-  assert.equal(righeFogliettoRichiesta(ric({ note: null }), { libere: [], volte: 0, inArchivio: false, spesoCent: 0 }, adesso)[5].valore, '')
-  assert.equal(ALTEZZA_FOGLIETTO_RICHIESTA, 380)
+  assert.equal(righeFogliettoRichiesta(ric({ note: null }), { libere: [], volte: 0, inArchivio: false, spesoCent: 0 }, adesso)[4].valore, '')
+  assert.equal(ALTEZZA_FOGLIETTO_RICHIESTA, 440)
 })
 
 test('persone, camera, stato e cliente nelle loro varianti', () => {
@@ -71,11 +70,12 @@ test('le camere libere per «qualsiasi»: niente prenotazioni confermate e nient
   assert.deepEqual(libere.map(c => c.name), ['Ambra'])
 })
 
-test('il foglietto sostituisce il vecchio pannello: FoglioMaison 380 px, cerchi di chiamata e WhatsApp, Rifiuta in mattone', () => {
+test('il foglietto sostituisce il vecchio pannello: FoglioMaison 440 px (380 prima dei ritocchi), cerchi di chiamata e WhatsApp, Rifiuta in mattone', () => {
   const foglio = leggi('components/richieste/FogliettoRichiesta.tsx')
   assert.match(foglio, /<FoglioMaison /)
   assert.match(foglio, /altezza=\{ALTEZZA_FOGLIETTO_RICHIESTA\}/)
-  assert.match(foglio, /<IconeContatto /)
+  // i cerchi stanno nella riga del numero, sotto il nome (ritocchi A4)
+  assert.match(foglio, /<TelefonoFoglietto telefono=\{r\.telefono\} /)
   assert.match(foglio, /a\.azione === 'rifiuta' \? 'mz-lnk q mat'/)
   const pagina = leggi('app/richieste/page.tsx')
   assert.match(pagina, /<FogliettoRichiesta /)
