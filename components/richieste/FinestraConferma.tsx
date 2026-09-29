@@ -1,7 +1,10 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { X } from 'lucide-react'
+import FoglioMaison from '@/components/maison/FoglioMaison'
+import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
+import { periodoConMese, testoNotti } from '@/lib/schedaPrenotazione'
+import { condizioneDaColonne, formattaEuro } from '@/lib/richiesteTesti'
 import { ETICHETTA_CASO, type Soluzione } from '@/lib/richiesteProposta'
 import { richiesteInConflitto, erroreDiDisponibilita, conLettoExtra, type RichiestaConProposta } from '@/lib/richiesteConferma'
 import { confermaRichiesta, scegliSoluzioneInviata } from '@/lib/richiesteDati'
@@ -9,7 +12,8 @@ import { applicaProvenienzaAlCliente } from '@/lib/provenienzaDati'
 import { prezzo as fmtPrezzo, dalAl } from '@/lib/richiesteTesti'
 import { nomeCompleto, formatDateRichiesta, nottiRichiesta, riassuntoPersone, type Richiesta } from '@/lib/richieste'
 
-// «Creare la prenotazione?»: bottom sheet sul telefono, finestra su desktop.
+// «Creare la prenotazione?»: dal 29/09/2026 (Richieste «Maison», telefono 10)
+// un FoglioMaison ad altezza fissa, 520 px; dal Mac lo stesso foglio al centro.
 // Riepilogo della soluzione INVIATA, altre richieste aperte sulle stesse date
 // (spuntate = rifiutate in cascata), chiamata alla sola RPC.
 type Props = {
@@ -20,8 +24,6 @@ type Props = {
   onCreata: (prenotazioneId: string, avviso?: string | null) => void   // avviso: provenienza non copiata (0036)
 }
 
-const BORDO = '#C9BFA8'
-const OTTONE = '#A9884E'
 
 export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, onCreata }: Props) {
   // Pezzo 9: se il messaggio elencava più camere (caso A), Ania sceglie qui
@@ -35,12 +37,6 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
   const [spuntate, setSpuntate] = useState<Set<string>>(() => new Set(conflitti.map(c => c.id)))
   const [occupato, setOccupato] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !occupato) onChiudi() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onChiudi, occupato])
 
   async function crea() {
     if (occupato) return          // secondo tocco: niente doppioni (e la RPC è idempotente)
@@ -59,104 +55,77 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
     onCreata(r.prenotazioneId, avvisoProvenienza)
   }
 
-  const corpo = (
-    <>
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-[17px] text-green-dark" style={{ fontFamily: 'var(--font-fraunces), Georgia, serif' }}>Creare la prenotazione?</p>
-        <button type="button" onClick={onChiudi} disabled={occupato} aria-label="Chiudi" className="w-9 h-9 -mr-2 flex items-center justify-center text-stone disabled:opacity-40"><X size={18} strokeWidth={2} aria-hidden /></button>
-      </div>
-      <p className="text-sm text-green-dark">{nomeCompleto(richiesta)} · {richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}</p>
-
-      {piuCamere && (
-        <div className="mt-3" role="group" aria-label="Camera accettata dal cliente">
-          <p className="text-xs font-semibold text-stone mb-1.5">Il messaggio proponeva {alternative.length} camere: quale ha scelto il cliente?</p>
-          <div className="flex flex-wrap gap-2">
-            {alternative.map((a, i) => (
-              <button key={i} type="button" onClick={() => setScelta(i)} aria-pressed={scelta === i} disabled={occupato}
-                className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${scelta === i ? 'bg-green-mid text-cream-text' : 'text-green-dark border border-[#C9BFA8]'}`}>
-                {a.segmenti[0]?.camera.name} · {fmtPrezzo(a.prezzoTotale)} €
+  // «pagamento all’arrivo» · «caparra 90 €» · «pagamento completo» · «condizioni personalizzate»
+  const condizione = (() => {
+    const c = condizioneDaColonne(richiesta as unknown as Parameters<typeof condizioneDaColonne>[0])
+    if (!c) return ''
+    if (c.tipo === 'arrivo') return 'pagamento all’arrivo'
+    if (c.tipo === 'caparra') return `caparra ${formattaEuro(c.caparraCentesimi)}`
+    if (c.tipo === 'completo') return 'pagamento completo'
+    return 'condizioni personalizzate'
+  })()
+  const chiudi = () => { if (!occupato) onChiudi() }
+  void layout
+  return (
+    <FoglioMaison titolo="Creare la prenotazione?" altezza={520} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-conferma" onChiudi={chiudi}
+      testa={
+        <div className="cal-fog-testa">
+          <div className="k">{nomeCompleto(richiesta)} · {periodoConMese(richiesta.arrivo, richiesta.partenza)} · Conferma</div>
+          <div className="hd2"><div className="ti">Creare la prenotazione?</div></div>
+        </div>
+      }
+      piede={
+        <div className="ric-piede centro">
+          <button type="button" onClick={crea} disabled={occupato || !sol} aria-busy={occupato} className="ric-cta" data-crea-prenotazione>{occupato ? 'Creo…' : 'Crea prenotazione'}</button>
+          <button type="button" onClick={onChiudi} disabled={occupato} className="mz-lnk q">Annulla</button>
+        </div>
+      }>
+      <div className="ric-pag ric-fog-conferma">
+        <p className="so">{nomeCompleto(richiesta)} · {richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}</p>
+        {piuCamere && (
+          <div role="group" aria-label="Camera accettata dal cliente">
+            <p className="so">Il messaggio proponeva {alternative.length} camere: quale ha scelto la cliente?</p>
+            <div className="ric-chips piatte" data-senza-sottolinea>
+              {alternative.map((a, i) => (
+                <button key={i} type="button" onClick={() => setScelta(i)} aria-pressed={scelta === i} disabled={occupato} className={scelta === i ? 'on' : ''}>
+                  {a.segmenti[0]?.camera.name} · {fmtPrezzo(a.prezzoTotale)} €
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {sol ? (
+          <div className="cal-fog">
+            <div className="dr" data-soluzione-conferma>
+              <span className="dk">Soluzione</span>
+              <span className="dv">
+                {[ETICHETTA_CASO[sol.caso], testoNotti(nottiRichiesta(richiesta)), `${conLettoExtra(sol) ? 'con letto aggiuntivo · ' : ''}${fmtPrezzo(sol.prezzoTotale)} €`, condizione].filter(Boolean).join(' · ')}
+                {sol.segmenti.length > 1 && sol.segmenti.map((x, i) => <span key={i} className="riga-seg">{x.camera.name} {dalAl(x.arrivo, x.partenza)} · {x.notti === 1 ? '1 notte' : `${x.notti} notti`}</span>)}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="ric-avviso">{piuCamere ? 'Scegli la camera accettata dal cliente.' : 'Nessuna proposta inviata: prima va inviata una proposta.'}</p>
+        )}
+        {conflitti.length > 0 && (
+          <div className="sec-conflitti">
+            <p className="k">Altre richieste per le stesse date · Rifiuta anche queste</p>
+            {conflitti.map(c => (
+              <button key={c.id} type="button" className="dr2" data-senza-sottolinea role="checkbox" aria-checked={spuntate.has(c.id)} disabled={occupato}
+                onClick={() => setSpuntate(prev => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n })}>
+                <span aria-hidden className={`cb ${spuntate.has(c.id) ? 'on' : ''}`}>{spuntate.has(c.id) ? '✓' : ''}</span>
+                {nomeCompleto(c)} · {formatDateRichiesta(c)} · {nottiRichiesta(c)} {nottiRichiesta(c) === 1 ? 'notte' : 'notti'} · {c.rooms?.name || 'qualsiasi camera'}
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {sol ? (
-        <div className="mt-3 bg-cream rounded-xl p-3 text-sm text-green-dark">
-          <p className="text-xs font-semibold text-stone mb-1.5">Soluzione inviata · {ETICHETTA_CASO[sol.caso]}</p>
-          <ul className="space-y-1">
-            {sol.segmenti.map((s, i) => (
-              <li key={i} className="flex items-baseline justify-between gap-3">
-                <span><span className="font-medium">{s.camera.name}</span> {dalAl(s.arrivo, s.partenza)}</span>
-                <span className="shrink-0 text-brass font-semibold">{s.notti === 1 ? '1 notte' : `${s.notti} notti`}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 pt-2 border-t-[0.5px] border-border-soft flex items-baseline justify-between">
-            <span>{conLettoExtra(sol) ? 'Con letto aggiuntivo · ' : ''}Totale</span>
-            <span className="font-semibold">{fmtPrezzo(sol.prezzoTotale)} €</span>
-          </p>
-        </div>
-      ) : (
-        <p className="mt-3 text-sm font-semibold" style={{ color: OTTONE }}>{piuCamere ? 'Scegli la camera accettata dal cliente.' : 'Nessuna proposta inviata: prima va inviata una proposta.'}</p>
-      )}
-
-      {conflitti.length > 0 && (
-        <div className="mt-3">
-          <p className="text-xs font-semibold text-stone mb-1.5">Altre richieste per le stesse date · Rifiuta anche queste</p>
-          <ul className="space-y-1.5">
-            {conflitti.map(c => (
-              <li key={c.id}>
-                <label className="flex items-start gap-2.5 text-sm text-green-dark">
-                  <input type="checkbox" checked={spuntate.has(c.id)} disabled={occupato}
-                    onChange={e => setSpuntate(prev => { const n = new Set(prev); if (e.target.checked) n.add(c.id); else n.delete(c.id); return n })}
-                    className="mt-0.5 h-4 w-4 accent-[#2D6A4F]" />
-                  <span><span className="font-medium">{nomeCompleto(c)}</span> · {formatDateRichiesta(c)} · {nottiRichiesta(c)} {nottiRichiesta(c) === 1 ? 'notte' : 'notti'} · {c.rooms?.name || 'qualsiasi camera'}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {errore && (
-        <div role="alert" className="mt-3 text-sm font-semibold" style={{ color: OTTONE }}>
-          {errore}
-          {erroreDiDisponibilita(errore) && (
-            <p className="mt-1 font-normal">
-              <Link href={`/richieste/${richiesta.id}/proposta`} className="underline underline-offset-2">Prepara una nuova proposta</Link>
-            </p>
-          )}
-        </div>
-      )}
-
-      <div className="flex gap-2 mt-4">
-        <button type="button" onClick={onChiudi} disabled={occupato}
-          className="flex-1 rounded-full py-3 text-sm font-semibold text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>Annulla</button>
-        <button type="button" onClick={crea} disabled={occupato || !sol} aria-busy={occupato}
-          className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-60 active:opacity-80">
-          {occupato && <span aria-hidden className="inline-block w-4 h-4 rounded-full border-2 border-cream-text/40 border-t-cream-text animate-spin" />}
-          {occupato ? 'Creo…' : 'Crea prenotazione'}
-        </button>
+        )}
+        {errore && (
+          <div role="alert" className="ric-avviso">
+            {errore}
+            {erroreDiDisponibilita(errore) && <> <Link href={`/richieste/${richiesta.id}/proposta`} className="mz-lnk">Prepara una nuova proposta</Link></>}
+          </div>
+        )}
       </div>
-    </>
-  )
-
-  if (layout === 'mobile') {
-    return (
-      <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Creare la prenotazione?">
-        <div className="velo-in absolute inset-0 ed-velo" onClick={() => { if (!occupato) onChiudi() }} />
-        <div className="scheda-in absolute left-0 right-0 bottom-0 ed-foglio rounded-t-2xl px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[85dvh] overflow-y-auto shadow-lg">
-          <div className="w-10 h-1 rounded-full bg-border-soft mx-auto mb-3" aria-hidden />
-          {corpo}
-        </div>
-      </div>
-    )
-  }
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Creare la prenotazione?">
-      <div className="velo-in absolute inset-0 ed-velo" onClick={() => { if (!occupato) onChiudi() }} />
-      <div className="scheda-in relative ed-foglio rounded-2xl shadow-lg p-5 w-full max-w-md max-h-[85vh] overflow-y-auto">{corpo}</div>
-    </div>
+    </FoglioMaison>
   )
 }

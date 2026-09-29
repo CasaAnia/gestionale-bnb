@@ -1,14 +1,19 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import FoglioMaison from '@/components/maison/FoglioMaison'
+import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
+import { periodoConMese } from '@/lib/schedaPrenotazione'
 import { MOTIVI_RIFIUTO_SCELTE, type MotivoRifiuto } from '@/lib/motivoRifiuto'
 import { formatDateRichiesta, nomeCompleto, type Richiesta } from '@/lib/richieste'
 
-// «Perché la rifiuti?» (07/09/2026): finestra prima di chiudere una richiesta.
-// Quattro bottoni larghi uno sotto l'altro, «Rifiuta» (verde pieno) attivo
-// solo dopo aver scelto un motivo. Velo e foglio come le altre finestre
-// (ed-velo / ed-foglio): dal basso sul telefono, centrata sul Mac.
+// «Perché la rifiuti?» (07/09/2026): prima di chiudere una richiesta si sceglie
+// il motivo. Dal 29/09/2026 (Richieste «Maison», telefono 11) un FoglioMaison
+// ad altezza fissa, 400 px: maiuscoletto «ANNA RINALDI · 30 SET → 3 OTT ·
+// RIFIUTA», il titolo, i quattro motivi come righe con la casella a filo, la
+// nota dell'archivio, il tasto pieno MATTONE «Rifiuta la richiesta» (attivo
+// solo dopo aver scelto un motivo) e «Annulla».
 type Props = {
-  richiesta: Pick<Richiesta, 'nome' | 'cognome' | 'arrivo' | 'partenza' | 'camera_id' | 'rooms'>
+  richiesta: Pick<Richiesta, 'nome' | 'cognome' | 'arrivo' | 'partenza' | 'camera_id' | 'rooms'> & { notti_richieste?: string[] | null }
   occupato?: boolean
   onConferma: (motivo: MotivoRifiuto) => void
   onAnnulla: () => void
@@ -16,41 +21,36 @@ type Props = {
 
 export default function RifiutaConMotivo({ richiesta, occupato = false, onConferma, onAnnulla }: Props) {
   const [motivo, setMotivo] = useState<MotivoRifiuto | null>(null)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !occupato) onAnnulla() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onAnnulla, occupato])
-  const camera = richiesta.camera_id ? (richiesta.rooms?.name ?? 'camera scelta') : 'qualsiasi camera'
   const titolo = 'Perché la rifiuti?'
+  const periodo = richiesta.notti_richieste ? formatDateRichiesta(richiesta) : periodoConMese(richiesta.arrivo, richiesta.partenza)
   return (
-    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={titolo}>
-      <div className="velo-in absolute inset-0 ed-velo" onClick={() => { if (!occupato) onAnnulla() }} />
-      <div className="scheda-in relative ed-foglio rounded-2xl shadow-lg p-5 w-full max-w-sm">
-        <p className="ed-titolo-medio">{titolo}</p>
-        <p className="text-sm text-stone mt-1">{nomeCompleto(richiesta)} · {formatDateRichiesta(richiesta)} · {camera}</p>
-        <div className="mt-4 space-y-2" role="group" aria-label="Motivo">
-          {MOTIVI_RIFIUTO_SCELTE.map(s => {
-            const attivo = motivo === s.codice
-            return (
-              <button key={s.codice} type="button" onClick={() => setMotivo(s.codice)} aria-pressed={attivo} disabled={occupato} data-motivo={s.codice}
-                className={`w-full min-h-[48px] text-left rounded-xl px-4 py-3 text-[15px] font-medium border transition-colors ${attivo ? 'bg-green-mid text-cream-text border-green-mid' : 'bg-white text-green-dark border-[#C9BFA8]'}`}>
-                {s.testo}
-              </button>
-            )
-          })}
+    <FoglioMaison titolo={titolo} altezza={400} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-rifiuta" onChiudi={() => { if (!occupato) onAnnulla() }}
+      testa={
+        <div className="cal-fog-testa">
+          <div className="k">{nomeCompleto(richiesta)} · {periodo} · Rifiuta</div>
+          <div className="hd2"><div className="ti">{titolo}</div></div>
         </div>
-        <div className="flex gap-2 mt-5">
-          <button type="button" onClick={onAnnulla} disabled={occupato}
-            className="flex-1 rounded-xl py-3 text-sm font-semibold text-green-dark bg-white border disabled:opacity-50" style={{ borderColor: '#C9BFA8' }}>
-            Annulla
+      }
+      piede={
+        <div className="ric-piede centro">
+          <button type="button" onClick={() => { if (motivo) onConferma(motivo) }} disabled={occupato || !motivo} className="ric-cta mat" data-conferma-rifiuto>
+            {occupato ? 'Un attimo…' : 'Rifiuta la richiesta'}
           </button>
-          <button type="button" onClick={() => { if (motivo) onConferma(motivo) }} disabled={occupato || !motivo}
-            className="flex-1 rounded-xl py-3 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-50 active:opacity-80">
-            {occupato ? 'Un attimo…' : 'Rifiuta'}
-          </button>
+          <button type="button" onClick={onAnnulla} disabled={occupato} className="mz-lnk q">Annulla</button>
         </div>
+      }>
+      <div className="ric-pag ric-camere" role="group" aria-label="Motivo" data-senza-sottolinea>
+        {MOTIVI_RIFIUTO_SCELTE.map(s => {
+          const attivo = motivo === s.codice
+          return (
+            <button key={s.codice} type="button" onClick={() => setMotivo(s.codice)} aria-pressed={attivo} disabled={occupato} data-motivo={s.codice} className="cr">
+              <span aria-hidden className={`cb ${attivo ? 'on' : ''}`}>{attivo ? '✓' : ''}</span>
+              <span className="cn">{s.testo}</span>
+            </button>
+          )
+        })}
+        <p className="so">La richiesta resta in archivio fra le chiuse per 3 giorni, con «Riapri».</p>
       </div>
-    </div>
+    </FoglioMaison>
   )
 }

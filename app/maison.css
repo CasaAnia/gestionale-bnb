@@ -941,7 +941,13 @@ body:has(.cal) { background: var(--home-bg); }
 .ric-img { margin-top: 12px; }
 .ric-img .cornice { width: 100%; border: 1px solid var(--m-line); border-radius: 8px; overflow: hidden; margin-top: 6px; }
 .ric-piede { display: flex; justify-content: flex-end; align-items: center; gap: 18px; margin-top: 12px; flex: none; }
-.ric-piede.centro { flex-direction: column; justify-content: center; gap: 12px; }
+.mz .ric-pag { padding: 0; max-width: none; margin: 0; }
+.ric-fog-conferma .k, .sec-conflitti .k { margin: 14px 0 4px; font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }
+.ric-fog-conferma .riga-seg { display: block; color: var(--m-mut); }
+.ric-fog-conferma .dr2 .cb { margin-right: 6px; }
+.ric-piede.centro { flex-direction: column; justify-content: center; align-items: stretch; gap: 12px; }
+.ric-piede.centro .mz-lnk { align-self: center; }
+.ric-piede .ric-cta { margin-top: 0; }
 
 /* ───────────────────────────────────────────────────────────────────────
    MENU DEL MAC «MAISON» (riferimento approvato da Ania il 29/09/2026:
