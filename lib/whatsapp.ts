@@ -101,3 +101,12 @@ export function telefonoAGruppi(raw: string | null | undefined): string {
   }
   return `+${n}`
 }
+
+// Il numero PER ESTESO, accanto alle icone di chiamata e WhatsApp (Richieste
+// «Maison», novità 14c del 29/09/2026): «+39 347 812 6690»; gli esteri come
+// telefonoAGruppi («+447700900123»); senza numero «».
+export function telefonoPerEsteso(raw: string | null | undefined): string {
+  const gruppi = telefonoAGruppi(raw)
+  if (!gruppi) return ''
+  return gruppi.startsWith('+') ? gruppi : `+39 ${gruppi}`
+}

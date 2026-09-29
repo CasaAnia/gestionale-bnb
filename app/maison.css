@@ -829,6 +829,12 @@ body:has(.cal) { background: var(--home-bg); }
 .ric-vista .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--m-mut); }
 /* la scheda tratteggiata delle richieste: la prima riga in ottone pieno */
 .cal-scheda.rq .cal-scheda-in .tx > em { color: var(--cal-richiesta-bordo); opacity: 1; }
+/* il foglietto della richiesta (components/richieste/FogliettoRichiesta): come quello del Calendario */
+.mz[data-foglio-maison="foglietto-richiesta"] .mz-foglio, .mz[data-foglio-maison^="richiesta-"] .mz-foglio { padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); }
+.mz[data-foglio-maison="foglietto-richiesta"] .mz-foglio::before, .mz[data-foglio-maison^="richiesta-"] .mz-foglio::before { margin-bottom: 12px; }
+.cal-fog .num { font-family: var(--m-disp); font-size: 16px; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.mz-lnk.mat { color: var(--m-mat); }
+.ric-fog-blocco + .ric-fog-blocco { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(168,137,79,.55); }
 .cal-camera.qualsiasi { white-space: normal; font-size: 13px; line-height: 1.15; padding-right: 4px; color: var(--cal-richiesta-testo); }
 .cal-scheda.rq.scelta { filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
 

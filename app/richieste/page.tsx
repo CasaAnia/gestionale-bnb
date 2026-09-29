@@ -10,7 +10,9 @@ import TestaPagina from '@/components/TestaPagina'
 import { TastoNuovaRichiesta } from '@/components/richieste/ComandiPagina'
 import FasciaComandi from '@/components/richieste/FasciaComandi'
 import NastroRichieste, { type PrenotazioneRichieste } from '@/components/richieste/NastroRichieste'
-import PannelloRichieste from '@/components/richieste/PannelloRichieste'
+import FogliettoRichiesta from '@/components/richieste/FogliettoRichiesta'
+import { camereLibere } from '@/lib/richiesteNastro'
+import { barreTenute, type RichiestaTenuta } from '@/lib/calendarioOpzioni'
 import { TastoPrincipale, ComandiRichiesta, IconeContatto, SPAZIO_COMANDI } from '@/components/richieste/AzioniRichiesta'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
 import NotaCliente from '@/components/richieste/NotaCliente'
@@ -353,6 +355,10 @@ function Richieste() {
     return m
   }, [aperte, prenotazioni, clienti])
 
+  // Le camere tenute dalle proposte inviate (per le camere libere del foglietto)
+  const tenuteAperte = useMemo(() => barreTenute(aperte.filter(r => r.stato === 'proposta_inviata') as unknown as RichiestaTenuta[], adesso)
+    .map(b => ({ richiestaId: b.richiestaId, cameraId: b.cameraId, notti: b.notti, scaduta: b.scaduta })), [aperte, adesso])
+
   // Sovrapposizioni con le prenotazioni CONFERMATE (nome ospite). Le altre
   // richieste aperte non stanno più qui: dal 12/09/2026 le dice il segno blu,
   // che si tocca e restringe l'elenco a quel gruppo. Così il ⇄ resta una cosa
@@ -494,7 +500,10 @@ function Richieste() {
       </div>{/* fine del corpo della pagina: 16 px ai lati, come le altre */}
 
       {pannello && pannello.gruppo.length > 0 && (
-        <PannelloRichieste gruppo={pannello.gruppo} ancora={pannello.ancora} layout={desktop ? 'desktop' : 'mobile'} adesso={adesso} onChiudi={() => setPannello(null)} onRifiuta={setDaRifiutare} onConferma={r => { setPannello(null); setDaConfermare(r as RichiestaConProposta) }} />
+        // Il foglietto della richiesta (novità 14b): al posto del vecchio pannello
+        <FogliettoRichiesta gruppo={pannello.gruppo} adesso={adesso} cliente={r => clienteDi.get(r.id) ?? CLIENTE_NUOVA}
+          libere={r => camereLibere(r, camere, prenotazioni, tenuteAperte).map(c => c.name)}
+          onChiudi={() => setPannello(null)} onRifiuta={setDaRifiutare} onConferma={r => { setPannello(null); setDaConfermare(r as RichiestaConProposta) }} />
       )}
       {daConfermare && (
         <FinestraConferma richiesta={daConfermare} aperte={aperte} layout={desktop ? 'desktop' : 'mobile'}

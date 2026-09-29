@@ -91,20 +91,33 @@ export function postiRichiesta(r: RichiestaNastro, camere: CameraNastro[], occup
   return [{ riga: RIGA_QUALSIASI, notti }, ...libere.map(c => ({ riga: c.id, notti }))]
 }
 
-/**
- * Tutte le schede delle richieste aperte. Sulla stessa riga le richieste che
- * hanno notti in comune si uniscono in una scheda sola (anche a catena: A
- * tocca B e B tocca C = una scheda); ogni gruppo di notti di fila è una scheda.
- */
-export function schedeRichieste(richieste: RichiestaNastro[], camere: CameraNastro[], prenotazioni: PrenotazioneNastro[], tenute: TenutaNastro[] = []): SchedaRichieste[] {
+/** Chi occupa davvero una camera una notte: prenotazioni confermate e camere tenute da un'altra proposta ancora valida */
+export type Occupata = (cameraId: string, notte: string, richiestaId: string) => boolean
+export function occupazione(prenotazioni: PrenotazioneNastro[], tenute: TenutaNastro[] = []): Occupata {
   const occupate = new Map<string, Set<string>>()   // camera → notti occupate da una prenotazione
   for (const p of prenotazioni) {
     if (!STATI_CHE_OCCUPANO.has(p.status)) continue
     if (!occupate.has(p.room_id)) occupate.set(p.room_id, new Set())
     for (const n of giorniTra(p.check_in, p.check_out)) occupate.get(p.room_id)!.add(n)
   }
-  const occupata = (cameraId: string, notte: string, richiestaId: string) =>
+  return (cameraId: string, notte: string, richiestaId: string): boolean =>
     !!occupate.get(cameraId)?.has(notte) || tenute.some(t => !t.scaduta && t.richiestaId !== richiestaId && t.cameraId === cameraId && t.notti.includes(notte))
+}
+
+/** Le camere libere per tutte le notti di una richiesta (il foglietto: «qualsiasi · libere: Ambra, Allegra, Lena») */
+export function camereLibere(r: RichiestaNastro, camere: CameraNastro[], prenotazioni: PrenotazioneNastro[], tenute: TenutaNastro[] = []): CameraNastro[] {
+  const occupata = occupazione(prenotazioni, tenute)
+  const notti = nottiSicure(r)
+  return notti.length === 0 ? [] : camere.filter(c => notti.every(n => !occupata(c.id, n, r.id)))
+}
+
+/**
+ * Tutte le schede delle richieste aperte. Sulla stessa riga le richieste che
+ * hanno notti in comune si uniscono in una scheda sola (anche a catena: A
+ * tocca B e B tocca C = una scheda); ogni gruppo di notti di fila è una scheda.
+ */
+export function schedeRichieste(richieste: RichiestaNastro[], camere: CameraNastro[], prenotazioni: PrenotazioneNastro[], tenute: TenutaNastro[] = []): SchedaRichieste[] {
+  const occupata = occupazione(prenotazioni, tenute)
 
   // per riga: le voci (richiesta + notti)
   const perRiga = new Map<string, { r: RichiestaNastro; notti: string[] }[]>()
