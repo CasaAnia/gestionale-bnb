@@ -1,3 +1,19 @@
+## Richieste «Maison» — PUBBLICATE — 29/09/2026
+
+Riferimento approvato da Ania il 29/09/2026: `docs/design/richieste-riferimento.html`; checklist e riscontro accanto (`richieste-checklist.md`, `richieste-riscontro.md`), quattro schermate a 390 px. Commit 397edf1 → 1dcff99 più riscontro, Vercel success. Il calendario delle Richieste è il nastro del Calendario (pezzi estratti e condivisi: `components/calendario/SchedaPrenotazione`, `lib/calendarioNastro`); in «Presunta» le richieste sono schede tratteggiate d'ottone (`lib/richiesteNastro`), il tocco apre il foglietto della richiesta; l'elenco è a righe col telefono per esteso; la richiesta è a quattro linguette (Controllare · Camere · Pagamento · Messaggio), dal Mac pagina unica a 620 px; conferma e rifiuto in fogli Maison; Nuova/Modifica richiesta nella veste Maison. Riga del periodo del telefono nuova anche in Calendario e Arrivi. Scadenza vera dell'opzione: 3 ore all'arrivo, 24 con caparra/completo/personalizzata (timer, «Da guardare», bollino blu, Home). Da decidere con Ania: l'ordine delle chip (il disegno dice Durata · Arrivo · Persone, la regola fissa n. 4 Arrivo · Durata · Persone: resta la regola). Anteprima senza rete: voce `gestionale-bnb-anteprima-richieste-finta` (porta 3214).
+
+**Prove dal telefono in 10 minuti**
+1. Apri Richieste: sotto la ricerca «28 set – 11 ott 2026» grande a sinistra e «‹ MESE | 2 SETTIMANE ›» a destra; sotto «VISTA · REALE | PRESUNTA».
+2. Con «PRESUNTA» le richieste aperte sono schede tratteggiate d'ottone sulle camere libere e sulla riga «Qualsiasi camera»; con «REALE» spariscono.
+3. Torna indietro di una settimana con «‹»: la richiesta di Emanuela (24 → 25 set) è su Lena.
+4. Tocca la scheda tratteggiata: sale il foglietto con telefono per esteso, date, persone, camera, stato, nota e cliente; «CHIUDI».
+5. Tocca una prenotazione confermata: il foglietto del Calendario, come lì.
+6. Scorri all'elenco: ogni richiesta ha il numero scritto per esteso con cornetta e WhatsApp; prova le chip «Arrivo · Durata · Persone».
+7. Tocca «INVIA PROPOSTA»: la pagina a linguette parte da «CONTROLLARE»; tocca «CAMERE», «PAGAMENTO», «MESSAGGIO» (l'indirizzo cambia in #camere…).
+8. In «PAGAMENTO» scegli «Caparra»: il campo propone il 50 %; torna a «All'arrivo». In «MESSAGGIO» leggi la bozza con «MOSTRA TUTTO». Non inviare.
+9. Torna alle Richieste e tocca «+ NUOVA RICHIESTA»: canale, cliente, soggiorno, note; cambia l'arrivo e guarda la partenza seguire; esci senza salvare.
+10. In fondo all'elenco «CHIUSE · N · MOSTRA»: le chiuse degli ultimi 3 giorni con «Riapri» o «Apri la scheda».
+
 ## Arrivi «Maison» — PUBBLICATO — 29/09/2026
 
 Riferimento approvato da Ania il 29/09/2026: `docs/design/arrivi-riferimento.html`; checklist e riscontro accanto (`arrivi-checklist.md`, `arrivi-riscontro.md`), due schermate a 390 px. Commit e29b92d → 3f9040c più riscontro, Vercel success. Gli Arrivi sono il nastro del Calendario (stessi pezzi, ora condivisi in `components/calendario/Nastro.tsx`): ogni arrivo è una scheda con l'orario grande davanti al nome e sotto luogo · mezzo · navetta; verde = orario e autista, ottone = arrivo autonomo con l'orario, blu = manca qualcosa («?» in mattone se manca l'orario); gli arrivi già avvenuti sono attenuati con «· arrivata»; «LEGENDA» sotto «Oggi»; il tocco apre il foglio «Arrivo e navetta» (quello della scheda, 752 px) con storico, «Chiedi orario», «Apri chat», «Apri prenotazione» e «Salva». Colori in `TINTE_ARRIVO` (`lib/calendarioMobile`). Dal Mac tutti i fogli Maison ora stanno davvero al centro. Gli Arrivi mostrano anche le richieste dal sito da confermare, tratteggiate (confermato da Ania il 29/09/2026). Anteprima senza rete: `ANTEPRIMA_ARRIVI_MAISON=1` (porta 3218).
