@@ -18,6 +18,7 @@ import {
 import { leggiArrivo } from '@/lib/arrivo'
 import { oraRoma } from '@/lib/opzioni'
 import BackLink from '@/components/BackLink'
+import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione'
 import TestaPagina from '@/components/TestaPagina'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi, { BORDO_RIQUADRO } from '@/components/RigaMesi'
@@ -240,6 +241,10 @@ export default function Calendario() {
 
   // Somma acconti per prenotazione (vuota se la tabella payments non è ancora migrata)
   const [accontiByBooking, setAccontiByBooking] = useState<Record<string, number>>({})
+  // I pagamenti uno per uno: il foglietto li usa per il conto (lib/prenotazioneUnica)
+  const [pagamenti, setPagamenti] = useState<PaymentRow[]>([])
+  // Il foglietto di dettaglio aperto (29/09/2026): la scheda toccata
+  const [aperta, setAperta] = useState<CalendarBooking | null>(null)
   // Camere tenute da una proposta (15/09/2026): le barre tratteggiate, il
   // foglietto che si apre toccandole e il pop-up di conferma.
   const [richiesteTenute, setRichiesteTenute] = useState<RichiestaTenuta[]>([])
@@ -304,6 +309,7 @@ export default function Calendario() {
       const sums: Record<string, number> = {}
       for (const x of (p || []) as PaymentRow[]) sums[x.booking_id] = (sums[x.booking_id] || 0) + Number(x.amount)
       setAccontiByBooking(sums)
+      setPagamenti((p || []) as PaymentRow[])
       setLoading(false)
     })
     leggiTenute().then(setRichiesteTenute)
@@ -540,21 +546,31 @@ export default function Calendario() {
     setColonnaSinistra(prev => (prev === intero ? prev : intero))
   }
 
-  // Tocco su una scheda. Catena di cambio camera: primo tocco evidenzia la
-  // catena, secondo tocco apre la scheda. Con la ricerca attiva vince la
-  // ricerca: il tocco apre direttamente la scheda.
+  // Tocco su una scheda (29/09/2026, novità 12g): il primo tocco apre il
+  // FOGLIETTO di dettaglio (anche con la ricerca attiva); se la scheda è di una
+  // catena di cambio camera, insieme la catena resta piena e il resto si
+  // attenua, come prima. Il secondo tocco sulla stessa scheda, o «Apri la
+  // scheda» nel foglietto, apre la scheda prenotazione.
   function tocca(booking: CalendarBooking, chainKey: string | undefined) {
-    if (chainKey && !searchAttiva) {
-      if (selectedGroupId === chainKey) {
-        ricordaPosizione()
-        router.push(`/scheda/${booking.id}`)
-      } else {
-        setSelectedGroupId(chainKey)
-      }
-    } else {
-      ricordaPosizione()
-      router.push(`/scheda/${booking.id}`)
-    }
+    if (aperta?.id === booking.id) { apriScheda(booking); return }
+    setAperta(booking)
+    setSelectedGroupId(chainKey ?? null)
+  }
+  function apriScheda(booking: CalendarBooking) {
+    ricordaPosizione()
+    router.push(`/scheda/${booking.id}`)
+  }
+  function chiudiFoglietto() {
+    setAperta(null)
+    setSelectedGroupId(null)
+  }
+  // Il tocco sul velo del foglietto: se sotto c'è la stessa scheda è il
+  // secondo tocco (si apre la scheda), altrimenti il foglietto si chiude
+  function toccoSulVelo(e: React.MouseEvent) {
+    const sotto = document.elementsFromPoint(e.clientX, e.clientY)
+    const scheda = sotto.find(el => el instanceof HTMLElement && el.dataset.scheda) as HTMLElement | undefined
+    if (aperta && scheda?.dataset.scheda === aperta.id) { apriScheda(aperta); return }
+    chiudiFoglietto()
   }
 
   function bookingsForRoom(roomId: string) {
@@ -1053,6 +1069,12 @@ export default function Calendario() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── IL FOGLIETTO DI DETTAGLIO (29/09/2026): sale dal basso al primo tocco su una scheda ── */}
+      {aperta && (
+        <FogliettoPrenotazione prenotazione={aperta} tutte={bookings} camere={rooms} pagamenti={pagamenti}
+          onApri={() => apriScheda(aperta)} onChiudi={chiudiFoglietto} onVelo={toccoSulVelo} />
       )}
 
       {/* ── IL POP-UP: niente si muove senza un sì (Ania, 15/09/2026) ── */}

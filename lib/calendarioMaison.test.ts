@@ -170,3 +170,100 @@ test('il nastro: filo verde di oggi, fili ottone dei mesi, righello «lun 28» c
   assert.match(pagina, /background: isFull \? COLORE_LETTI_ESAURITI : undefined/)
   assert.match(css, /\.cal-extra \.xl \{[^}]*color: #8A1E15; background: #F8D9D6;/)
 })
+
+// ── Il foglietto di dettaglio (pezzo 5) ─────────────────────────────────────
+import {
+  righeFoglietto, righeInArrivo, testaFoglietto, statoFoglietto, iconeFoglietto, dormeFoglietto, camereFoglietto, ospitiFoglietto,
+  pagamentoFoglietto, prezzoFoglietto, clienteFoglietto, arrivoFoglietto, arrivoDaMostrare, noteFoglietto, cameraCorta,
+  ALTEZZA_FOGLIETTO, LARGHEZZA_FOGLIETTO_MAC, ETICHETTE_FOGLIETTO, IN_ARRIVO,
+} from './calendarioFoglietto.ts'
+import { caselleSoggiorno, type SegmentoScheda } from './schedaPrenotazione.ts'
+
+const seg = (s: Partial<SegmentoScheda> & { camera: string }): SegmentoScheda => ({
+  id: s.id ?? s.camera + s.check_in, status: 'confermata', check_in: '2026-10-01', check_out: '2026-10-03', num_guests: 2,
+  price_per_night: 100, total_amount: 200, rooms: { name: s.camera, base_price: 100 } as SegmentoScheda['rooms'], ...s,
+})
+
+test('foglietto: le righe nell’ordine dato, altezza fissa, «…» finché la lettura non arriva', () => {
+  assert.equal(ALTEZZA_FOGLIETTO, 430)
+  assert.equal(LARGHEZZA_FOGLIETTO_MAC, 620)
+  assert.deepEqual([...ETICHETTE_FOGLIETTO], ['Camere', 'Ospiti', 'Prezzo', 'Pagamento', 'Arrivo', 'Note', 'Cliente'])
+  assert.deepEqual(righeInArrivo().map(r => r.etichetta), [...ETICHETTE_FOGLIETTO])
+  assert.ok(righeInArrivo().every(r => r.valore[0].testo === IN_ARRIVO))
+  const righe = righeFoglietto({
+    segmenti: [seg({ camera: 'Ambra' })], oggi: '2026-09-29', conto: { totaleCent: 20000, ricevutiCent: 0 }, pagato: false,
+    accordo: null, arrivo: null, notaCliente: null, notaPrenotazione: null, volte: 0, provenienza: null, ricevuta: false, spesoPrimaCent: 0,
+  })
+  assert.deepEqual(righe.map(r => r.etichetta), [...ETICHETTE_FOGLIETTO])
+  // le NOTE restano come riga vuota, così il foglietto non si accorcia
+  assert.deepEqual(righe.find(r => r.etichetta === 'Note')?.valore, [])
+  // la pagina: altezza fissa, larghezza dal Mac, velo, tocco → foglietto, secondo tocco → scheda
+  const comp = leggi('components/calendario/FogliettoPrenotazione.tsx')
+  assert.match(comp, /altezza=\{ALTEZZA_FOGLIETTO\} larghezzaDesktop=\{LARGHEZZA_FOGLIETTO_MAC\}/)
+  assert.match(comp, /veloChiaro onVelo=\{onVelo\}/)
+  assert.doesNotMatch(comp, /documenti_cliente/)   // niente documenti
+  assert.match(pagina, /if \(aperta\?\.id === booking\.id\) \{ apriScheda\(booking\); return \}/)
+  assert.match(pagina, /setAperta\(booking\)\n    setSelectedGroupId\(chainKey \?\? null\)/)
+  assert.match(pagina, /if \(aperta && scheda\?\.dataset\.scheda === aperta\.id\) \{ apriScheda\(aperta\); return \}/)
+  assert.match(pagina, /onClick=\{e => \{ e\.stopPropagation\(\); tocca\(booking, chainKey\) \}\}/)
+  // una sola lettura al tocco, la stessa della scheda
+  assert.equal((comp.match(/supabase\.from\(/g) || []).length, 1)
+  assert.match(comp, /leggiPrenotazioneUnica\(prenotazione, f => supabase\.from\('bookings'\)\.select\('\*, rooms\(\*\)'\)/)
+})
+
+test('foglietto: testa, nome con 🧾 ⭐, «dorme» solo se è un’altra persona', () => {
+  assert.equal(testaFoglietto('Ambra', '2026-10-01', '2026-10-05'), 'Ambra · 1 → 5 ott · 4 notti')
+  assert.equal(statoFoglietto('confermata', '2026-10-05', '2026-09-29', false), 'Confermata')
+  assert.equal(statoFoglietto('in_attesa', '2026-10-05', '2026-09-29', false), 'In attesa')
+  assert.equal(statoFoglietto('confermata', '2026-09-20', '2026-09-29', false), 'Conclusa')
+  assert.equal(statoFoglietto('annullata', '2026-09-20', '2026-09-29', true), 'Mancato arrivo')
+  assert.equal(iconeFoglietto(true, true), '🧾 ⭐')
+  assert.equal(iconeFoglietto(false, true), '⭐')
+  assert.equal(cameraCorta('01 Ambra'), 'Ambra')
+  // chi dorme: solo con la spunta «Non è lei a dormire qui» e un nome
+  assert.equal(dormeFoglietto({ intestataria_non_dorme: true, extra_phone_1_name: 'Teresa Bianchi', chi_e: 'Mamma' }), 'dorme Teresa Bianchi · mamma')
+  assert.equal(dormeFoglietto({ intestataria_non_dorme: false, extra_phone_1_name: 'Teresa Bianchi' }), null)
+  assert.equal(dormeFoglietto({ extra_phone_1_name: 'Teresa Bianchi' }), null)
+})
+
+test('foglietto: camere, ospiti col letto, prezzo barrato solo con lo sconto', () => {
+  const catena = [seg({ camera: 'Ambra', check_in: '2026-10-01', check_out: '2026-10-03' }), seg({ camera: 'Lena', check_in: '2026-10-03', check_out: '2026-10-05', extra_bed_dates: ['2026-10-03', '2026-10-04'], num_guests: 3 })]
+  const caselle = caselleSoggiorno(catena, '2026-09-29')
+  assert.equal(camereFoglietto(caselle), 'Ambra 2 notti, poi Lena 2')
+  assert.equal(camereFoglietto(caselleSoggiorno([seg({ camera: 'Ambra' })], '2026-09-29')), 'Ambra')
+  assert.equal(ospitiFoglietto(caselle, new Set(['2026-10-03', '2026-10-04'])), '3 · letto in più dal 3 ott')
+  assert.equal(ospitiFoglietto(caselle, new Set()), '3')
+  assert.equal(ospitiFoglietto(caselle, new Set(caselle.map(c => c.iso))), '3 · letto in più')
+  assert.equal(ospitiFoglietto(caselle, new Set(['2026-10-01'])), "3 · letto in più dall'1 ott")   // regola fissa n. 3
+  // prezzo: niente barrato senza sconto; col prezzo concordato più basso, il pieno barrato e lo sconto
+  assert.deepEqual(prezzoFoglietto([seg({ camera: 'Ambra' })], { totaleCent: 20000, ricevutiCent: 0 }), [{ testo: '200 €' }])
+  const scontato = prezzoFoglietto([seg({ camera: 'Ambra', total_amount: 160, discount_type: 'target_total', discount_value: 160 })], { totaleCent: 16000, ricevutiCent: 0 })
+  assert.equal(scontato[0].tipo, 'barrato')
+  assert.equal(scontato[0].testo, '200 €')
+  assert.equal(scontato[1].testo, ' 160 € · sconto 40 €')
+  assert.equal(prezzoFoglietto([seg({ camera: 'Ambra' })], null)[0].tipo, 'mat')
+})
+
+test('foglietto: «restano» in mattone, «saldato» in verde, come paga e la caparra', () => {
+  const resta = pagamentoFoglietto({ totaleCent: 38000, ricevutiCent: 19000 }, false, { accordo_pagamento: 'bonifico_arrivo' })
+  assert.deepEqual(resta, [{ testo: 'ricevuti 190 € · ' }, { testo: 'restano 190 €', tipo: 'mat' }, { testo: ' · bonifico' }])
+  assert.deepEqual(pagamentoFoglietto({ totaleCent: 38000, ricevutiCent: 38000 }, false, null), [{ testo: 'ricevuti 380 € · ' }, { testo: 'saldato', tipo: 'verde' }])
+  assert.deepEqual(pagamentoFoglietto({ totaleCent: 38000, ricevutiCent: 0 }, true, null), [{ testo: 'saldato', tipo: 'verde' }])
+  const caparra = pagamentoFoglietto({ totaleCent: 38000, ricevutiCent: 0 }, false, { accordo_pagamento: 'caparra_meta', caparra_entro: '2026-09-30' })
+  assert.deepEqual(caparra.map(p => p.testo), ['restano 380 €', ' · caparra del 50% entro mer 30'])
+})
+
+test('foglietto: arrivo coi testi della scheda, «orario da chiedere», il primo arrivo futuro; note; cliente con lo speso', () => {
+  assert.equal(arrivoFoglietto({ ...ARRIVO_VUOTO, tipo: 'struttura', strutturaDa: '16:00', navetta: 'non_richiesta' }, '2026-10-01', '2026-09-29'), 'gio 1 ott alle 16:00 · arrivo autonomo')
+  assert.equal(arrivoFoglietto(ARRIVO_VUOTO, '2026-10-01', '2026-09-29'), 'gio 1 ott, orario da chiedere · navetta da definire')
+  assert.equal(
+    arrivoFoglietto({ ...ARRIVO_VUOTO, tipo: 'luogo', luogo: 'malpensa', luogoDa: '14:15', stimaDa: '16:00', stimaA: '17:00', navetta: 'aldo', prelievo: '14:30' }, '2026-10-01', '2026-09-29'),
+    'gio 1 ott, in struttura 16:00–17:00 circa · atterra a Malpensa alle 14:15 · navetta Aldo · prelievo a Malpensa 14:30',
+  )
+  assert.equal(arrivoDaMostrare([{ check_in: '2026-09-20' }, { check_in: '2026-10-10' }], '2026-09-29')?.check_in, '2026-10-10')
+  assert.equal(arrivoDaMostrare([{ check_in: '2026-09-20' }, { check_in: '2026-09-25' }], '2026-09-29')?.check_in, '2026-09-25')
+  assert.equal(noteFoglietto('Preferisce la camera silenziosa', 'portare la culla'), 'Preferisce la camera silenziosa · Questa volta: portare la culla')
+  assert.equal(noteFoglietto(null, ' '), '')
+  assert.deepEqual(clienteFoglietto(4, 'da Nida', true, 64000, 38000), [{ testo: 'già ospite 4 volte · da Nida · vuole ricevuta · ' }, { testo: '1.020 €', tipo: 'mat' }, { testo: ' con questa' }])
+  assert.deepEqual(clienteFoglietto(0, null, false, 0, 20000)[0], { testo: 'prima volta · ' })
+})

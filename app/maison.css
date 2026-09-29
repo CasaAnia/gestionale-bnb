@@ -733,3 +733,23 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-extra-g.pieno { color: #fff; }
 .cal-extra-g b { font-weight: 700; }
 .cal-extra-g i { font-style: normal; font-size: 10px; border: 1.5px dashed #A8894F; border-radius: 4px; padding: 0 3px; color: #7a5f2c; background: #FFFDF7; font-weight: 700; }
+
+/* Il foglietto di dettaglio (e quello della camera tenuta): FoglioMaison ad altezza fissa */
+.mz[data-foglio-maison="foglietto-calendario"] .mz-foglio, .mz[data-foglio-maison="tenuta-calendario"] .mz-foglio, .mz[data-foglio-maison="legenda-calendario"] .mz-foglio { padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); }
+.mz[data-foglio-maison="foglietto-calendario"] .mz-foglio::before, .mz[data-foglio-maison="tenuta-calendario"] .mz-foglio::before, .mz[data-foglio-maison="legenda-calendario"] .mz-foglio::before { margin-bottom: 12px; }
+.cal-fog-testa .k { font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); line-height: 1.4; }
+.cal-fog-testa .k .st { color: var(--m-ink); opacity: .7; }
+.cal-fog-testa .hd2 { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
+.cal-fog-testa .ti { font-family: var(--m-disp); font-size: 22px; font-weight: 500; line-height: 1.15; color: var(--m-ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-fog-testa .ti .ic { font-size: 16px; }
+.cal-fog-testa .sch-ic a { width: 30px; height: 30px; }
+.cal-fog-testa .sch-ic a::before { inset: -7px; }
+.cal-fog-testa .sch-ic svg { width: 15px; height: 15px; }
+.cal-fog-testa .dorme { color: var(--m-mat); font-size: 13px; margin-top: 2px; }
+.cal-fog .dr { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; padding: 6px 0; border-bottom: 1px solid #DDD3C2; font-size: 12.5px; line-height: 1.35; color: var(--m-ink); }
+.cal-fog .dk { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--m-mut); padding-top: 2px; }
+.cal-fog .dv { min-width: 0; overflow-wrap: anywhere; }
+.cal-fog .dv s { color: var(--m-mut); }
+.cal-fog .mat { color: var(--m-mat); font-weight: 500; }
+.cal-fog .verde { color: #2D6A4F; font-weight: 500; }
+.cal-fog-ac { display: flex; gap: 16px; align-items: center; margin-top: 12px; flex: none; }
