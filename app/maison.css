@@ -700,8 +700,9 @@ body:has(.cal) { background: var(--home-bg); }
 @media (min-width: 1024px) { .cal-righello > span { font-size: 10.5px; padding-top: 6px; } }
 .cal-corsia { position: absolute; left: 0; display: flex; border-bottom: 1px solid var(--m-line); cursor: pointer; }
 .cal-camera { position: sticky; left: 0; z-index: 25; height: 100%; background: var(--m-bg); border-right: 1px solid var(--m-line); padding: 10px 0 0 12px; font-family: var(--m-disp); font-size: 14px; font-weight: 500; color: var(--m-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+/* i fili stanno SOTTO buchi (z 2) e schede (z 5+): si vedono solo dove la corsia è vuota (Ania, 29/09/2026) */
 .cal-filo-mese { position: absolute; width: 2px; background: #A8894F; opacity: .7; z-index: 1; pointer-events: none; }
-.cal-filo-oggi { position: absolute; width: 1px; background: #2D6A4F; z-index: 20; pointer-events: none; }
+.cal-filo-oggi { position: absolute; width: 1px; background: #2D6A4F; z-index: 1; pointer-events: none; }
 
 /* La scheda: il guscio (tocco, attenuazione, ombra della catena) e il corpo (colore, taglio, testo) */
 .cal-scheda { position: absolute; cursor: pointer; transition: opacity .15s, filter .15s; }
@@ -725,7 +726,7 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-nastro .cal-scheda.dim.cerca { opacity: .35; }
 
 /* I buchi liberi: tratteggio, date e «+» */
-.cal-buco { position: absolute; background: transparent; border: 1px dashed #D5CCBB; border-radius: 6px; padding: 0; color: #B8AE9C; text-align: left; z-index: 2; cursor: pointer; }
+.cal-buco { position: absolute; background: var(--m-bg); border: 1px dashed #D5CCBB; border-radius: 6px; padding: 0; color: #B8AE9C; text-align: left; z-index: 2; cursor: pointer; }
 .cal-buco .in { position: sticky; display: flex; flex-direction: column; height: 100%; padding: 6px 8px; overflow: hidden; }
 .cal-buco em { display: block; font-style: normal; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: #A89E8C; white-space: nowrap; overflow: hidden; }
 .cal-buco .pl { display: block; text-align: center; font-size: 20px; line-height: 1; color: #C9BFA8; margin-top: 4px; }

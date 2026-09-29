@@ -171,6 +171,18 @@ test('ricerca attiva: la scheda trovata col contorno verde, le altre attenuate a
   assert.doesNotMatch(pagina, /cal-buco[^"]*dim/)
 })
 
+test('i fili di oggi e del mese stanno SOTTO buchi e schede: solo dove la corsia è vuota (Ania, 29/09/2026)', () => {
+  const css = leggi('app/maison.css')
+  const z = (sel: string) => Number(css.match(new RegExp(`\\.${sel} \\{[^}]*z-index: (\\d+)`))?.[1])
+  assert.ok(z('cal-filo-oggi') < z('cal-buco'), 'filo di oggi sopra i buchi')
+  assert.ok(z('cal-filo-mese') < z('cal-buco'), 'filo del mese sopra i buchi')
+  // le schede partono da z 5 (pagina): i fili restano sotto
+  assert.ok(z('cal-filo-oggi') < 5 && z('cal-filo-mese') < 5)
+  assert.match(pagina, /zIndex=\{isCurrent \? 16 : isSelected \? 15 : 5\}/)
+  // il buco è pieno del colore del fondo, così il filo non gli passa sopra il «+»
+  assert.match(css, /\.cal-buco \{ position: absolute; background: var\(--m-bg\);/)
+})
+
 test('il nastro: filo verde di oggi, fili ottone dei mesi, righello «lun 28» con domeniche e oggi', () => {
   const css = leggi('app/maison.css')
   assert.match(pagina, /<FiliNastro /)
