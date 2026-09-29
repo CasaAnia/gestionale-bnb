@@ -9,6 +9,8 @@ import { PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, GIORNO_TEL
 
 const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
 const pagina = leggi('app/calendario/page.tsx')
+// i pezzi del nastro condivisi con gli Arrivi (29/09/2026): righello, fili, corsie, buchi, schede
+const nastro = leggi('components/calendario/Nastro.tsx')
 
 test('frecce: a «2 settimane» una settimana (7 giorni), a «Mese» il 1° del mese; le etichette lo dicono', () => {
   assert.equal(PASSO_FRECCE_QUINDICI, 7)
@@ -97,7 +99,8 @@ test('il colore dice SOLO il pagamento (o «Nota e colore»): il letto extra non
   const css = leggi('app/maison.css')
   assert.equal(ROSSO_LETTO, '#D0261B')
   assert.match(css, /\.cal-scheda-in\[data-letto\] \{ box-shadow: inset 0 -3px 0 #D0261B; \}/)
-  assert.match(pagina, /data-letto=\{hasExtraBed \? lettiPoolPrenotazione\(booking\) : undefined\}/)
+  assert.match(pagina, /letto=\{hasExtraBed \? lettiPoolPrenotazione\(booking\) : undefined\}/)
+  assert.match(nastro, /data-letto=\{letto \|\| undefined\}/)
   // niente più righe diagonali né colore-letto sulla barra
   assert.doesNotMatch(pagina, /repeating-linear-gradient/)
   assert.doesNotMatch(pagina, /getDayColor/)
@@ -128,7 +131,8 @@ test('i buchi liberi: le date giuste fra una scheda e l’altra, prima della pri
   assert.equal(rigaBuco({ da: '2026-12-28', a: '2027-01-03' }), '28 dic → 3 gen')
   // il tocco apre la nuova prenotazione con camera e arrivo: lo stesso indirizzo di oggi
   assert.equal(indirizzoNuova('abc', '2026-10-03'), '/nuova-prenotazione?room_id=abc&check_in=2026-10-03')
-  assert.match(pagina, /data-buco=/)
+  assert.match(pagina, /<BucoNastro /)
+  assert.match(nastro, /data-buco=/)
   assert.equal((pagina.match(/router\.push\(`\/nuova-prenotazione\?room_id=\$\{room\.id\}&check_in=\$\{dateStr\}`\)/g) || []).length, 2)   // buco e giorno libero
 })
 
@@ -148,8 +152,10 @@ test('cambio camera: «poi Lena» sul tratto che parte, «da Ambra» su quello c
   // il filo obliquo sta PROPRIO sul bordo tagliato, largo quanto il filo sinistro, del colore del filo
   assert.equal(filoObliquo('destra', 100, 72), 'polygon(96px 0px, 100px 0px, 86px 72px, 82px 72px)')
   assert.equal(filoObliquo('sinistra', 100, 72), 'polygon(0px 0px, 4px 0px, 18px 72px, 14px 72px)')
-  assert.match(pagina, /style=\{\{ background: tintaBase\.filo, clipPath: filoObliquo\('destra', g\.width, SCHEDA_H\) \}\}/)
-  assert.match(pagina, /style=\{\{ background: tinta\.filo, clipPath: filoObliquo\('sinistra', g\.width, SCHEDA_H\) \}\}/)
+  assert.match(pagina, /cuneoDestra=\{cutRight \? tintaBase\.filo : undefined\} cuneoSinistra=\{cutLeft \? tinta\.filo : undefined\}/)
+  assert.match(pagina, /width=\{g\.width\}/)
+  assert.match(nastro, /style=\{\{ background: cuneoDestra, clipPath: filoObliquo\('destra', width, SCHEDA_H\) \}\}/)
+  assert.match(nastro, /style=\{\{ background: cuneoSinistra, clipPath: filoObliquo\('sinistra', width, SCHEDA_H\) \}\}/)
   // COLORI_CAMBIO non si usa più nel calendario (resta per Arrivi e Richieste)
   assert.doesNotMatch(pagina, /COLORI_CAMBIO|coloriCatene/)
 })
@@ -167,7 +173,8 @@ test('ricerca attiva: la scheda trovata col contorno verde, le altre attenuate a
 
 test('il nastro: filo verde di oggi, fili ottone dei mesi, righello «lun 28» con domeniche e oggi', () => {
   const css = leggi('app/maison.css')
-  assert.match(pagina, /data-filo-oggi/)
+  assert.match(pagina, /<FiliNastro /)
+  assert.match(nastro, /data-filo-oggi/)
   assert.match(css, /\.cal-filo-oggi \{ position: absolute; width: 1px; background: #2D6A4F;/)
   assert.match(css, /\.cal-filo-mese \{ position: absolute; width: 2px; background: #A8894F; opacity: \.7;/)
   assert.match(css, /\.cal-righello > span\.dom \{ color: #B08968; \}/)

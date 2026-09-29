@@ -48,13 +48,17 @@ test('layout della pagina: «Legenda» sotto «Oggi» con etichetta, legenda in 
   assert.ok(occorrenze(pagina, '>Legenda</button>') >= 1)                   // la parola, non più il «?» (29/09/2026)
   assert.ok(occorrenze(pagina, '<PannelloLegenda') >= 1)
   assert.ok(occorrenze(pagina, 'isDesktop && !orizzontale') >= 1)          // legenda in riga solo dal Mac
-  assert.ok(occorrenze(pagina, 'data-tocco') >= 1)
+  // la scheda (con data-tocco) è il pezzo condiviso con gli Arrivi (29/09/2026)
+  assert.ok(occorrenze(pagina, '<SchedaNastro') >= 1)
+  assert.ok(occorrenze(readFileSync(new URL('../components/calendario/Nastro.tsx', import.meta.url), 'utf8'), 'data-tocco') >= 1)
   assert.ok(occorrenze(pagina, 'areaTocco(') >= 1)
   assert.ok(occorrenze(pagina, 'ricordaPosizione()') >= 2)                  // prima di ogni router.push verso la scheda
   assert.ok(occorrenze(pagina, 'indicePosizione(') >= 1)
   // la legenda dal telefono è un foglio Maison ad altezza fissa, con «Chiudi» e la riga delle icone
   assert.ok(occorrenze(legenda, '<FoglioMaison') >= 1)
-  assert.ok(occorrenze(legenda, 'altezza={ALTEZZA_LEGENDA}') >= 1)
+  assert.ok(occorrenze(legenda, 'altezza = ALTEZZA_LEGENDA') >= 1)      // la stessa legenda, con le voci degli Arrivi quando le passano
+  assert.ok(occorrenze(legenda, 'altezza={altezza}') >= 1)
   assert.ok(occorrenze(legenda, '>Chiudi</button>') >= 1)
-  assert.ok(occorrenze(legenda, '{ICONE_LEGENDA}') >= 1)
+  assert.ok(occorrenze(legenda, 'icone = ICONE_LEGENDA') >= 1)
+  assert.ok(occorrenze(legenda, '{icone}') >= 1)
 })

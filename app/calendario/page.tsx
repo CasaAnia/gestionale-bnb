@@ -13,12 +13,13 @@ import type { Booking, Guest, Room } from '@/lib/types'
 import { COLORE_LETTI_ESAURITI, statoLettiAggiuntivi } from '@/lib/calendarioLetti'
 import {
   CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, geometriaScheda, statoScheda, tintaScheda, testoStato,
-  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, filoObliquo, CAMBIO_CAMERA, FILO_SINISTRO, fondoConAcconti,
+  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, CAMBIO_CAMERA, FILO_SINISTRO, fondoConAcconti,
 } from '@/lib/calendarioSchede'
 import { leggiArrivo } from '@/lib/arrivo'
 import { oraRoma } from '@/lib/opzioni'
 import BackLink from '@/components/BackLink'
 import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione'
+import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro } from '@/components/calendario/Nastro'
 import FoglioMaison from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese } from '@/lib/schedaPrenotazione'
@@ -620,15 +621,6 @@ export default function Calendario() {
   const larghezzaTesto = (da: number, a: number) => Math.max(0, parteInVista(da, a) - 16 - FILO_SINISTRO)
   const totalH = RULER_H + rooms.length * ROW_H + EXTRA_ROW_H
 
-  // Calcola mesi per header
-  const monthGroups: { label: string; startIdx: number; count: number }[] = []
-  days.forEach((d, i) => {
-    const label = d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
-    const last = monthGroups[monthGroups.length - 1]
-    if (last && last.label === label) last.count++
-    else monthGroups.push({ label, startIdx: i, count: 1 })
-  })
-
   return (
     <div className="maison cal flex flex-col" data-senza-sottolinea data-calendario-maison>
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
@@ -787,33 +779,9 @@ export default function Calendario() {
           <div className="cal-nastro" style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
             {/* ── IL RIGHELLO DEI GIORNI: «lun 28», domeniche in terra, oggi in verde; fermo in alto ── */}
-            <div className="cal-righello" style={{ height: RULER_H }}>
-              <div className="cal-angolo" style={{ width: NAME_W, minWidth: NAME_W }} />
-              {days.map((d, i) => {
-                const isToday = toStr(d) === todayStr
-                const isSun = d.getDay() === 0
-                const sett = d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 3)
-                return (
-                  <span key={i} className={`${isSun ? 'dom' : ''} ${isToday ? 'oggi' : ''}`} style={{ width: CELL_W, minWidth: CELL_W }}>
-                    {CELL_W >= 34 ? `${sett} ${d.getDate()}` : d.getDate()}
-                  </span>
-                )
-              })}
-            </div>
-
-            {/* ── FILI DEI MESI: ottone 2 px al 1° del mese, su tutte le righe ── */}
-            {monthGroups.map((mg, i) => i === 0 ? null : (
-              <div key={`sep-${i}`} className="cal-filo-mese" aria-hidden style={{
-                left: NAME_W + mg.startIdx * CELL_W - 1,
-                top: RULER_H,
-                height: totalH - RULER_H,
-              }} />
-            ))}
-
-            {/* ── IL FILO DI OGGI: verde, a tutta altezza sulla colonna di oggi ── */}
-            {dayIndex(todayStr) >= 0 && dayIndex(todayStr) < daysTotal && (
-              <div className="cal-filo-oggi" aria-hidden data-filo-oggi style={{ left: NAME_W + dayIndex(todayStr) * CELL_W, top: RULER_H, height: totalH - RULER_H }} />
-            )}
+            {/* ── FILI: ottone al 1° del mese, verde su oggi (components/calendario/Nastro, condivisi con gli Arrivi) ── */}
+            <RighelloNastro giorni={days} oggi={todayStr} colonnaCamere={NAME_W} giorno={CELL_W} altezza={RULER_H} />
+            <FiliNastro giorni={days} indiceOggi={dayIndex(todayStr)} colonnaCamere={NAME_W} giorno={CELL_W} top={RULER_H} altezza={totalH - RULER_H} />
 
             {/* ── LE CORSIE DELLE CAMERE ── */}
             {rooms.map((room, ri) => {
@@ -830,7 +798,7 @@ export default function Calendario() {
               const occupato = (iso: string) => prenotazioni.some(b => b.check_in <= iso && iso < b.check_out) || tenute.some(t => t.arrivo <= iso && iso < t.partenza)
               return (
                 <div key={room.id}>
-                  <div className="cal-corsia" style={{ top: rowTop, width: totalW, height: ROW_H }}
+                  <CorsiaNastro top={rowTop} larghezza={totalW} altezza={ROW_H} colonnaCamere={NAME_W} nome={shortName} descrizione={ROOM_DESC_BY_NAME[shortName]}
                     onClick={e => {
                       // Un giorno libero toccato fuori dai buchi disegnati: nuova prenotazione da lì
                       const x = e.clientX - e.currentTarget.getBoundingClientRect().left - NAME_W
@@ -838,12 +806,7 @@ export default function Calendario() {
                       const dateStr = days[idx] ? toStr(days[idx]) : ''
                       if (!dateStr || occupato(dateStr)) return
                       router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)
-                    }}>
-                    {/* Nome camera: niente numero 01–04, solo il nome (05/09/2026) */}
-                    <div className="cal-camera" title={ROOM_DESC_BY_NAME[shortName] || ''} style={{ width: NAME_W, minWidth: NAME_W }} onClick={e => e.stopPropagation()}>
-                      {shortName}
-                    </div>
-                  </div>
+                    }} />
 
                   {/* I buchi liberi: riquadro tratteggiato, «3 → 4 ott» e il «+»; il
                       tocco apre la nuova prenotazione con camera e arrivo già scritti */}
@@ -852,21 +815,15 @@ export default function Calendario() {
                     if (a - da <= 0) return null
                     const g = geometriaScheda(da, a, CELL_W)
                     return (
-                      <button type="button" key={`buco-${h.da}`} className="cal-buco" data-buco={`${h.da}_${h.a}`}
-                        aria-label={`Nuova prenotazione in ${shortName} dal ${h.da}`}
-                        style={{ left: NAME_W + g.left, top: rowTop + SCHEDA_TOP, width: g.width, height: SCHEDA_H }}
+                      <BucoNastro key={`buco-${h.da}`} chiave={`${h.da}_${h.a}`} etichetta={`Nuova prenotazione in ${shortName} dal ${h.da}`} riga={rigaBuco(h)}
+                        left={NAME_W + g.left} top={rowTop + SCHEDA_TOP} width={g.width} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
                         onClick={e => {
                           e.stopPropagation()
                           // L'arrivo è l'inizio del buco; se l'inizio è fuori vista (a sinistra), il primo giorno del buco in vista
                           const primo = Math.floor((scrollRef.current?.scrollLeft ?? 0) / CELL_W)
                           const dateStr = toStr(days[Math.min(a - 1, Math.max(da, primo))])
                           router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)
-                        }}>
-                        <span className="in" style={{ left: NAME_W + ARIA_SCHEDA, width: parteInVista(da, a) }}>
-                          <em>{rigaBuco(h)}</em>
-                          <span className="pl" aria-hidden>+</span>
-                        </span>
-                      </button>
+                        }} />
                     )
                   })}
 
@@ -916,28 +873,19 @@ export default function Calendario() {
                       arrivo: isWebPending ? null : hasIncoming ? CAMBIO_CAMERA : rigaArrivo(leggiArrivo(booking as unknown as Record<string, unknown>)),
                     }
                     return (
-                      <div key={booking.id} data-tocco data-scheda={booking.id} data-stato={stato}
+                      <SchedaNastro key={booking.id} id={booking.id} dati={{ stato }}
                         onClick={e => { e.stopPropagation(); tocca(booking, chainKey) }}
-                        className={`cal-scheda ${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : ''} ${isSelected ? 'catena' : ''} ${isCurrent ? 'trovata' : ''}`}
-                        style={{ top: tocco.top, height: tocco.height, left: NAME_W + g.left, width: g.width, zIndex: isCurrent ? 16 : isSelected ? 15 : 5 }}>
-                        <div className={`cal-scheda-in ${isWebPending ? 'sito' : ''} ${cutLeft ? 'cl' : ''}`} data-letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
-                          style={{
-                            background: tinta.fondo, color: tinta.testo,
-                            borderLeftColor: isWebPending ? tinta.filo : cutLeft ? 'transparent' : tinta.filo,
-                            ...(isWebPending ? { borderColor: tinta.filo } : {}),
-                            clipPath, borderRadius: clipPath ? 0 : 6,
-                          }}>
-                          {cutRight && <span aria-hidden data-filo-obliquo="uscita" className="cal-cuneo" style={{ background: tintaBase.filo, clipPath: filoObliquo('destra', g.width, SCHEDA_H) }} />}
-                          {cutLeft && <span aria-hidden data-filo-obliquo="arrivo" className="cal-cuneo" style={{ background: tinta.filo, clipPath: filoObliquo('sinistra', g.width, SCHEDA_H) }} />}
-                          {/* il testo resta in vista anche quando la scheda comincia fuori, a sinistra */}
-                          <span className="tx" style={{ left: NAME_W + ARIA_SCHEDA + 8, width: larghezzaTesto(startIdx, endIdx) }}>
-                            <em>{righe.date}</em>
-                            <b>{righe.icone && <span className="ic">{righe.icone} </span>}{righe.nome}</b>
-                            <small>{righe.sotto}</small>
-                            {righe.arrivo && <small className="ar2">{righe.arrivo}</small>}
-                          </span>
-                        </div>
-                      </div>
+                        classi={`${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : ''} ${isSelected ? 'catena' : ''} ${isCurrent ? 'trovata' : ''}`}
+                        top={tocco.top} height={tocco.height} left={NAME_W + g.left} width={g.width} zIndex={isCurrent ? 16 : isSelected ? 15 : 5}
+                        sito={isWebPending} cutLeft={cutLeft} letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
+                        fondo={tinta.fondo} testo={tinta.testo} filo={tinta.filo} clipPath={clipPath}
+                        cuneoDestra={cutRight ? tintaBase.filo : undefined} cuneoSinistra={cutLeft ? tinta.filo : undefined}
+                        testoLeft={NAME_W + ARIA_SCHEDA + 8} testoWidth={larghezzaTesto(startIdx, endIdx)}>
+                        <em>{righe.date}</em>
+                        <b>{righe.icone && <span className="ic">{righe.icone} </span>}{righe.nome}</b>
+                        <small>{righe.sotto}</small>
+                        {righe.arrivo && <small className="ar2">{righe.arrivo}</small>}
+                      </SchedaNastro>
                     )
                   })}
 
