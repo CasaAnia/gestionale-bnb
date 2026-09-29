@@ -9,10 +9,12 @@
 // ============================================================================
 import { campiConLei, PERSONE_CON_LEI_MAX, type PersonaConLei } from './nuovaPrenotazione.ts'
 
-export const TITOLO_CON_LEI = 'Con lei'
-export const COMANDO_CON_LEI = 'Con lei'
+// Dal 28/09/2026 (Ania, punto 14d) «Con lei» si chiama «Chi dorme in camera»
+// ovunque: titolo del foglio, comando e conferma.
+export const TITOLO_CON_LEI = 'Chi dorme in camera'
+export const COMANDO_CON_LEI = 'Modifica chi dorme'
 export const SALVA_CON_LEI = 'Salva'
-export const CON_LEI_SALVATO = 'Salvato chi dorme con lei.'
+export const CON_LEI_SALVATO = 'Salvato chi dorme in camera.'
 export const AVVISO_CHI_E_2_SENZA_0056 = 'Salvato; «chi è» della seconda persona però no: serve la proposta 0056 applicata su Supabase.'
 
 export type RigaConLei = {

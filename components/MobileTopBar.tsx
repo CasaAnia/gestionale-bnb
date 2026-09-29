@@ -23,8 +23,9 @@ export default function MobileTopBar() {
   const pathname = usePathname()
   const indietro = useAzioneIndietro()
   // Sulla Home «Maison» (28/09/2026) in cima c'è la striscia con la foto; la
-  // «Nuova prenotazione» Maison ha la sua testata con «‹ Indietro»
-  if (pathname === '/login' || pathname === '/' || pathname === '/nuova-prenotazione') return null
+  // «Nuova prenotazione» Maison ha la sua testata con «‹ Indietro», e la
+  // scheda prenotazione Maison la sua barra con «‹ Prenotazioni»
+  if (pathname === '/login' || pathname === '/' || pathname === '/nuova-prenotazione' || pathname.startsWith('/scheda/')) return null
   const entry = SECTION_TITLES.find(([prefix]) => pathname.startsWith(prefix))
   const title = entry ? entry[1] : 'Casa Ania'
   return (

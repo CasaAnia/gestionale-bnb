@@ -20,12 +20,12 @@ const pezzi = leggi('components/nuova/PezziNuova.tsx')
 const FOGLI: { file: string; stato: string; apre: RegExp; etichette?: string }[] = [
   { file: 'FoglioPagamento', stato: 'foglioPagamento', apre: /onPagamento=\{\(\) => setFoglioPagamento\(true\)\}/ },
   { file: 'FoglioComePaga', stato: 'foglioComePaga', apre: /onComePaga=\{\(\) => setFoglioComePaga\(true\)\}/ },
-  { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{apriArrivi\}/, etichette: 'components/ArrivoNavetta.tsx' },
+  { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onModifica=\{apriArrivi\}/, etichette: 'components/ArrivoNavetta.tsx' },
   { file: 'FoglioCliente', stato: 'foglioCliente', apre: /onModificaDati=\{\(\) => setFoglioCliente\(true\)\}/ },
   { file: 'FoglioCambiaCliente', stato: 'foglioCambiaCliente', apre: /onCambiaCliente=\{\(\) => setFoglioCambiaCliente\(true\)\}/ },
-  { file: 'FoglioAnnulla', stato: 'foglioAnnulla', apre: /data-annulla-prenotazione onClick=\{\(\) => setFoglioAnnulla\(true\)\}/ },
+  { file: 'FoglioAnnulla', stato: 'foglioAnnulla', apre: /onAnnulla=\{statoSoggiorno !== 'annullata' \? \(\) => setFoglioAnnulla\(true\) : null\}/ },
   { file: 'FoglioSconto', stato: 'foglioSconto', apre: /onSconto=\{\(\) => setFoglioSconto\(true\)\}/ },
-  { file: 'FoglioNota', stato: 'foglioNota', apre: /data-nota-colore onClick=\{\(\) => setFoglioNota\(true\)\}/ },
+  { file: 'FoglioNota', stato: 'foglioNota', apre: /onNota=\{\(\) => setFoglioNota\(true\)\}/ },
   { file: 'FoglioConLei', stato: 'foglioConLei', apre: /onConLei=\{\(\) => setFoglioConLei\(true\)\}/ },
 ]
 // «Cambia date» si apre su UNA linea (lo stato porta la chiave): si prova a parte, sotto
@@ -263,7 +263,9 @@ test('dopo «Come paga» la testa e il conto si aggiornano: le righe portano il 
   assert.match(dopo, /setFoglioComePaga\(false\)/)
   // lo stato in testa («bonifico atteso») e la riga «Come paga» del conto leggono dalle righe
   assert.match(pagina, /const accordo = useMemo\(\(\) => accordoPrenotazione\(righe\) \?\? booking, \[righe, booking\]\)/)
-  assert.match(pagina, /statoConto\(\{ totaleCent: conto\.totaleCent, ricevutiCent: conto\.ricevutiCent, pagato: righe\.some\(r => r\.pagato\), bonifico: accordo\?\.bonifico \}\)/)
+  // la linguetta «Conto» e «In breve» leggono lo stesso riepilogo; la caparra dall'accordo delle righe
+  assert.match(pagina, /contoLinguetta\(riepilogo\.residuoCent, riepilogo\.saldato\)/)
+  assert.match(pagina, /caparraDaRicevere\(accordoSalvato as never, conto\.totaleCent, conto\.ricevutiCent\)/)
   assert.match(pagina, /comePagaScheda\(accordoSalvato\?\.accordo_pagamento, accordo\?\.bonifico\)/)
 })
 
@@ -395,8 +397,8 @@ test('«Annulla la prenotazione»: prima chi ha annullato (tre pastiglie), poi i
   // 21/09/2026 sera guarda lo stato della PRENOTAZIONE, non della riga aperta:
   // con una camera annullata e le altre vive il comando deve restare, se no da
   // quel link non si può più annullare il resto (secondo ricontrollo di Codex).
-  assert.match(pagina, /\{statoSoggiorno !== 'annullata' && <>/)
-  assert.equal(/\{booking\.status !== 'annullata' && <>/.test(pagina), false)
+  assert.match(pagina, /onAnnulla=\{statoSoggiorno !== 'annullata' \? \(\) => setFoglioAnnulla\(true\) : null\}/)
+  assert.equal(/booking\.status !== 'annullata'/.test(pagina), false)
 })
 
 test('l’annullamento scrive come la scheda attuale, su tutte le righe attive, senza cancellare niente', () => {
@@ -416,7 +418,9 @@ test('l’annullamento scrive come la scheda attuale, su tutte le righe attive, 
   assert.match(dopo, /r\.status === 'annullata' \? r : \{ \.\.\.r, \.\.\.campi \}/)
   assert.match(dopo, /setAnnullata\(true\)/)
   assert.match(dopo, /rileggi\(\)/)
-  assert.match(pagina, /data-annullata[\s\S]{0,300}background: FONDO_ANNULLATA, color: TESTO_ANNULLATA/)
+  // la pastiglia in mattone, sottile sotto la barra (veste «Maison», 28/09/2026)
+  assert.match(pagina, /data-annullata className="sch-pastiglia mat">✓ \{PRENOTAZIONE_ANNULLATA\}/)
+  assert.match(leggi('app/maison.css'), /\.sch-pastiglia\.mat \{ color: var\(--m-mat\); border-color: var\(--m-mat\);/)
   assert.match(leggi('lib/schedaPrenotazione.ts'), /export const TESTO_ANNULLATA = '#8C3B2E'/)
 })
 
@@ -537,8 +541,13 @@ test('«Nota e colore»: la nota della prenotazione, i colori del calendario, da
   assert.match(dopo, /rileggi\(\)/)
 })
 
-test('«Con lei» dalla scheda: lo stesso pezzo dell’inserimento, tutte e sei le colonne, senza la 0056 si salva il resto', () => {
+test('«Chi dorme in camera» (era «Con lei») dalla scheda: lo stesso pezzo dell’inserimento, tutte e sei le colonne, senza la 0056 si salva il resto', () => {
   const conLei = leggi('components/scheda/FoglioConLei.tsx')
+  // punto 14d (Ania, 28/09/2026): il nome è «Chi dorme in camera» ovunque
+  const lib = leggi('lib/conLeiScheda.ts')
+  assert.match(lib, /export const TITOLO_CON_LEI = 'Chi dorme in camera'/)
+  assert.match(lib, /export const COMANDO_CON_LEI = 'Modifica chi dorme'/)
+  assert.equal(/'Con lei'/.test(lib), false, '«Con lei» è ancora un nome della scheda')
   assert.match(conLei, /import ConLei from '@\/components\/nuova\/ConLei'/)
   assert.match(conLei, /<ConLei persone=\{persone\}[\s\S]{0,200}senzaTitolo etichetteOttone/)
   assert.match(conLei, /campiConLeiCompleti\(persone\)/)

@@ -39,15 +39,16 @@ export function arriviPrecedenti(altre: SegmentoStorico[], oggi: string) {
 
 export default function ArriviPrecedenti({ altre, oggi, className = '' }: { altre: SegmentoStorico[]; oggi: string; className?: string }) {
   const righe = arriviPrecedenti(altre, oggi)
-  if (righe.length === 0) return <p data-arrivi-precedenti className={className} style={{ fontSize: 13, color: 'var(--color-stone)' }}>Nessun arrivo precedente registrato per questa cliente.</p>
+  // veste «Maison» (28/09/2026): righe a filo, il periodo in Cormorant
+  if (righe.length === 0) return <p data-arrivi-precedenti className={`np-hint ${className}`}>Nessun arrivo precedente registrato per questa cliente.</p>
   return (
-    <div data-arrivi-precedenti className={`ed-lista ${className}`}>
+    <div data-arrivi-precedenti className={className}>
       {righe.map(r => (
-        <div key={r.chiave} className="flex flex-wrap items-baseline" style={{ gap: '2px 8px', padding: '8px 0', fontSize: 13 }}>
-          <span style={{ fontWeight: 600, color: 'var(--color-green-dark)' }}>{r.periodo}</span>
-          <span style={{ color: 'var(--color-stone)' }}>{r.camere}</span>
-          <span className="ml-auto" style={{ color: 'var(--color-stone)' }}>{r.orario}</span>
-          <span style={{ color: 'var(--color-stone)' }}>{r.navetta}</span>
+        <div key={r.chiave} className="sch-prec-arrivo">
+          <span className="sch-big">{r.periodo}</span>
+          <span>{r.camere}</span>
+          <span className="ml-auto">{r.orario}</span>
+          <span>{r.navetta}</span>
         </div>
       ))}
     </div>

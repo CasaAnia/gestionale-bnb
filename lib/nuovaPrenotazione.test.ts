@@ -105,7 +105,7 @@ test('la testata «Maison» (28/09/2026): titolo in Cormorant, la data e il clie
   assert.match(testa, /<h1>\{TITOLO_PAGINA\}<small data-oggi>\{data\}\{sotto \? ` · \$\{sotto\}` : ''\}<\/small><\/h1>/)
   assert.match(testa, /export const INDIETRO = '‹ Indietro'/)
   assert.match(testa, /useRegistraIndietro\(indietro, 'Indietro'\)/)
-  assert.match(leggiFile('components/MobileTopBar.tsx'), /pathname === '\/nuova-prenotazione'\) return null/)
+  assert.match(leggiFile('components/MobileTopBar.tsx'), /pathname === '\/nuova-prenotazione' \|\| pathname\.startsWith\('\/scheda\/'\)\) return null/)
   // la testata è la prima cosa della pagina
   assert.ok(pagina.indexOf('<TestaNuova') < pagina.indexOf('data-cerca-cliente'))
 })
@@ -442,7 +442,7 @@ test('la scheda saluta la prenotazione appena salvata e poi smette', () => {
   assert.match(scheda, /parametri\.get\('salvata'\) === '1'/)
   assert.match(scheda, /const t = setTimeout\(\(\) => setSalvata\(false\), SECONDI_SALVATA \* 1000\)/)
   assert.match(scheda, /data-salvata[\s\S]{0,200}onClick=\{\(\) => setSalvata\(false\)\}/)
-  assert.match(scheda, /background: FONDO_SALVATA/)
+  assert.match(scheda, /data-salvata className="sch-pastiglia"/)
 })
 
 test('la sezione «Adesso» non c’è più: conferma e dati bonifico stanno in «Messaggi» (Ania, 20/09/2026)', () => {
@@ -450,8 +450,9 @@ test('la sezione «Adesso» non c’è più: conferma e dati bonifico stanno in 
   assert.equal(existsSync(new URL('../components/scheda/AdessoScheda.tsx', import.meta.url)), false, 'il componente «Adesso» va tolto, non lasciato lì')
   const messaggi = readFileSync(new URL('../components/scheda/MessaggiScheda.tsx', import.meta.url), 'utf8')
   assert.match(messaggi, /data-conferma-immagine/, 'la conferma con immagine resta in «Messaggi»')
-  // la fascia delle sezioni è seguita subito da «Da controllare»
-  assert.match(scheda, /<FasciaSezioni voci=\{SEZIONI_SCHEDA\}[^\n]*\n\n\s*\{\/\* La sezione «Adesso»[\s\S]{0,400}<section id="controllare"/)
+  // dal 28/09/2026 le linguette: la prima parte è «Oggi», con «Da fare oggi»
+  assert.match(scheda, /<LinguetteScheda scelta=\{linguetta\}/)
+  assert.ok(scheda.indexOf("{linguetta === 'oggi'") < scheda.indexOf("{linguetta === 'soggiorno'"), 'la prima parte non è «Oggi»')
 })
 
 // ── La correzione dei soldi, anche nella pagina di adesso ──────────────────

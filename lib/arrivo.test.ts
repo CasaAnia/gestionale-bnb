@@ -358,10 +358,13 @@ test('RILIEVO CODEX: la testa legge il modello e non perde fascia, «circa» e a
   assert.equal(arrivoTestaDaArrivo(con({ tipo: 'luogo', luogo: 'linate', luogoDa: '15:00' })).orario, ORARIO_DA_DEFINIRE)
 })
 
-test('la scheda monta la testa col modello, non con le due colonne di sempre', () => {
+test('la scheda legge l’arrivo col modello, non con le due colonne di sempre', () => {
+  // dal 28/09/2026 l'arrivo sta in Oggi («In breve») e in Soggiorno («Arrivo e navetta»)
   const pagina = leggi('app/scheda/[id]/page.tsx')
-  assert.match(pagina, /const arrivoTestaTesto = arrivoTestaDaArrivo\(arrivoDati\)/)
-  assert.equal(/arrivoTesta\(primoSegmento/.test(pagina), false, 'la testa legge ancora check_in_time e shuttle')
+  assert.match(pagina, /const arrivoDati = useMemo\(\(\) => leggiArrivo\(/)
+  assert.match(pagina, /arrivoInBreve\(arrivoDati, primoArrivo, oggi\)/)
+  assert.match(pagina, /<ArrivoMaison arrivo=\{arrivoDati\}/)
+  assert.equal(/arrivoTesta\(primoSegmento|check_in_time \?\? booking\.check_in_time/.test(pagina), false, 'la scheda legge ancora check_in_time e shuttle')
 })
 
 test('anche «Arrivi precedenti» legge il modello: niente fasce troncate nello storico', () => {

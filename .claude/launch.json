@@ -85,6 +85,19 @@
         "PORTA_FINTO": "54348",
         "WATCHPACK_POLLING": "true"
       }
+    },
+    {
+      "name": "gestionale-bnb-scheda-maison-finta",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/revisioni/anteprima-prenotazioni-finta.mjs"
+      ],
+      "port": 3217,
+      "env": {
+        "ANTEPRIMA_SCHEDA_MAISON": "1",
+        "PORTA_APP": "3217",
+        "PORTA_FINTO": "54333"
+      }
     }
   ]
 }

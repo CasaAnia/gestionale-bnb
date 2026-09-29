@@ -404,6 +404,75 @@ const payments = [
   // conto è 260 − 100 = 160, e i dati bonifico devono chiedere 160, non 260.
   { id: 'ffffffff-0007-4000-8000-000000000007', booking_id: 'bbbbbbbb-2901-4000-8000-000000002901', amount: 100, method: 'bonifico', paid_on: '2026-09-20', created_at: ora },
 ]
+// Scenario opt-in della scheda «Maison» (28/09/2026): date RELATIVE a oggi,
+// dati solo sintetici. ANTEPRIMA_SCHEDA_MAISON=1 aggiunge i casi del
+// riferimento (docs/design/scheda-riferimento.html) e toglie le prenotazioni
+// fisse che si accavallerebbero nei prossimi dodici giorni:
+//   · Maria Rossi prenota per la mamma Teresa (spunta 0061 accesa): Ambra 3
+//     notti col letto la terza, poi Lena 3 notti; 490 € pieni, 470 concordati;
+//     caparra del 50% (235 €) entro dopodomani; treno a Milano Centrale alle
+//     14:30, in struttura 15:10, navetta Massimo; 4 soggiorni precedenti;
+//     nessun documento → /scheda/bbbbbbbb-4101-4000-8000-000000004101
+//   · Lucia Verdi, arrivo complicato: Malpensa fra le 13 e le 14, in
+//     struttura circa 15:30–16:30, navetta Aldo alle 14:15; Lena 2 → Allegra
+//     2 → Ambra 2, in tre col letto dalla terza notte; contanti all'arrivo
+//     → /scheda/bbbbbbbb-4201-4000-8000-000000004201
+//   · Paolo Saldato: Lena, contanti già incassati → Saldato 0 €
+//     → /scheda/bbbbbbbb-4301-4000-8000-000000004301
+//   · Nessun Numero: senza telefono → /scheda/bbbbbbbb-4401-4000-8000-000000004401
+if (process.env.ANTEPRIMA_SCHEDA_MAISON === '1') {
+  const oggiScheda = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const g = delta => new Date(Date.parse(oggiScheda + 'T12:00:00Z') + delta * 86400000).toISOString().slice(0, 10)
+  // via le prenotazioni fisse che toccano i prossimi dodici giorni: niente sovrapposizioni finte
+  for (let i = bookings.length - 1; i >= 0; i--) {
+    const b = bookings[i]
+    if (b.status !== 'annullata' && b.check_in < g(12) && b.check_out > g(-1)) bookings.splice(i, 1)
+  }
+  const maria = { ...ospite('aaaaaaaa-4100-4000-8000-000000004100', 'Maria Rossi', '393331234567'),
+    rating: 'ottimo', vuole_ricevuta: true, provenienza: 'altra_struttura', struttura_nome: 'Nida', notes: 'Chiede sempre la camera silenziosa' }
+  const lucia = { ...ospite('aaaaaaaa-4200-4000-8000-000000004200', 'Lucia Verdi', '393471112233'), provenienza: 'passaparola', struttura_nome: null }
+  const paolo = { ...ospite('aaaaaaaa-4300-4000-8000-000000004300', 'Paolo Saldato', '393489998877'), provenienza: 'booking', struttura_nome: null }
+  const senza = { ...ospite('aaaaaaaa-4400-4000-8000-000000004400', 'Nessun Numero', null), provenienza: null, struttura_nome: null }
+  guests.push(maria, lucia, paolo, senza)
+  const GM = 'cccccccc-4100-4000-8000-000000004100'
+  const GL = 'cccccccc-4200-4000-8000-000000004200'
+  const accordoMaria = { accordo_pagamento: 'caparra_meta', bonifico: true, caparra_centesimi: 23500, caparra_entro: g(2) }
+  bookings.push(
+    // i soggiorni precedenti di Maria: 400 + 140 + 100 = 640 €
+    prenotazione(ROOM.ambra, maria.id, '2026-04-29', '2026-05-04', 2, { id: 'bbbbbbbb-4191-4000-8000-000000004191', status: 'completata', price_per_night: 80, total_amount: 400, pagato: true }),
+    prenotazione(ROOM.amelia, maria.id, '2026-01-10', '2026-01-12', 1, { id: 'bbbbbbbb-4192-4000-8000-000000004192', status: 'completata', price_per_night: 70, total_amount: 140, pagato: true }),
+    prenotazione(ROOM.lena, maria.id, '2025-11-03', '2025-11-04', 3, { id: 'bbbbbbbb-4193-4000-8000-000000004193', group_id: 'cccccccc-4193-4000-8000-000000004193', status: 'completata', price_per_night: 50, total_amount: 50, pagato: true }),
+    prenotazione(ROOM.ambra, maria.id, '2025-11-04', '2025-11-05', 3, { id: 'bbbbbbbb-4194-4000-8000-000000004194', group_id: 'cccccccc-4193-4000-8000-000000004193', status: 'completata', price_per_night: 50, total_amount: 50, pagato: true }),
+    // il soggiorno di adesso: Ambra 3 notti (letto la terza), poi Lena 3 notti
+    prenotazione(ROOM.ambra, maria.id, g(0), g(3), 2, { id: 'bbbbbbbb-4101-4000-8000-000000004101', group_id: GM, ...accordoMaria,
+      extra_bed: true, extra_bed_dates: [g(2)], price_per_night: 80, extra_bed_total: 10, discount_type: 'target_total', discount_value: 240, total_amount: 240,
+      notes: 'Marito ricoverato in Humanitas', created_at: new Date(Date.now() - 60 * 60000).toISOString(),
+      arrivo_tipo: 'luogo', arrivo_luogo: 'centrale', arrivo_luogo_altro: null, arrivo_luogo_ora_da: '14:30', arrivo_luogo_ora_a: null,
+      arrivo_struttura_ora_da: null, arrivo_struttura_ora_a: null, arrivo_stima_da: '15:10', arrivo_stima_a: null,
+      navetta: 'massimo', navetta_prelievo: '14:30', check_in_time: '15:10', shuttle: 'si',
+      extra_phone_1_name: 'Teresa Bianchi', extra_phone_1: '3405551122', chi_e: 'Mamma', intestataria_non_dorme: true }),
+    prenotazione(ROOM.lena, maria.id, g(3), g(6), 2, { id: 'bbbbbbbb-4102-4000-8000-000000004102', group_id: GM, ...accordoMaria,
+      price_per_night: 80, discount_type: 'target_total', discount_value: 230, total_amount: 230,
+      extra_phone_1_name: 'Teresa Bianchi', extra_phone_1: '3405551122', chi_e: 'Mamma', intestataria_non_dorme: true }),
+    // Lucia: Malpensa, stima in struttura, navetta Aldo; due cambi camera
+    prenotazione(ROOM.lena, lucia.id, g(0), g(2), 2, { id: 'bbbbbbbb-4201-4000-8000-000000004201', group_id: GL, accordo_pagamento: 'contanti',
+      price_per_night: 80, total_amount: 160,
+      arrivo_tipo: 'luogo', arrivo_luogo: 'malpensa', arrivo_luogo_altro: null, arrivo_luogo_ora_da: '13:00', arrivo_luogo_ora_a: '14:00',
+      arrivo_struttura_ora_da: null, arrivo_struttura_ora_a: null, arrivo_stima_da: '15:30', arrivo_stima_a: '16:30',
+      navetta: 'aldo', navetta_prelievo: '14:15', check_in_time: '15:30', shuttle: 'si' }),
+    prenotazione(ROOM.allegra, lucia.id, g(2), g(4), 3, { id: 'bbbbbbbb-4202-4000-8000-000000004202', group_id: GL, accordo_pagamento: 'contanti',
+      extra_bed: true, extra_bed_dates: [g(2), g(3)], price_per_night: 90, extra_bed_total: 20, total_amount: 200 }),
+    prenotazione(ROOM.ambra, lucia.id, g(4), g(6), 3, { id: 'bbbbbbbb-4203-4000-8000-000000004203', group_id: GL, accordo_pagamento: 'contanti',
+      extra_bed: true, extra_bed_dates: [g(4), g(5)], price_per_night: 80, extra_bed_total: 20, total_amount: 180 }),
+    // Paolo: già incassato tutto
+    prenotazione(ROOM.lena, paolo.id, g(8), g(10), 2, { id: 'bbbbbbbb-4301-4000-8000-000000004301', accordo_pagamento: 'contanti', price_per_night: 80, total_amount: 160, check_in_time: '17:00', shuttle: 'no' }),
+    // senza telefono
+    prenotazione(ROOM.amelia, senza.id, g(8), g(9), 1, { id: 'bbbbbbbb-4401-4000-8000-000000004401', price_per_night: 70, total_amount: 70 }),
+  )
+  payments.push({ id: 'ffffffff-4301-4000-8000-000000004301', booking_id: 'bbbbbbbb-4301-4000-8000-000000004301', amount: 160, method: 'contanti', paid_on: g(0), created_at: ora })
+  booking_whatsapp_log.push({ id: '77777777-4101-4000-8000-000000004101', booking_id: 'bbbbbbbb-4101-4000-8000-000000004101', message_type: 'conferma', message_text: '…', sent: true, created_at: new Date(Date.now() - 55 * 60000).toISOString() })
+}
+
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []
 

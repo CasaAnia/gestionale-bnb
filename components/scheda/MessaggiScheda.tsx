@@ -1,68 +1,40 @@
 'use client'
 // ============================================================================
-// LA PARTE «MESSAGGI» della scheda prenotazione — rifatta il 21/09/2026 sul
-// disegno approvato da Ania («I messaggi, al momento giusto», colonna DOPO ·
-// punto 6). Qui si decide COME si vede; COSA proporre lo decide
-// lib/messaggiFase (funzioni pure, provate a parte).
+// LA LINGUETTA «MESSAGGI» della scheda prenotazione.
+//
+// Storia: rifatta il 21/09/2026 sul disegno approvato da Ania («I messaggi,
+// al momento giusto», punto 6); dal 28/09/2026 impaginata come il
+// riferimento della scheda a linguette (docs/design/scheda-riferimento.html,
+// telefono 4). Qui si decide COME si vede; COSA proporre lo decidono
+// lib/messaggiFase (la fase del soggiorno) e lib/schedaMaison (destinatario e
+// griglia).
 //
 // Dall'alto in basso:
-//  1. l'interruttore «WhatsApp Ania / Business», che è lo STESSO oggetto di
-//     «Mese | 2 settimane» del calendario (components/InterruttorePillola):
-//     la scelta è quella di sempre, non ne nasce una nuova;
-//  2. il tasto pieno verde, largo quanto la SCRITTA e centrato (Ania,
-//     21/09/2026 sera: «fallo più corto sul computer ma anche nel
-//     cellulare»), SEMPRE in cima e in ogni fase del soggiorno:
-//     «Conferma prenotazione» e, sotto in grassetto,
-//     «Immagine e testo». Apre la finestra vera di ConfermaWhatsApp (immagine
-//     + anteprima + scelta del WhatsApp), non un semplice testo;
-//  3. «Utili adesso»: i pochi messaggi che servono in questa fase, uno sotto
-//     l'altro, allineati a sinistra, fondo salvia e angoli tondi;
-//  4. un filo sottile e «Tutti i messaggi», chiuso all'inizio: dentro ci sono
-//     tutti e nove, compreso il messaggio di annullamento col suo tono
-//     mattone (è un TESTO: non annulla niente).
+//  1. l'interruttore «WhatsApp Ania | Business» (la scelta di sempre);
+//  2. «A chi scrivi»: «Maria · ha prenotato» accesa, e «Teresa · dorme» solo
+//     quando in camera dorme un'altra persona (spunta della Nuova
+//     prenotazione): i link WhatsApp usano il numero della persona scelta;
+//  3. il riquadro «Conferma prenotazione · Immagine e testo», SEMPRE, in ogni
+//     fase: apre la finestra vera di ConfermaWhatsApp;
+//  4. «Utili adesso» a pastiglie (messaggiFase, senza «Messaggio libero»);
+//  5. «Tutti i messaggi» in una griglia a due colonne nell'ordine approvato,
+//     col messaggio di annullamento in mattone (è un TESTO: non annulla niente).
+// «Messaggio libero» non c'è più: al suo posto la nuvoletta accanto al nome.
 //
-// Il selettore «Prova anteprima» del disegno serviva solo alla dimostrazione:
-// qui la fase si ricava dalle date, e infatti non c'è.
-//
-// I testi NON stanno qui: arrivano da lib/messaggiPrenotazione, che li tiene
-// identici a quelli della scheda attuale, approvati parola per parola.
+// I testi NON stanno qui: arrivano da lib/messaggiPrenotazione, identici a
+// quelli approvati parola per parola.
 // ============================================================================
-import InterruttorePillola from '@/components/InterruttorePillola'
 import AvvisoSaluto from '@/components/AvvisoSaluto'
 import { avvisoSaluto } from '@/lib/avvisoSaluto'
 import type { Saluto } from '@/lib/guestName'
 import { type TipoMessaggio } from '@/lib/messaggiPrenotazione'
 import {
-  TUTTI_I_MESSAGGI, messaggiUtili, type FaseMessaggi, type VoceMessaggio,
+  type FaseMessaggi, type VoceMessaggio,
   TITOLO_CONFERMA, SOTTOTITOLO_CONFERMA, SEMPRE_DISPONIBILE, UTILI_ADESSO, TUTTI_I_MESSAGGI_TITOLO,
 } from '@/lib/messaggiFase'
+import { GRIGLIA_MESSAGGI, utiliScheda, A_CHI_SCRIVI, type Destinatario } from '@/lib/schedaMaison'
 
-export const FONDO_TASTO = 'var(--color-sage)'
-export const BORDO_ANNULLAMENTO = '#D9B3AC'
-export const TESTO_ANNULLAMENTO = '#8C3B2E'
-/** il filo sottile del disegno: lo stesso ottone attenuato della fascia di sezione */
-export const FILO_SEZIONE = 'color-mix(in srgb, var(--color-brass) 45%, transparent)'
-
-const TASTO = {
-  background: FONDO_TASTO,
-  color: 'var(--color-green-dark)',
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 24,
-  minHeight: 38,
-}
-// I consigliati: stessa pastiglia, ma alta 44 e col testo a sinistra
-const TASTO_UTILE = { ...TASTO, minHeight: 44 }
-const TASTO_ANNULLAMENTO = {
-  border: `1px solid ${BORDO_ANNULLAMENTO}`,
-  color: TESTO_ANNULLAMENTO,
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 24,
-  minHeight: 38,
-}
-
-export default function MessaggiScheda({ fase, saluto, business, onBusiness, onConfermaImmagine, href, onMessaggio, className = '' }: {
+export default function MessaggiScheda({ fase, saluto, business, onBusiness, destinatari, destinatario, onDestinatario, conNumero, senzaNumero, onConfermaImmagine, href, onMessaggio, className = '' }: {
   /** la fase del soggiorno intero (lib/messaggiFase.faseMessaggi) */
   fase: FaseMessaggi
   /** il nome che finisce dopo «Gentile» (lib/guestName.salutoOspite): quando
@@ -70,66 +42,74 @@ export default function MessaggiScheda({ fase, saluto, business, onBusiness, onC
   saluto: Saluto
   business: boolean
   onBusiness: (v: boolean) => void
+  destinatari: Destinatario[]
+  destinatario: Destinatario['chiave']
+  onDestinatario: (d: Destinatario['chiave']) => void
+  /** la persona scelta ha un numero: senza, i messaggi non partono */
+  conNumero: boolean
+  /** la frase di sempre quando manca il numero */
+  senzaNumero: string
   onConfermaImmagine: () => void
   /** il link wa.me già pronto per quel messaggio (per aprire in una scheda nuova) */
   href: (tipo: TipoMessaggio) => string
   onMessaggio: (tipo: TipoMessaggio) => (e: React.MouseEvent) => void
   className?: string
 }) {
-  const utili = messaggiUtili(fase)
+  const utili = utiliScheda(fase)
   // Senza un nome da scrivere dopo «Gentile» nessun messaggio è pronto: le
   // pastiglie restano lì, ma spente, e l'avviso sopra dice cosa fare.
-  const bloccato = avvisoSaluto(saluto)?.blocca === true
-  // una pastiglia, uguale dappertutto: cambia solo se sta a sinistra o al centro
-  const pastiglia = (m: VoceMessaggio, aSinistra: boolean) => (
+  const bloccato = avvisoSaluto(saluto)?.blocca === true || !conNumero
+  // una pastiglia, uguale dappertutto
+  const pastiglia = (m: VoceMessaggio, griglia: boolean) => (
     <a key={m.tipo} href={bloccato ? undefined : href(m.tipo)}
       onClick={bloccato ? (e: React.MouseEvent) => e.preventDefault() : onMessaggio(m.tipo)}
       target="_blank" rel="noopener noreferrer"
       data-messaggio={m.tipo} aria-disabled={bloccato || undefined}
-      className={`inline-flex items-center transition-transform duration-100 active:scale-[0.97] ${bloccato ? 'pointer-events-none opacity-40' : ''} ${aSinistra ? 'justify-start px-4' : 'justify-center px-3 text-center'}`}
-      style={m.tipo === 'annullamento' ? TASTO_ANNULLAMENTO : aSinistra ? TASTO_UTILE : TASTO}>
+      className={`np-chip ${m.tipo === 'annullamento' ? 'm' : ''} ${griglia ? 'sch-chip-griglia' : ''} ${bloccato ? 'pointer-events-none opacity-40' : ''}`}>
       {m.label}
     </a>
   )
 
   return (
     <div data-messaggi data-fase={fase} className={className}>
-      <InterruttorePillola
-        voci={[['ania', 'WhatsApp Ania'], ['business', 'Business']] as const}
-        scelta={business ? 'business' : 'ania'}
-        onScegli={v => onBusiness(v === 'business')}
-        nome="Quale WhatsApp"
-        dati="whatsapp"
-      />
-
-      <AvvisoSaluto saluto={saluto} className="mt-3" />
-
-      {/* La conferma con IMMAGINE E TESTO: sempre qui in cima, in ogni fase.
-          Larga quanto la scritta e centrata, non quanto la riga (Ania,
-          21/09/2026: «fallo più corto sul computer ma anche nel cellulare»). */}
-      <div className="text-center mt-3">
-        <button type="button" onClick={onConfermaImmagine} data-conferma-immagine data-senza-sottolinea
-          className="inline-flex flex-col items-center justify-center px-7 transition-transform duration-100 active:scale-[0.97]"
-          style={{ background: 'var(--color-green-mid)', color: '#fff', fontSize: 14, borderRadius: 25, paddingTop: 12, paddingBottom: 12, minHeight: 60 }}>
-          <span style={{ fontWeight: 600 }}>{TITOLO_CONFERMA}</span>
-          <strong style={{ fontWeight: 700 }}>{SOTTOTITOLO_CONFERMA}</strong>
-        </button>
-      </div>
-      <p data-conferma-sempre className="text-center mt-2" style={{ fontSize: 12, color: 'var(--color-stone)' }}>{SEMPRE_DISPONIBILE}</p>
-
-      {/* Utili adesso: pochi, in colonna, allineati a sinistra */}
-      <p data-utili-adesso className="mt-5 uppercase" style={{ fontSize: 11, letterSpacing: 1, color: 'var(--color-brass)' }}>{UTILI_ADESSO}</p>
-      <div data-suggeriti className="grid mt-2" style={{ gap: 9 }}>
-        {utili.map(m => pastiglia(m, true))}
-      </div>
-
-      {/* Tutti gli altri restano qui, chiusi all'inizio: non si toglie niente */}
-      <details data-tutti-messaggi className="mt-6" style={{ borderTop: `1px solid ${FILO_SEZIONE}`, paddingTop: 16 }}>
-        <summary style={{ fontSize: 14, fontWeight: 600 }}>{TUTTI_I_MESSAGGI_TITOLO}</summary>
-        <div className="grid grid-cols-2 mt-3" style={{ gap: 8 }}>
-          {TUTTI_I_MESSAGGI.map(m => pastiglia(m, false))}
+      <section className="np-sec" style={{ paddingTop: 16 }}>
+        {/* Quale WhatsApp: la voce scelta col filo d'ottone */}
+        <div className="mz-seg sch-seg" role="radiogroup" aria-label="Quale WhatsApp" data-interruttore="whatsapp">
+          <button type="button" role="radio" aria-checked={!business} className={!business ? 'on' : ''} data-scelta="ania" onClick={() => onBusiness(false)}>WhatsApp Ania</button>
+          <button type="button" role="radio" aria-checked={business} className={business ? 'on' : ''} data-scelta="business" onClick={() => onBusiness(true)}>Business</button>
         </div>
-      </details>
+
+        {/* A chi scrivi: la persona scelta decide il numero dei link */}
+        <p className="np-lab c" style={{ marginTop: 12 }}>{A_CHI_SCRIVI}</p>
+        <div className="np-chips c" data-destinatari>
+          {destinatari.map(d => (
+            <button key={d.chiave} type="button" data-destinatario={d.chiave} aria-pressed={destinatario === d.chiave}
+              className={`np-chip ${destinatario === d.chiave ? 'on' : ''}`} onClick={() => onDestinatario(d.chiave)}>{d.etichetta}</button>
+          ))}
+        </div>
+
+        <AvvisoSaluto saluto={saluto} className="mt-3" />
+        {!conNumero && <p data-senza-numero-messaggi className="np-hint m c">{senzaNumero}</p>}
+
+        {/* La conferma con IMMAGINE E TESTO: sempre qui, in ogni fase */}
+        <button type="button" onClick={onConfermaImmagine} data-conferma-immagine disabled={!conNumero} className="sch-conferma">
+          <span className="sch-big">{TITOLO_CONFERMA}</span>
+          <span className="sch-k">{SOTTOTITOLO_CONFERMA}</span>
+        </button>
+        <p data-conferma-sempre className="np-hint c">{SEMPRE_DISPONIBILE}</p>
+
+        {/* Utili adesso: pochi, a pastiglie */}
+        {utili.length > 0 && <>
+          <p data-utili-adesso className="np-lab">{UTILI_ADESSO}</p>
+          <div data-suggeriti className="np-chips">{utili.map(m => pastiglia(m, false))}</div>
+        </>}
+
+        {/* Tutti i messaggi: due colonne, nell'ordine approvato */}
+        <p className="np-lab" style={{ marginTop: 16 }}>{TUTTI_I_MESSAGGI_TITOLO}</p>
+        <div data-tutti-messaggi className="sch-griglia">
+          {GRIGLIA_MESSAGGI.map(m => pastiglia(m, true))}
+        </div>
+      </section>
     </div>
   )
 }

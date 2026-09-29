@@ -3,61 +3,56 @@ import FoglioMancatoArrivo from '@/components/scheda/FoglioMancatoArrivo'
 import { mancatoArrivo, contoMancatoArrivo } from '@/lib/mancatoArrivo'
 import { euroScheda } from '@/lib/schedaPrenotazione'
 // ============================================================================
-// LA NUOVA SCHEDA PRENOTAZIONE — /scheda/<id> (13/09/2026).
-// Nasce a un indirizzo a parte: la scheda vecchia (/prenotazioni/<id>) resta
-// com'è finché questa non è completa. Stile della pagina della proposta delle
-// richieste e della Home: testa col cliente (TestaCliente), fascia delle
-// sezioni ferma in cima (FasciaSezioni), avvisi di «Da controllare»
-// (AvvisoScheda, punto 3 del 20/09/2026 sera: le cifre del conto, non «arrivato il 7 set»).
-//
-// Le parti, nell'ordine della fascia: DA CONTROLLARE · SOGGIORNO · CONTO ·
-// MESSAGGI · CLIENTE, e in fondo CRONOLOGIA, che non sta nella fascia.
+// LA SCHEDA PRENOTAZIONE — /scheda/<id> (13/09/2026).
+// Dal 28/09/2026 nella veste «Maison» del riferimento approvato da Ania
+// (docs/design/scheda-riferimento.html): barra in cima, testata «T2» col
+// nome e i due cerchi (cornetta e WhatsApp), la riga «dorme …» quando in
+// camera non dorme chi ha prenotato, le note «N1»; sotto, CINQUE LINGUETTE
+// e UNA parte alla volta — OGGI · SOGGIORNO · CONTO · MESSAGGI · CLIENTE —
+// al posto della pagina unica che scorreva con la fascia delle sezioni. La
+// linguetta scelta resta nell'indirizzo (#conto, #cliente, #arrivo…).
+// Le regole nuove stanno in lib/schedaMaison.
 //
 // I dati sono quelli veri della prenotazione: tutte le camere della stessa
 // prenotazione con lib/prenotazioneUnica (la stessa lettura della scheda
 // attuale), i pagamenti, gli altri soggiorni della cliente. Le cifre del
 // conto vengono da contoPrenotazione, mai ricalcolate qui.
 //
-// I fogli di modifica si aprono QUI, nella stessa veste (components/scheda/
-// Foglio*): «Aggiungi pagamento», «Come paga», «Dati della cliente», «Cambia
-// cliente», «Annulla la prenotazione», «Arrivo», «da dove?» e il FOGLIETTO
-// DELLA NOTTE. I salvataggi sono quelli già in casa (lib/pagamentiDati,
-// lib/comePagaDati, lib/cambiaClienteDati, lib/arrivoDati,
-// lib/provenienzaDati, lib/strisciaNotti): nessuna regola riscritta. Dopo
-// ogni salvataggio la scheda si aggiorna da sé, senza ricaricare la pagina:
-// prima con quello che ha appena salvato, poi rileggendo in silenzio
-// (`rileggi`), così conto, cronologia e «Da controllare» tornano insieme.
-// Dalla striscia si cambiano camera, letto in più e ospiti notte per notte,
-// e le date di ogni linea: «Modifica soggiorno» non c'è più. Dal 17/09/2026
-// non c'è più nessun rimando alla scheda vecchia: sconto, tariffe, nota e
-// colore, «con lei», «togli» pagamento e «Aggiungi camera» stanno qui.
+// I fogli di modifica si aprono QUI (components/scheda/Foglio*): «Aggiungi
+// pagamento», «Come paga», «Dati della cliente», «Cambia cliente», «Annulla
+// la prenotazione», «Arrivo», «da dove?», «Chi dorme in camera» e il
+// FOGLIETTO DELLA NOTTE. I salvataggi sono quelli già in casa
+// (lib/pagamentiDati, lib/comePagaDati, lib/cambiaClienteDati,
+// lib/arrivoDati, lib/provenienzaDati, lib/strisciaNotti): nessuna regola
+// riscritta. Dopo ogni salvataggio la scheda si aggiorna da sé, senza
+// ricaricare la pagina: prima con quello che ha appena salvato, poi
+// rileggendo in silenzio (`rileggi`), così conto, cronologia e «Da
+// controllare» tornano insieme.
 //
 // I testi dei messaggi NON sono qui: stanno in lib/messaggiPrenotazione, che
 // li tiene identici a quelli della scheda attuale (test di confronto).
 // ============================================================================
 import { arriviDeiPeriodi, etichettaArrivoPeriodo } from '@/lib/arriviPeriodi'
-import { riepilogoPeriodi } from '@/lib/periodiPrenotazione'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import BackBar from '@/components/BackBar'
-import TestaScheda from '@/components/scheda/TestaScheda'
-import { dateTesta, arrivoTestaDaArrivo, percorsoTesta, oggiTesta, residuoTesta, DA_COMPLETARE_DOCUMENTO } from '@/lib/testaScheda'
-import FasciaSezioni from '@/components/FasciaSezioni'
-import AvvisoScheda from '@/components/scheda/AvvisoScheda'
+import TestataMaison from '@/components/scheda/TestataMaison'
+import LinguetteScheda, { useLinguetta } from '@/components/scheda/LinguetteScheda'
+import OggiScheda, { type RigaInBreve, type VoceDaFare } from '@/components/scheda/OggiScheda'
+import { ArrivoMaison, CamereMaison } from '@/components/scheda/SoggiornoMaison'
+import { VesteMaison } from '@/components/nuova/PezziNuova'
+import { useRegistraIndietro } from '@/components/BackContext'
+import { smartBack } from '@/lib/navHistory'
 import ClienteScheda from '@/components/scheda/ClienteScheda'
 import ContoScheda from '@/components/scheda/ContoScheda'
 import MessaggiScheda from '@/components/scheda/MessaggiScheda'
 import CronologiaScheda from '@/components/scheda/CronologiaScheda'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import AvvisoAzione from '@/components/AvvisoAzione'
-import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import StrisciaNottiCamere from '@/components/StrisciaNottiCamere'
 import FoglioNotte from '@/components/FoglioNotte'
-import { LinkSoggiorno } from '@/components/scheda/SoggiornoScheda'
-import BloccoArrivo from '@/components/scheda/BloccoArrivo'
 import ArriviPrecedenti from '@/components/scheda/ArriviPrecedenti'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
-import { leggiArrivo, arrivoInScheda, navettaInScheda } from '@/lib/arrivo'
+import { leggiArrivo } from '@/lib/arrivo'
 import FoglioProvenienza from '@/components/scheda/FoglioProvenienza'
 import FoglioComePaga from '@/components/scheda/FoglioComePaga'
 import FoglioPagamento, { type PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
@@ -76,7 +71,7 @@ import { COMANDO_TOGLI_CAMERA, CAMERA_TOLTA, siPuoTogliere, schedaDopo } from '@
 import { COMANDO_AGGIUNGI_CAMERA, ERRORE_SENZA_CAMERE, legameDaScrivere, hrefAggiungiCamera } from '@/lib/aggiungiCamera'
 import { aggiornaInUnColpo } from '@/lib/righeDati'
 import FoglioConLei from '@/components/scheda/FoglioConLei'
-import { COMANDO_NOTA, NOTA_SALVATA } from '@/lib/notaScheda'
+import { NOTA_SALVATA } from '@/lib/notaScheda'
 import { CON_LEI_SALVATO } from '@/lib/conLeiScheda'
 import { SCONTO_SALVATO, SCONTO_TOLTO } from '@/lib/scontoScheda'
 import { PAGAMENTO_TOLTO } from '@/lib/pagamentoFoglio'
@@ -85,10 +80,18 @@ import ConfermaVolante from '@/components/ConfermaVolante'
 import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
-  SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, statoConto, noteScheda,
-  arrivoScheda, daControllareScheda, segmentiAttivi, type SegmentoScheda,
-  PRENOTAZIONE_SALVATA, PRENOTAZIONE_DA_RICHIESTA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
+  statoScheda, primaRigaScheda, noteScheda, caselleSoggiorno,
+  daControllareScheda, segmentiAttivi, type SegmentoScheda,
+  PRENOTAZIONE_SALVATA, PRENOTAZIONE_DA_RICHIESTA,
 } from '@/lib/schedaPrenotazione'
+import {
+  puntiniLinguette, periodoLinguetta, contoLinguetta, statoBarra, chiDormeAlPosto, spesoTestata,
+  arrivoInBreve, camereInBreve, ospitiInBreve, nottiConLetto, contoInBreve, caparraDaRicevere, documentoInBreve, noteInBreve,
+  azioneDaFare, prossimiGiorni, camereSoggiorno, cambiCamere, SOTTO_STRISCIA,
+  fraseComePagaEstesa, nessunPagamento, tipoPagamenti, destinatariMessaggi, giaOspite, documentiCliente,
+  type Destinatario,
+} from '@/lib/schedaMaison'
+import { CONTO_DA_RILEGGERE } from '@/lib/testaScheda'
 import { comePagaSalvato } from '@/lib/comePaga'
 import { type ConfermaPagamento } from '@/lib/confermaPagamento'
 import { pianoNotti, stessaStriscia, ospitiDaQuiInPoi, type ContestoNotti, type NotteStriscia, type CameraStriscia, type TrattoPiano } from '@/lib/strisciaNotti'
@@ -97,8 +100,8 @@ import { capienzaCamera } from '@/lib/tariffe'
 import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, confermaNotti, conPrezzoConcordato, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, COMANDO_CAMBIO_CAMERA, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
 import { nomeOspite, nomeConAltri, salutoOspite } from '@/lib/guestName'
-import { giorniSoggiorno } from '@/lib/prezzoNotti'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
+import { nonELeiDaRiga } from '@/lib/nuovaPrenotazione'
 import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiProvenienza } from '@/lib/provenienza'
 import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
@@ -117,7 +120,6 @@ import type { PrenotazioneDC } from '@/lib/daControllare'
 import type { PagamentoStat } from '@/lib/statistiche/tipi'
 import type { SegmentoStorico } from '@/lib/storicoCliente'
 
-const OTTONE = '#A9884E'
 const COLONNE_ALTRE = '*, rooms(name), guests(full_name, phone)'
 // quante notti intorno al soggiorno si leggono le altre prenotazioni (per «Cambia date»)
 const GIORNI_INTORNO = 31
@@ -194,6 +196,13 @@ export default function SchedaPage() {
   // dalla scheda del cliente (?da=cliente&cliente=<id>): «Indietro» torna lì
   const daCliente = parametri.get('da') === 'cliente' ? parametri.get('cliente') : null
   const hrefIndietro = daCliente ? `/clienti/${daCliente}` : '/prenotazioni'
+  // «‹ Prenotazioni»: l'indietro di sempre (la pagina di prima, o la riserva)
+  const indietro = () => smartBack(router, hrefIndietro)
+  useRegistraIndietro(indietro, 'Indietro')
+  // la linguetta scelta, nell'indirizzo (#oggi, #conto, …): una parte alla volta
+  const [linguetta, scegliLinguetta] = useLinguetta()
+  // «A chi scrivi» nei Messaggi: chi ha prenotato, o chi dorme al suo posto
+  const [destinatario, setDestinatario] = useState<Destinatario['chiave']>('intestataria')
   const [arriviAperti, setArriviAperti] = useState(false)
   // la striscia delle notti: le camere di casa, la notte aperta e il salvataggio
   const [camere, setCamere] = useState<CameraStriscia[]>([])
@@ -310,7 +319,6 @@ export default function SchedaPage() {
     try { return contoPrenotazione(righe, pagamenti.map(p => ({ booking_id: p.booking_id, amount: p.amount }))) } catch { return null }
   }, [righe, pagamenti, contoLeggibile])
   const accordo = useMemo(() => accordoPrenotazione(righe) ?? booking, [righe, booking])
-  const stato = conto ? statoConto({ totaleCent: conto.totaleCent, ricevutiCent: conto.ricevutiCent, pagato: righe.some(r => r.pagato), bonifico: accordo?.bonifico }) : null
   // Chi è: soggiorni conclusi della stessa persona, fuori questa prenotazione
   const soggiorni = useMemo(() => {
     if (!booking) return []
@@ -321,14 +329,11 @@ export default function SchedaPage() {
   const provenienza = provenienzaInParole(guest ?? booking)
   const primaRiga = primaRigaScheda(soggiorni.length, provenienza)
   const note = noteScheda(guest?.notes, booking?.notes)
-  const arrivoTesto = booking ? arrivoScheda(primoArrivo, oggi, attive[0]?.check_in_time ?? booking.check_in_time, attive[0]?.shuttle ?? booking.shuttle) : null
   // «Arrivo e navetta» (21/09/2026): l'arrivo si legge dalla riga viva — con
   // le colonne della 0058 se ci sono, dalle due di sempre se non ci sono —
   // e le parole le fa lib/arrivo. «In struttura» e «a Linate» restano due
   // cose diverse: qui non si confondono mai.
   const arrivoDati = useMemo(() => leggiArrivo((attive[0] ?? booking) as unknown as Record<string, unknown>), [attive, booking])
-  const voceArrivo = useMemo(() => arrivoInScheda(arrivoDati), [arrivoDati])
-  const voceNavetta = useMemo(() => navettaInScheda(arrivoDati), [arrivoDati])
   // «Da controllare» (punto 3, 20/09/2026 sera): l'avviso del pagamento dice le
   // cifre del conto autorevole (`conto`, lo stesso oggetto del riepilogo), di
   // tutta la prenotazione; con il conto non leggibile lo dice, senza «0 €»
@@ -338,22 +343,15 @@ export default function SchedaPage() {
   }) : [], [booking, attive, altreNotti, pagamenti, oggi, documenti, hrefCliente, conto, righe])
 
   const telefono = guest?.phone ?? null
-  const waNumero = numeroWhatsAppPrenotazione(telefono)
   const primoSegmento = attive[0] ?? booking
   const arriviPeriodi = arriviDeiPeriodi(attive)
   const segmentoArrivo = righe.find(r => r.id === foglioArrivo) ?? (booking?.id === foglioArrivo ? booking : null)
-  const apriArrivi = () => {
-    if (arriviPeriodi.length > 1) document.getElementById('arrivo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    else setFoglioArrivo(primoSegmento?.id ?? null)
-  }
-  // La testa legge il MODELLO, non le due colonne di sempre (21/09/2026
-  // sera): così non perde la fine della fascia, il «circa» e l'autista.
-  const arrivoTestaTesto = arrivoTestaDaArrivo(arrivoDati)
+  // «Modifica arrivo» con un arrivo solo; con più arrivi ognuno ha il suo
+  const apriArrivi = () => setFoglioArrivo(primoSegmento?.id ?? null)
   // lo stato scritto solo se non è quello normale (Ania, 17/09/2026)
   const noShow = righe.some(mancatoArrivo)
   const contoNoShow = noShow && conto ? contoMancatoArrivo(righe, pagamenti) : null
   const statoTesto = noShow ? 'Mancato arrivo' : booking ? statoScheda(statoSoggiorno, ultimaPartenza, oggi) : ''
-  const statoDaMostrare = statoTesto === 'Confermata' ? null : statoTesto
 
   // ── LE STRISCE DELLE NOTTI ───────────────────────────────────────────────
   // Una striscia per linea (lib/lineeSoggiorno): il cambio camera durante il
@@ -367,8 +365,6 @@ export default function SchedaPage() {
     ospiti: Math.max(1, ...attive.map(s => Number(s.num_guests) || 1)),
   }), [camere, altreNotti, attive])
   const nonSiSposta = camere.length === 0
-  // le notti dormite in casa: una notte con due camere in parallelo conta una volta
-  const nottiDormite = useMemo(() => new Set(linee.flatMap(l => l.notti.filter(n => n.dentro).map(n => n.iso))).size, [linee])
   const lineaAperta = notteAperta ? (linee.find(l => l.chiave === notteAperta.linea) ?? null) : null
   const lineaDate = dateAperte ? (linee.find(l => l.chiave === dateAperte) ?? null) : null
   const lineaCambio = cambioAperto ? (linee.find(l => l.chiave === cambioAperto) ?? null) : null
@@ -515,7 +511,13 @@ export default function SchedaPage() {
   const perIMessaggi = () => perMessaggio({ ...rigaViva, accordo_pagamento: accordoSalvato?.accordo_pagamento ?? null, bonifico: accordo?.bonifico })
   const testoMessaggio = (tipo: TipoMessaggio) =>
     booking ? buildWhatsappMsg(perIMessaggi(), tipo, attive, pagamenti) : ''
-  const hrefMessaggio = (tipo: TipoMessaggio) => waHrefTesto(waNumero ?? '', testoMessaggio(tipo))
+  // «A chi scrivi» (28/09/2026): il numero dei link WhatsApp è quello della
+  // persona scelta; i testi restano quelli di sempre
+  const dorme = chiDormeAlPosto((rigaViva ?? booking) as unknown as Record<string, unknown> | null)
+  const destinatari = destinatariMessaggi({ nome: booking ? nomeOspite(booking) : '', telefono }, dorme)
+  const scelto = destinatari.find(d => d.chiave === destinatario) ?? destinatari[0]
+  const waMessaggi = numeroWhatsAppPrenotazione(scelto.telefono)
+  const hrefMessaggio = (tipo: TipoMessaggio) => waHrefTesto(waMessaggi ?? '', testoMessaggio(tipo))
   // la fase del soggiorno INTERO (tutti i tratti, anche con una pausa in mezzo):
   // decide quali messaggi stanno sotto «Utili adesso» (lib/messaggiFase).
   // Si passano TUTTE le righe e mai lo stato della sola riga aperta: con una
@@ -527,7 +529,7 @@ export default function SchedaPage() {
   const faseSoggiorno = faseMessaggi(righePrenotazione, oggi)
   const apriMessaggio = (tipo: TipoMessaggio) => (e: React.MouseEvent) => {
     e.preventDefault()
-    if (waNumero) openWhatsApp(waNumero, testoMessaggio(tipo), business)
+    if (waMessaggi) openWhatsApp(waMessaggi, testoMessaggio(tipo), business)
   }
 
   // ── CLIENTE ──────────────────────────────────────────────────────────────
@@ -546,198 +548,228 @@ export default function SchedaPage() {
     [eventi, messaggiInviati, booking],
   )
 
-  if (loading) return <div className="p-4"><BackBar href={hrefIndietro} /><div className="text-center py-10 text-stone">Caricamento…</div></div>
-  if (!booking) return <div className="p-4"><BackBar href={hrefIndietro} /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Prenotazione non trovata.'}</div></div>
+  // ── LE LINGUETTE ─────────────────────────────────────────────────────────
+  const caselle = caselleSoggiorno(attive, oggi)
+  const residuoCent = contoNoShow ? Math.max(0, contoNoShow.residuo) : riepilogo ? Math.max(0, riepilogo.residuoCent) : 0
+  const puntini = puntiniLinguette(controlli)
+  const contoTab = contoNoShow
+    ? contoLinguetta(Math.max(0, contoNoShow.residuo), contoNoShow.residuo <= 0)
+    : riepilogo ? contoLinguetta(riepilogo.residuoCent, riepilogo.saldato) : null
+
+  // ── OGGI ─────────────────────────────────────────────────────────────────
+  const caparra = conto ? caparraDaRicevere(accordoSalvato as never, conto.totaleCent, conto.ricevutiCent) : null
+  const inBreve: RigaInBreve[] = []
+  if (arriviPeriodi.length > 1) {
+    arriviPeriodi.forEach(r => inBreve.push({ chiave: `arrivo:${r.id}`, etichetta: 'Arrivo', valori: arrivoInBreve(leggiArrivo(r as unknown as Record<string, unknown>), r.check_in, oggi) }))
+  } else if (primoArrivo) {
+    inBreve.push({ chiave: 'arrivo', etichetta: 'Arrivo', valori: arrivoInBreve(arrivoDati, primoArrivo, oggi) })
+  }
+  const cameraBreve = camereInBreve(caselle)
+  if (cameraBreve) inBreve.push({ chiave: 'camera', etichetta: 'Camera', valori: [cameraBreve] })
+  const ospitiBreve = ospitiInBreve(caselle, nottiConLetto(attive))
+  if (ospitiBreve) inBreve.push({ chiave: 'ospiti', etichetta: 'Ospiti', valori: [ospitiBreve] })
+  if (contoNoShow) {
+    inBreve.push({ chiave: 'conto', etichetta: 'Conto', valori: [contoNoShow.residuo > 0 ? `Mancato arrivo · ${euroScheda(contoNoShow.residuo)}` : 'Mancato arrivo · saldato'], tono: contoNoShow.residuo > 0 ? 'mat' : 'verde' })
+  } else if (riepilogo) {
+    const c = contoInBreve(riepilogo.residuoCent, riepilogo.saldato, caparra)
+    inBreve.push({ chiave: 'conto', etichetta: 'Conto', valori: [c.testo], tono: c.saldato ? 'verde' : 'mat' })
+  } else {
+    inBreve.push({ chiave: 'conto', etichetta: 'Conto', valori: [CONTO_DA_RILEGGERE], tono: 'mat' })
+  }
+  const documentoBreve = documentoInBreve(documenti)
+  if (documentoBreve) inBreve.push({ chiave: 'documento', etichetta: 'Documento', valori: [documentoBreve.testo], tono: documentoBreve.manca ? 'mat' : undefined })
+  const noteBreve = noteInBreve(note)
+  if (noteBreve) inBreve.push({ chiave: 'note', etichetta: 'Note', valori: [noteBreve] })
+  // «Da fare oggi»: le voci di «Da controllare», ognuna con UNA azione
+  const daFare: VoceDaFare[] = controlli.map(v => {
+    const azione = azioneDaFare(v.chiave)
+    const base = { chiave: v.chiave, titolo: v.titolo, dettaglio: v.dettaglio ?? '', azione }
+    if (azione === 'Pagamento') return { ...base, onClick: conto ? () => setFoglioPagamento(true) : undefined }
+    if (azione === 'Arrivo') return { ...base, onClick: () => setFoglioArrivo(v.chiave.slice('arrivo:'.length)) }
+    if (v.chiave.startsWith('cambio:')) return { ...base, href: `/calendario?giorno=${v.chiave.slice('cambio:'.length)}` }
+    return { ...base, href: v.link?.href ?? null }
+  })
+  const prossimi = statoSoggiorno === 'annullata' ? [] : prossimiGiorni(caselle, oggi, ultimaPartenza, residuoCent)
+
+  // ── SOGGIORNO ────────────────────────────────────────────────────────────
+  const righeCamere = camereSoggiorno(attive)
+  const cambi = cambiCamere(righeCamere)
+
+  // ── CONTO ────────────────────────────────────────────────────────────────
+  const tipiPagamento = tipoPagamenti(pagamentiScheda.map(p => ({ id: p.id, amount: p.amount, paid_on: p.paid_on })), conto?.totaleCent ?? 0)
+
+  // ── CLIENTE ──────────────────────────────────────────────────────────────
+  const dormonoAltri = nonELeiDaRiga((rigaViva ?? booking) as unknown as Record<string, unknown> | null)
+
+  // La barra in cima: «‹ Prenotazioni» e lo stato in maiuscoletto ottone
+  const barra = (
+    <div className="sch-top" data-riga-navigazione>
+      <button type="button" className="np-back" onClick={indietro} data-indietro>‹ Prenotazioni</button>
+      {!loading && booking && <span data-stato-scheda className="stato">{statoBarra(statoTesto)}</span>}
+    </div>
+  )
+
+  if (loading) return <div className="maison sch -mt-12 lg:mt-0" data-senza-sottolinea>{barra}<p className="mz-caricamento">Caricamento…</p></div>
+  if (!booking) return <div className="maison sch -mt-12 lg:mt-0" data-senza-sottolinea>{barra}<section className="np-sec"><p role="alert" className="np-hint m">{errore || 'Prenotazione non trovata.'}</p></section></div>
 
   return (
-    /* Margini laterali 22 px, tutto centrato, come la proposta */
-    <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
-      <div className="-mx-[6px]"><BackBar href={hrefIndietro} /></div>
+    <VesteMaison>
+    {/* Dal telefono il bianco della Home (prova C) e la veste E; dal Mac crema, 620 px centrati */}
+    <div className="maison sch -mt-12 lg:mt-0 md:max-w-[620px] md:mx-auto" data-senza-sottolinea data-scheda-maison>
+      {barra}
 
       {salvata && (
-        <p data-salvata className="text-center uppercase" onClick={() => setSalvata(false)}
-          style={{ marginBottom: 10, padding: '6px 12px', borderRadius: 999, background: FONDO_SALVATA, color: 'var(--color-green-mid)', fontSize: 11, letterSpacing: '1.5px', fontWeight: 700 }}>{daRichiesta ? PRENOTAZIONE_DA_RICHIESTA : PRENOTAZIONE_SALVATA}</p>
+        <p data-salvata className="sch-pastiglia" onClick={() => setSalvata(false)}>{daRichiesta ? PRENOTAZIONE_DA_RICHIESTA : PRENOTAZIONE_SALVATA}</p>
       )}
       {annullata && (
-        <p data-annullata className="text-center uppercase"
-          style={{ marginBottom: 10, padding: '6px 12px', borderRadius: 999, background: FONDO_ANNULLATA, color: TESTO_ANNULLATA, fontSize: 11, letterSpacing: '1.5px', fontWeight: 700 }}>✓ {PRENOTAZIONE_ANNULLATA}</p>
+        <p data-annullata className="sch-pastiglia mat">✓ {PRENOTAZIONE_ANNULLATA}</p>
       )}
 
-      {/* Lo stato, a destra, solo quando dice qualcosa: «Confermata» è la norma e
-          non si scrive; il link di ritorno all'elenco non c'è più, torna indietro
-          la freccia in cima (Ania, 17/09/2026). */}
-      {statoDaMostrare && (
-        <div data-riga-navigazione className="flex items-center justify-end gap-3">
-          <span data-stato-scheda className="uppercase" style={{ fontSize: 11, letterSpacing: '1.5px', color: OTTONE }}>{statoDaMostrare}</span>
+      {/* La testata «T2» con le note «N1»: nome, i due cerchi, chi dorme, già ospite */}
+      <TestataMaison
+        // con la riga «dorme …» il nome di chi dorme non si ripete accanto a quello di chi ha prenotato
+        nome={dorme ? nomeOspite(booking) : nomeConAltri(booking)}
+        stella={valutazioneDi(guest) === 'ottimo'}
+        ricevuta={vuoleRicevuta(guest)}
+        telefono={telefono}
+        dorme={dorme}
+        primaRiga={primaRiga.testo}
+        speso={spesoTestata(totaleSoggiorniCent)}
+        chiediProvenienza={primaRiga.chiediProvenienza && booking.guest_id ? () => setFoglioProvenienza(true) : null}
+        note={note}
+      />
+
+      <LinguetteScheda scelta={linguetta} onScegli={scegliLinguetta}
+        periodo={periodoLinguetta(primoArrivo, ultimaPartenza)} conto={contoTab} puntini={puntini} />
+
+      {avviso && <div className="np-sec"><AvvisoAzione testo={avviso} /></div>}
+
+      {/* ── OGGI ─────────────────────────────────────────────────────────── */}
+      {linguetta === 'oggi' && (
+        <div id="parte-oggi" role="tabpanel" data-parte="oggi">
+          <OggiScheda inBreve={inBreve} daFare={daFare} prossimi={prossimi} />
         </div>
       )}
-      {avviso && <AvvisoAzione testo={avviso} className="mt-3" />}
 
-      {/* La testa (20/09/2026 sera, disegno approvato da Ania): le parole le
-          fa lib/testaScheda, la cifra del residuo è quella del conto sotto */}
-      <div style={{ marginTop: 14 }}>
-        <TestaScheda
-          primaRiga={primaRiga.testo}
-          chiediProvenienza={primaRiga.chiediProvenienza && booking.guest_id ? { testo: 'da dove? ›', onClick: () => setFoglioProvenienza(true) } : null}
-          totaleCent={totaleSoggiorniCent}
-          hrefCliente="#cliente"
-          nome={nomeConAltri(booking)}
-          stella={valutazioneDi(guest) === 'ottimo'}
-          ricevuta={vuoleRicevuta(guest)}
-          periodi={riepilogoPeriodi(attive).separati ? attive.map(s => ({
-            date: dateTesta(s.check_in, s.check_out, giorniSoggiorno(s.check_in, s.check_out).length),
-            dettaglio: `${s.rooms?.name || 'Camera'} · ${Number(s.num_guests) || 1} ${(Number(s.num_guests) || 1) === 1 ? 'ospite' : 'ospiti'}`,
-          })) : []}
-          date={dateTesta(primoArrivo, ultimaPartenza, nottiDormite || giorniSoggiorno(primoArrivo, ultimaPartenza).length)}
-          orario={arriviPeriodi.length > 1 ? `${arriviPeriodi.length} arrivi · vedi le date` : arrivoTestaTesto.orario}
-          navetta={arriviPeriodi.length > 1 ? 'Orari e navette per arrivo' : arrivoTestaTesto.navetta}
-          onArrivo={apriArrivi}
-          percorso={percorsoTesta(attive.length ? attive : righe)}
-          oggi={oggiTesta(attive, oggi, statoSoggiorno)}
-          residuo={contoNoShow ? { etichetta: contoNoShow.residuo > 0 ? 'Mancato arrivo · da incassare' : 'Mancato arrivo · saldato', importo: euroScheda(Math.max(0,contoNoShow.residuo)) } : residuoTesta(riepilogo, stato?.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata')}
-          daCompletare={controlli.some(v => v.chiave === 'documento') ? DA_COMPLETARE_DOCUMENTO : null}
-          telefono={telefonoAGruppi(telefono) || telefono}
-          telefonoDaChiamare={waNumero}
-          onScrivi={waNumero ? () => openWhatsApp(waNumero, '') : undefined}
-          documento={<RigaDocumentiPrenotazione guestId={booking.guest_id} conteggio={documenti} scheda />}
-          note={note}
-        />
-      </div>
+      {/* ── SOGGIORNO: arrivo e navetta, le notti, le camere ─────────────── */}
+      {linguetta === 'soggiorno' && (
+        <div id="parte-soggiorno" role="tabpanel" data-parte="soggiorno">
+          <section id="arrivo" className="np-sec">
+            <p className="mz-eyebrow">Arrivo e navetta</p>
+            {arriviPeriodi.length > 1 ? arriviPeriodi.map(r => (
+              <div key={r.id} data-arrivo-periodo={r.id}>
+                <ArrivoMaison arrivo={leggiArrivo(r as unknown as Record<string, unknown>)} checkIn={r.check_in} oggi={oggi}
+                  etichetta={etichettaArrivoPeriodo(r)} onModifica={() => setFoglioArrivo(r.id)} ariaModifica={`Modifica ${etichettaArrivoPeriodo(r).toLowerCase()}`} />
+              </div>
+            )) : primoArrivo && <ArrivoMaison arrivo={arrivoDati} checkIn={primoArrivo} oggi={oggi} onModifica={apriArrivi} />}
+            {arriviAperti && <ArriviPrecedenti altre={altreCliente as unknown as SegmentoStorico[]} oggi={oggi} className="mt-2" />}
+            <p style={{ marginTop: 8 }}>
+              <button type="button" className="mz-lnk q" data-arrivi-precedenti-comando aria-expanded={arriviAperti} onClick={() => setArriviAperti(a => !a)}>
+                {arriviAperti ? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'}
+              </button>
+            </p>
+          </section>
 
-      <FasciaSezioni voci={SEZIONI_SCHEDA} className="mt-[22px]" top="top-12 lg:top-0" spaziatura={0.6} />
+          <section id="soggiorno" className="np-sec" style={{ paddingTop: 30 }}>
+            <p className="mz-eyebrow">Le notti</p>
+            {/* Le strisce: camera, ospiti e letto in più di ogni notte, si cambiano di qui.
+                Con più camere in parallelo, una striscia per linea col suo titolo. */}
+            {linee.map((l, i) => (
+              <div key={l.chiave} data-linea={l.chiave}>
+                {linee.length > 1 && <p data-linea-titolo className="np-lab c" style={{ marginTop: i === 0 ? 10 : 18 }}>{l.titolo}</p>}
+                <StrisciaNottiCamere notti={l.notti} oggi={oggi} spiegazione={false} riassunto={false}
+                  ospitiAttesi={Math.max(1, ...l.segmenti.map(s => Number(s.num_guests) || 1))}
+                  onNotte={nonSiSposta ? undefined : n => setNotteAperta({ linea: l.chiave, iso: n.iso })} className="mt-2" />
+                {i === 0 && !nonSiSposta && <p className="np-hint" data-sotto-striscia>{SOTTO_STRISCIA}</p>}
+                {/* i comandi della linea: «Cambia date · Cambio camera», sull'ultima «Aggiungi camera» */}
+                {!nonSiSposta && (
+                  <p data-comandi-linea className="sch-azioni">
+                    <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="mz-lnk">{COMANDO_DATE}</button>
+                    <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="mz-lnk">{COMANDO_CAMBIO_CAMERA}</button>
+                    {i === linee.length - 1 && statoSoggiorno !== 'annullata' && (
+                      <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="mz-lnk q">{COMANDO_AGGIUNGI_CAMERA}</button>
+                    )}
+                    {siPuoTogliere(linee.length) && (
+                      <button type="button" data-togli-camera={l.chiave} onClick={() => setTogliAperto(l.chiave)} className="mz-lnk q sch-lnk-mat">{COMANDO_TOGLI_CAMERA}</button>
+                    )}
+                  </p>
+                )}
+              </div>
+            ))}
+            {linee.length > 1 && !nonSiSposta && <p data-linee-parallele className="np-hint">{SPIEGAZIONE_PARALLELE}</p>}
+            {nonSiSposta && linee.length > 0 && <p data-striscia-ferma className="np-hint">{CAMERE_NON_LETTE}</p>}
+          </section>
 
-      {/* La sezione «Adesso» (conferma da mandare) non c'è più (Ania, 20/09/2026):
-          conferma e dati bonifico stanno in «Messaggi». */}
+          {righeCamere.length > 0 && (
+            <section className="np-sec" data-camere-soggiorno>
+              <p className="mz-eyebrow">Camere {cambi && <small>· {cambi}</small>}</p>
+              <CamereMaison righe={righeCamere} />
+            </section>
+          )}
+        </div>
+      )}
 
-      {/* ── Da controllare ────────────────────────────────────────────────── */}
-      <section id="controllare" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
-        <p className="ed-sezione">Da controllare {controlli.length > 0 && <small>{controlli.length}</small>}</p>
-        {controlli.length === 0
-          ? <p data-tutto-a-posto className="mt-2 font-semibold" style={{ fontSize: 14, color: 'var(--color-green-mid)' }}>{TUTTO_A_POSTO}</p>
-          : <div className="mt-[15px] flex flex-col gap-[10px]">
-            {/* «Aggiungi pagamento» apre il foglio già esistente QUI, con la
-                prenotazione intera (stesso comando del conto): niente cambio
-                di pagina, niente saldo registrato da solo */}
-            {controlli.map(v => <AvvisoScheda key={v.chiave} etichetta={v.etichetta} titolo={v.titolo} dettaglio={v.dettaglio} parti={v.parti} link={v.link}
-              azione={v.comando?.tipo === 'pagamento' && conto ? { testo: v.comando.testo, onClick: () => setFoglioPagamento(true) } : null} />)}
-          </div>}
-      </section>
-
-      {/* ── Arrivo (Ania, 17/09/2026: prima del soggiorno) ─────────────────── */}
-      <section id="arrivo" className="pt-[34px] scroll-mt-24">
-        <p className="ed-sezione">Arrivo e navetta</p>
-        {arriviPeriodi.length > 1 ? arriviPeriodi.map(r => (
-          <div key={r.id} className="mt-4" data-arrivo-periodo={r.id}>
-            <BloccoArrivo etichettaArrivo={etichettaArrivoPeriodo(r)} arrivo={arrivoInScheda(leggiArrivo(r as unknown as Record<string, unknown>))} navetta={navettaInScheda(leggiArrivo(r as unknown as Record<string, unknown>))} />
-            <button type="button" className="ed-azione mt-2" aria-label={`Modifica ${etichettaArrivoPeriodo(r).toLowerCase()}`} onClick={() => setFoglioArrivo(r.id)}>Modifica arrivo</button>
+      {/* ── CONTO ────────────────────────────────────────────────────────── */}
+      {linguetta === 'conto' && (
+        <div id="parte-conto" role="tabpanel" data-parte="conto">
+          <div id="conto">
+            {contoNoShow ? (
+              <section className="np-sec" style={{ paddingTop: 16 }} data-conto-mancato-arrivo>
+                <p className="np-hint">Prezzo originale: {euroScheda(contoNoShow.originale)}</p>
+                <p className="sch-big" style={{ fontSize: 24, marginTop: 8 }}>Mancato arrivo · 50%: {euroScheda(contoNoShow.dovuto)}</p>
+                <p style={{ marginTop: 8 }}>Ricevuto: {euroScheda(contoNoShow.ricevuto)} · Da incassare: {euroScheda(Math.max(0,contoNoShow.residuo))}</p>
+                <p className="np-hint">Camera liberata. Prenotazione conservata nello storico.</p>
+                {contoNoShow.residuo < 0 && <p className="np-hint m">Ricevuto oltre il dovuto: {euroScheda(-contoNoShow.residuo)}. Controlla la differenza.</p>}
+                <p className="sch-azioni"><button type="button" className="mz-lnk" onClick={()=>setFoglioMancato(true)}>{contoNoShow.residuo>0?'Registra pagamento ricevuto':'Dettagli pagamento'}</button></p>
+                {pagamenti.map((p,i)=><p className="np-hint" key={i}>{p.paid_on} · {euroScheda(Math.round(Number(p.amount)*100))}</p>)}
+              </section>
+            ) : riepilogo && conto && contoRighe
+              ? <ContoScheda riepilogo={riepilogo} conto={contoRighe}
+                accordo={{ nome: comePagaTesto.nome, frase: fraseComePagaEstesa(accordoSalvato as never, conto.totaleCent) }}
+                pagamenti={rigePagamenti} tipi={tipiPagamento} nessunPagamento={nessunPagamento(accordoSalvato as never)} copertura={copertura}
+                onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
+                onTogliPagamento={id => setPagamentoDaTogliere(id)} />
+              : <section className="np-sec"><p className="np-hint">Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p></section>}
           </div>
-        )) : <>
-          {arrivoTesto && <BloccoArrivo etichettaArrivo={`Arrivo · ${arrivoTesto.quando}`} arrivo={voceArrivo} navetta={voceNavetta} className="mt-3" />}
-          <LinkSoggiorno onArrivo={apriArrivi} onArriviPrecedenti={() => setArriviAperti(a => !a)} arriviAperti={arriviAperti} className="mt-1" />
-        </>}
-        {arriviPeriodi.length > 1 && <button type="button" className="ed-azione mt-4" aria-expanded={arriviAperti} onClick={() => setArriviAperti(a => !a)}>Arrivi precedenti</button>}
-        {arriviAperti && <ArriviPrecedenti altre={altreCliente as unknown as SegmentoStorico[]} oggi={oggi} className="mt-3" />}
-      </section>
+        </div>
+      )}
 
-      {/* ── Soggiorno ─────────────────────────────────────────────────────── */}
-      <section id="soggiorno" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
-        <p className="ed-sezione">Soggiorno</p>
-        {/* Le strisce: camera e letto in più di ogni notte, si cambiano di qui.
-            Con più camere in parallelo, una striscia per linea col suo titolo. */}
-        {linee.map((l, i) => (
-          <div key={l.chiave} data-linea={l.chiave}>
-            {linee.length > 1 && (
-              <p data-linea-titolo className="text-center" style={{ marginTop: i === 0 ? 10 : 18, fontSize: 12.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>{l.titolo}</p>
-            )}
-            {/* sotto ogni notte le persone di quella notte (in mattone se diverse da quelle della linea) */}
-            <StrisciaNottiCamere notti={l.notti} oggi={oggi} spiegazione={false}
-              ospitiAttesi={Math.max(1, ...l.segmenti.map(s => Number(s.num_guests) || 1))}
-              onNotte={nonSiSposta ? undefined : n => setNotteAperta({ linea: l.chiave, iso: n.iso })} className="mt-3" />
-            {/* la riga dei comandi della linea (Ania, 17/09/2026): «Cambia date ·
-                Cambio camera», e sull'ultima linea anche «Aggiungi camera» */}
-            {!nonSiSposta && (
-              <p data-comandi-linea className="flex flex-wrap items-center justify-center" style={{ marginTop: 10, gap: '0 12px', fontSize: 12.5 }}>
-                <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="ed-azione ed-azione-tenue">{COMANDO_DATE}</button>
-                <span style={{ color: 'var(--color-stone)' }}>·</span>
-                <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="ed-azione ed-azione-tenue">{COMANDO_CAMBIO_CAMERA}</button>
-                {i === linee.length - 1 && statoSoggiorno !== 'annullata' && <>
-                  <span style={{ color: 'var(--color-stone)' }}>·</span>
-                  <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="ed-azione ed-azione-tenue">{COMANDO_AGGIUNGI_CAMERA}</button>
-                </>}
-                {siPuoTogliere(linee.length) && <>
-                  <span style={{ color: 'var(--color-stone)' }}>·</span>
-                  <button type="button" data-togli-camera={l.chiave} onClick={() => setTogliAperto(l.chiave)} className="ed-azione ed-azione-tenue" style={{ color: '#8C3B2E' }}>{COMANDO_TOGLI_CAMERA}</button>
-                </>}
-              </p>
-            )}
-          </div>
-        ))}
-        {linee.length > 1 && !nonSiSposta && (
-          <p data-linee-parallele className="text-center" style={{ marginTop: 6, fontSize: 12, color: 'var(--color-stone)' }}>{SPIEGAZIONE_PARALLELE}</p>
-        )}
-        {nonSiSposta && linee.length > 0 && (
-          <p data-striscia-ferma className="text-center" style={{ marginTop: 6, fontSize: 12, color: 'var(--color-stone)' }}>
-            {CAMERE_NON_LETTE}
-          </p>
-        )}
-        {/* niente righe dei tratti («Allegra · 29 → 30 · … · 85 €»): il conto,
-            subito sotto, dice già le stesse cose (Ania, 17/09/2026) */}
-      </section>
-
-      {/* ── Conto ─────────────────────────────────────────────────────────── */}
-      <section id="conto" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
-        <p className="ed-sezione">Conto</p>
-        {contoNoShow ? <div className="mt-5">
-          <p className="text-sm text-stone">Prezzo originale: {euroScheda(contoNoShow.originale)}</p>
-          <p className="font-serif text-2xl mt-2">Mancato arrivo · 50%: {euroScheda(contoNoShow.dovuto)}</p>
-          <p className="mt-2">Ricevuto: {euroScheda(contoNoShow.ricevuto)} · Da incassare: {euroScheda(Math.max(0,contoNoShow.residuo))}</p>
-          <p className="text-sm text-stone mt-2">Camera liberata. Prenotazione conservata nello storico.</p>
-          {contoNoShow.residuo < 0 && <p className="text-red-800 mt-2">Ricevuto oltre il dovuto: {euroScheda(-contoNoShow.residuo)}. Controlla la differenza.</p>}
-          <button type="button" className="ed-azione mt-4" onClick={()=>setFoglioMancato(true)}>{contoNoShow.residuo>0?'Registra pagamento ricevuto':'Dettagli pagamento'}</button>
-          {pagamenti.map((p,i)=><p className="text-sm mt-2" key={i}>{p.paid_on} · {euroScheda(Math.round(Number(p.amount)*100))}</p>)}
-        </div> : riepilogo && conto && contoRighe
-          ? <ContoScheda className="mt-6" riepilogo={riepilogo} conto={contoRighe}
-            accordo={comePagaTesto} pagamenti={rigePagamenti} copertura={copertura}
-            onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
-            onTogliPagamento={id => setPagamentoDaTogliere(id)} />
-          : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}
-      </section>
-
-      {/* ── Messaggi ──────────────────────────────────────────────────────── */}
-      <section id="messaggi" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
-        <p className="ed-sezione">Messaggi</p>
-        {waNumero
-          ? <MessaggiScheda className="mt-3" fase={faseSoggiorno} saluto={salutoOspite(perIMessaggi())} business={business} onBusiness={setBusiness}
+      {/* ── MESSAGGI, e in fondo la cronologia ───────────────────────────── */}
+      {linguetta === 'messaggi' && (
+        <div id="parte-messaggi" role="tabpanel" data-parte="messaggi">
+          {/* senza nessun numero, come prima: la frase e basta */}
+          {!destinatari.some(d => numeroWhatsAppPrenotazione(d.telefono))
+            ? <section className="np-sec"><p data-senza-numero-messaggi className="np-hint m">Senza numero di telefono non si può scrivere alla cliente.</p></section>
+            : <MessaggiScheda fase={faseSoggiorno} saluto={salutoOspite(perIMessaggi())} business={business} onBusiness={setBusiness}
+            destinatari={destinatari} destinatario={scelto.chiave} onDestinatario={setDestinatario}
+            conNumero={!!waMessaggi} senzaNumero="Senza numero di telefono non si può scrivere alla cliente."
             onConfermaImmagine={() => setConfermaAperta(true)}
-            href={hrefMessaggio} onMessaggio={apriMessaggio} />
-          : <p className="mt-2 font-semibold" style={{ fontSize: 14, color: '#8C3B2E' }}>Senza numero di telefono non si può scrivere alla cliente.</p>}
-      </section>
+            href={hrefMessaggio} onMessaggio={apriMessaggio} />}
+          <section className="np-sec" data-sezione-cronologia>
+            <p className="mz-eyebrow">Cronologia</p>
+            <CronologiaScheda righe={storia} registrata={cronologiaAccesa} />
+          </section>
+        </div>
+      )}
 
-      {/* ── Cliente ───────────────────────────────────────────────────────── */}
-      <section id="cliente" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
-        <p className="ed-sezione">Cliente</p>
-        <ClienteScheda className="mt-3" voci={voci} soggiorni={soggiorni} totaleCent={totaleSoggiorniCent} conLei={conLei}
-          onChiediProvenienza={booking.guest_id ? () => setFoglioProvenienza(true) : undefined}
-          onModificaDati={() => setFoglioCliente(true)} onCambiaCliente={() => setFoglioCambiaCliente(true)} onConLei={() => setFoglioConLei(true)} />
-      </section>
-
-      {/* ── Cronologia ────────────────────────────────────────────────────── */}
-      <section className="pt-[34px]">
-        <p className="ed-sezione">Cronologia</p>
-        <CronologiaScheda className="mt-2" righe={storia} registrata={cronologiaAccesa} />
-      </section>
-
-      {/* I tre comandi in fondo, staccati da tutto il resto */}
-      <p data-comandi-fondo className="flex flex-wrap items-center justify-center mt-8 mb-4" style={{ gap: '0 12px', fontSize: 14 }}>
-        <button type="button" data-nota-colore onClick={() => setFoglioNota(true)} className="ed-azione">{COMANDO_NOTA}</button>
-        {statoSoggiorno !== 'annullata' && <>
-          <span style={{ color: 'var(--color-stone)' }}>·</span>
-          <button type="button" data-annulla-prenotazione onClick={() => setFoglioAnnulla(true)} className="ed-azione" style={{ color: '#8C3B2E' }}>Annulla prenotazione</button>
-        </>}
-      </p>
+      {/* ── CLIENTE ──────────────────────────────────────────────────────── */}
+      {linguetta === 'cliente' && (
+        <div id="parte-cliente" role="tabpanel" data-parte="cliente">
+          <ClienteScheda voci={voci} giaOspite={giaOspite(soggiorni.length, totaleSoggiorniCent)}
+            documenti={documentiCliente(documenti)} hrefDocumenti={hrefCliente ? `${hrefCliente}#documenti` : null}
+            notaPrenotazione={(booking.notes ?? '').trim() || null}
+            soggiorni={soggiorni} totaleCent={totaleSoggiorniCent}
+            intestataria={{ nome: nomeOspite(booking), telefono: telefonoAGruppi(telefono) || telefono || '' }}
+            conLei={conLei} dormonoAltri={dormonoAltri}
+            onChiediProvenienza={booking.guest_id ? () => setFoglioProvenienza(true) : undefined}
+            onModificaDati={() => setFoglioCliente(true)} onCambiaCliente={() => setFoglioCambiaCliente(true)}
+            onNota={() => setFoglioNota(true)} onConLei={() => setFoglioConLei(true)}
+            onAnnulla={statoSoggiorno !== 'annullata' ? () => setFoglioAnnulla(true) : null} />
+        </div>
+      )}
 
       {confermaAperta && (
-        <ConfermaWhatsApp booking={perIMessaggi() as never} groupBookings={attive as never}
+        <ConfermaWhatsApp booking={{ ...perIMessaggi(), guests: { ...(perIMessaggi().guests ?? {}), phone: scelto.telefono } } as never} groupBookings={attive as never}
           payments={pagamenti as never} onClose={() => setConfermaAperta(false)} />
       )}
 
@@ -979,5 +1011,6 @@ export default function SchedaPage() {
           }} />
       )}
     </div>
+    </VesteMaison>
   )
 }

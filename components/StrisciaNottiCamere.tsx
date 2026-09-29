@@ -67,7 +67,7 @@ export const PIU_LETTO = '+letto'
 export const TESTO_SEGMENTO_FUORI = 'fuori'
 export const TESTO_SENZA_CAMERA = '?'
 
-function StrisciaMaison({ notti, onNotte, scelta, className = '' }: { notti: NotteStriscia[]; onNotte?: (notte: NotteStriscia) => void; scelta?: string | null; className?: string }) {
+function StrisciaMaison({ notti, onNotte, scelta, conRiassunto = true, className = '' }: { notti: NotteStriscia[]; onNotte?: (notte: NotteStriscia) => void; scelta?: string | null; conRiassunto?: boolean; className?: string }) {
   const cambi = segniDiCambio(notti)
   const avvisi = avvisiStriscia(notti)
   const riassunto = riassuntoStriscia(notti)
@@ -99,13 +99,13 @@ function StrisciaMaison({ notti, onNotte, scelta, className = '' }: { notti: Not
           ))}
         </div>
       ))}
-      {riassunto && <p data-riassunto-striscia className="np-hint o c">{riassunto}</p>}
+      {conRiassunto && riassunto && <p data-riassunto-striscia className="np-hint o c">{riassunto}</p>}
       {avvisi.map(a => <p key={a} data-avviso-notte className="np-hint m c">{a}</p>)}
     </div>
   )
 }
 
-export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospitiAttesi, spiegazione = true, className = '' }: {
+export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospitiAttesi, spiegazione = true, riassunto = true, className = '' }: {
   notti: NotteStriscia[]
   /** la data di oggi (YYYY-MM-DD): la notte di stanotte si scrive in verde */
   oggi?: string
@@ -117,11 +117,13 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospi
   ospitiAttesi?: number | null
   /** la riga «sopra la camera · sotto il letto in più»: si toglie dove è ovvio */
   spiegazione?: boolean
+  /** la riga d'ottone «1 cambio camera · letto in più 1 notte» (veste Maison): la scheda non la mostra, lo dicono già le camere sotto */
+  riassunto?: boolean
   className?: string
 }) {
   const maison = useMaison()
   if (notti.length === 0) return null
-  if (maison) return <StrisciaMaison notti={notti} onNotte={onNotte} scelta={scelta} className={className} />
+  if (maison) return <StrisciaMaison notti={notti} onNotte={onNotte} scelta={scelta} conRiassunto={riassunto} className={className} />
   const stretta = compatta(notti.length)
   const avvisi = avvisiStriscia(notti)
   const cambi = segniDiCambio(notti)

@@ -110,9 +110,17 @@ vanno a capo quando sono tanti, mai tagliati; sopra, in maiuscoletto, «1
 OSPITE · 3 CAMBI CAMERA»: quattro periodi sono tre cambi, una camera sola
 non ha cambi.
 
+Dal 28/09/2026 (scheda a linguette, riferimento approvato da Ania:
+docs/design/scheda-riferimento.html) la testata non ha più la riga delle
+camere: la sequenza si legge nella linguetta SOGGIORNO, una riga per tratto
+col segno ⇄ davanti a ogni camera dopo la prima (anche quando una camera
+torna) e «N cambi» accanto al titolo «Camere». La funzione che scrive «Lena ⇄
+Amelia ⇄ Lena» resta quella di sempre (`rigaGrandeScheda`).
+
 Test: `lib/schedaPrenotazione.test.ts` → «riga grande: una camera, con cambi, con due
 camere insieme», `lib/testaScheda.test.ts` → «ospiti e cambi: …» e
-`lib/scheda.test.ts` → «ospiti e cambi, e la sequenza intera delle camere».
+`lib/scheda.test.ts` → «ospiti e cambi, e la sequenza intera delle camere:
+regola fissa n. 8 nella linguetta Soggiorno».
 
 ## 9. Il pagamento non si divide fra le camere: si registra intero, e la scheda dice fin dove arriva
 
