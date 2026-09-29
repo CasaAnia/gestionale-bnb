@@ -101,8 +101,8 @@ ciascuna in `lib/schedaMaison.ts`.
 ## 7. Messaggi
 - M1 fatta. M2 fatta. M3 fatta. Nota: cambia solo il numero; i testi restano
   quelli di sempre e cominciano con il nome di chi ha prenotato («Gentile
-  Maria,» anche scrivendo a Teresa). Da decidere con Ania se il saluto deve
-  seguire la persona scelta.
+  Maria,» anche scrivendo a Teresa). Deciso da Ania il 29/09/2026: resta
+  così, il saluto è sempre per chi ha prenotato.
 - M4 fatta. M5 fatta. M6 fatta. M7 fatta (ordine provato da un test). M8
   fatta. M9 fatta (senza nessun numero, come oggi, solo la frase).
 - M10 fatta in parte. **Non fatto: «· a [Nome]» dopo «Conferma inviata».**
