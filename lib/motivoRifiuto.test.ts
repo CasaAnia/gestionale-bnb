@@ -34,5 +34,5 @@ test('riga Chiuse: «Rifiutata da te · ha detto di no · 4 set»; senza motivo 
   assert.deepEqual(rigaChiusa({ stato: 'chiusa', chiusura_motivo: 'rifiutata', chiusa_at: chiusaAt, motivo_rifiuto: 'detto_no' }, adesso), { testo: 'Rifiutata da te · ha detto di no · 4 set', tono: 'grigio' })
   assert.deepEqual(rigaChiusa({ stato: 'rifiutata', chiusa_at: chiusaAt, motivo_rifiuto: 'Non ha più risposto' }, adesso), { testo: 'Rifiutata da te · non ha risposto · 4 set', tono: 'grigio' })
   assert.deepEqual(rigaChiusa({ stato: 'chiusa', chiusura_motivo: 'rifiutata', chiusa_at: chiusaAt, motivo_rifiuto: null }, adesso), { testo: 'Rifiutata da te · 4 set', tono: 'grigio' })
-  assert.equal(rigaChiusa({ stato: 'chiusa', chiusura_motivo: 'scaduta', chiusa_at: chiusaAt, motivo_rifiuto: null }, adesso).tono, 'ottone')
+  assert.equal(rigaChiusa({ stato: 'chiusa', chiusura_motivo: 'scaduta', chiusa_at: chiusaAt, motivo_rifiuto: null }, adesso).tono, 'mattone')
 })

@@ -32,17 +32,30 @@ export const SPAZIATURA = '0.6px'
 export const SPAZIATURA_STRETTA = '0.2px'   // solo se le quattro voci non ci stanno
 export const ALTEZZA_TOCCO = 44
 
-export default function FasciaComandi({ ordine, onOrdine, ferme, soloDaGuardare, onDaGuardare, stretta = false, className = '' }: {
+export default function FasciaComandi({ ordine, onOrdine, ferme, soloDaGuardare, onDaGuardare, stretta = false, maison = false, className = '' }: {
   ordine: OrdineRichieste
   onOrdine: (v: OrdineRichieste) => void
   ferme: number
   soloDaGuardare: boolean
   onDaGuardare: () => void
   stretta?: boolean
+  /** veste «Maison» (Richieste, 29/09/2026): le stesse voci come chip a pillola, la voce accesa piena d'inchiostro */
+  maison?: boolean
   className?: string
 }) {
   const voci = vociFascia({ ordine, ferme, soloDaGuardare })
   const tocca = (v: VoceFascia) => (v.tipo === 'guardare' ? onDaGuardare() : onOrdine(v.chiave))
+  if (maison) {
+    return (
+      <div data-fascia-comandi="maison" data-senza-sottolinea className={`ric-chips ${className}`} role="group" aria-label="Ordine delle richieste">
+        {voci.map(v => (
+          <button key={v.chiave} type="button" data-voce={v.chiave} aria-pressed={v.accesa} className={v.accesa ? 'on' : ''} onClick={() => tocca(v)}>
+            {v.testo.charAt(0).toUpperCase() + v.testo.slice(1)}
+          </button>
+        ))}
+      </div>
+    )
+  }
   return (
     <div data-fascia-comandi data-senza-sottolinea /* linguette dell'ordine: niente filo sotto (Ania, 20/09/2026) */ className={className}
       style={{ background: 'var(--color-cream)', borderTop: `1px solid ${FILO}`, borderBottom: `1px solid ${FILO}` }}>

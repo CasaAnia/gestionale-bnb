@@ -1,21 +1,30 @@
 'use client'
+// ============================================================================
+// LE RICHIESTE «MAISON» (riferimento approvato da Ania il 29/09/2026:
+// docs/design/richieste-riferimento.html, checklist in
+// docs/design/richieste-checklist.md).
+//
+// Sopra il calendario delle richieste (components/richieste/NastroRichieste:
+// il nastro del Calendario, «Vista · Reale | Presunta», le richieste
+// tratteggiate, il foglietto al tocco); sotto l'ELENCO A RIGHE separate da un
+// filo: etichetta d'ottone, nome e date in Cormorant, il TELEFONO per esteso
+// coi due cerchi (novità 14c), notti · persone · camera · speso, il timer
+// della proposta, la nota in mattone, le azioni sottolineate. In fondo le
+// chiuse degli ultimi 3 giorni. Il comportamento è quello di sempre.
+// ============================================================================
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { soggiorniDellaPersona, clienteDellaRichiesta, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ChevronDown } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
-import { TastoNuovaRichiesta } from '@/components/richieste/ComandiPagina'
 import FasciaComandi from '@/components/richieste/FasciaComandi'
 import NastroRichieste, { type PrenotazioneRichieste } from '@/components/richieste/NastroRichieste'
 import FogliettoRichiesta from '@/components/richieste/FogliettoRichiesta'
+import { IconeContatto } from '@/components/scheda/TestataMaison'
 import { camereLibere } from '@/lib/richiesteNastro'
 import { barreTenute, type RichiestaTenuta } from '@/lib/calendarioOpzioni'
-import { TastoPrincipale, ComandiRichiesta, IconeContatto, SPAZIO_COMANDI } from '@/components/richieste/AzioniRichiesta'
-import RigaScadenza from '@/components/richieste/RigaScadenza'
-import NotaCliente from '@/components/richieste/NotaCliente'
 import CampoRicerca from '@/components/CampoRicerca'
 import { matchNome, matchTelefono } from '@/lib/ricerca'
 import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
@@ -31,41 +40,20 @@ import { altreStesseDate, gruppoStesseDate, etichettaAltre, sottotitoloGruppo, c
 import { personePerNotte } from '@/lib/richiesteProposta'
 import { pezziRigaElenco, titoloRigaRichiesta, etichettaRigaRichiesta, pezzoCliente } from '@/lib/rigaRichiesta'
 import { periodoConGiorni } from '@/lib/dateItaliane'
+import { periodoConMese } from '@/lib/schedaPrenotazione'
+import { iconeFoglietto } from '@/lib/calendarioFoglietto'
 import { smartBack } from '@/lib/navHistory'
 import { nomeOspite } from '@/lib/guestName'
+import { telefonoPerEsteso } from '@/lib/whatsapp'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, eAperta, inArchivio, rigaChiusa, riapribile, ordinaRichieste, nottiRichiesta, nomeCompleto,
-  formatIntervallo, formatDateRichiesta, avvisoFerma, daGuardare, scadenzaProposta, type Richiesta, type OrdineRichieste,
+  formatIntervallo, formatDateRichiesta, avvisoFerma, daGuardare, scadenzaProposta, tastoRichiesta, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
-
-// «oggi / ieri» e la riga di notti e persone non hanno più un grigio loro:
-// stanno nell'etichetta d'ottone e nel color stone della Home (12/09/2026).
-const OTTONE = '#A9884E'          // la stella della cliente ottima
-const ROSSO_SPESO = '#D40000'     // quanto ha già speso da noi: lo stesso rosso della nota
 
 const oggiIso = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-// Il segno delle richieste che si accavallano: etichettina blu DAVANTI al
-// nome, si tocca e restringe l'elenco a quel gruppo (Ania, su bozza,
-// 12/09/2026). Il ⇄ non si usa più per questo caso: resta per il cambio camera.
-// Ha la misura delle altre etichettine della pagina — angoli 4, 11 bold, 2 px
-// sopra e sotto e 7 ai lati — e i colori del blu tenue.
-const BLU_FONDO = '#DCE7ED'
-const BLU_TESTO = '#3F6377'
-function SegnoStesseDate({ testo, onClick }: { testo: string; onClick: () => void }) {
-  return (
-    <button type="button" data-stesse-date onClick={e => { e.stopPropagation(); onClick() }}
-      className="inline-flex items-center shrink-0 py-[13px] -my-[13px] rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">
-      <span className="inline-flex items-center gap-1"
-        style={{ background: BLU_FONDO, color: BLU_TESTO, borderRadius: 4, fontSize: 11, fontWeight: 700, padding: '2px 7px', lineHeight: '18px' }}>
-        <span aria-hidden>⧉</span>{testo}
-      </span>
-    </button>
-  )
 }
 
 // La riga del cliente come arriva dall'archivio: id e nome per riconoscerla,
@@ -76,112 +64,105 @@ type ClienteSchedato = { id?: string; full_name?: string | null; phone?: string 
 export type ClienteRiga = { volte: number; inArchivio: boolean; stella: boolean; ricevuta: boolean; totaleCent: number }
 const CLIENTE_NUOVA: ClienteRiga = { volte: 0, inArchivio: false, stella: false, ricevuta: false, totaleCent: 0 }
 
+// Il periodo di una richiesta come nel riferimento: «30 set → 3 ott»; le notti scelte a mano si elencano
+const periodoRichiesta = (r: Richiesta) => (r.notti_richieste ? formatDateRichiesta(r) : periodoConMese(r.arrivo, r.partenza))
+
+// ── Una richiesta dell'elenco (elenco A del riferimento) ────────────────────
+//   OGGI · DAL SITO · GIÀ OSPITE 3 VOLTE  ⧉ 1 altra per le stesse date
+//   🧾 ★ Anna Rinaldi · 30 set → 3 ott                    (Cormorant 19)
+//   +39 347 812 6690  (☏) (💬)                            (Cormorant 17)
+//   3 notti · 2 persone · qualsiasi camera · 640 € spesi   (speso in mattone)
+//   Proposta inviata · scade tra 2 h 15 min · ferma da 3 giorni
+//   «la nota del cliente»                                 (mattone)
+//   INVIA PROPOSTA   MODIFICA   RIFIUTA
 function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo = false, selezionata, onSeleziona, onRifiuta, onConferma, cliente = CLIENTE_NUOVA }: { r: Richiesta; adesso: Date; conflitti: string[]; stesseDate?: string | null; onGruppo?: () => void; nelGruppo?: boolean; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; cliente?: ClienteRiga }) {
+  const router = useRouter()
   // Le persone di ogni notte: con dati storti (persone_per_notte non coerente)
-  // personePerNotte alza un errore e qui la scheda non deve sparire.
+  // personePerNotte alza un errore e qui la riga non deve sparire.
   let personeNotti: number[]
   try { personeNotti = personePerNotte(r) } catch { personeNotti = [Math.max(1, Number(r.persone) || 1)] }
-  // Le notti scelte a mano non si scrivono con la freccia: si elencano
-  const periodo = r.notti_richieste ? formatDateRichiesta(r) : periodoConGiorni(r.arrivo, r.partenza)
-  const pezzi = pezziRigaElenco({ notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null, totaleCent: cliente.totaleCent })
-  // «ieri · dal sito · già stata qui 3 volte»: quando è arrivata, da dove, e
-  // se la conosciamo già (Ania, 12/09/2026)
+  const periodo = periodoRichiesta(r)
+  const pezzi = pezziRigaElenco({ notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null, totaleCent: cliente.totaleCent, maison: true })
+  // «oggi · dal sito · già ospite 3 volte»: quando è arrivata, da dove, e se la conosciamo già
   const etichetta = etichettaRigaRichiesta(r.created_at, r.canale, adesso, pezzoCliente(cliente.volte, cliente.inArchivio))
   const ferma = avvisoFerma(r, adesso)
+  const scadenza = scadenzaProposta(r, adesso)
+  const [primaScadenza, ...restoScadenza] = (scadenza?.testo ?? '').split(' · ')
+  const telefono = telefonoPerEsteso(r.telefono)
+  const icone = iconeFoglietto(cliente.ricevuta, cliente.stella)
+  const nome = nomeCompleto(r)
+  const tasto = tastoRichiesta(r.stato)
+  const nota = (r.note ?? '').trim()
   return (
-    // Le richieste sono separate solo da un filo sottile: niente riquadri
-    // (Ania, su bozza, 12/09/2026). Nel gruppo un filo d'ottone a sinistra.
-    <li style={nelGruppo ? { borderLeft: '2px solid #A9884E', paddingLeft: 12 } : undefined}>
-    <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
-      className={`w-full text-left cursor-pointer border-t border-card-border transition-colors ${selezionata ? 'bg-sage/40 rounded-lg px-3 -mx-3' : ''}`}
-      style={{ paddingTop: 12, paddingBottom: 12 }}>
-      {/* Etichetta in alto, come ETICHETTA_TIPO delle righe «Da controllare»
-          della Home (Ania, dal telefono, 12/09/2026): 10 px maiuscolo ottone,
-          dice quando è arrivata e da dove — «IERI · DAL SITO». Qui sta anche
-          l'etichettina blu delle altre richieste per le stesse date. */}
-      <div className="flex flex-wrap items-center gap-x-2">
-        <p data-etichetta-richiesta className="text-[10px] uppercase tracking-[1.5px] text-brass">{etichetta}</p>
-        {stesseDate && onGruppo && <SegnoStesseDate testo={stesseDate} onClick={onGruppo} />}
-      </div>
-      {/* Il titolo, come quello della Home: «chi · quando», nome e date
-          insieme in 15 px semibold verde scuro. Il nome NON si taglia: se non
-          ci sta, le date vanno a capo intere e il puntino resta col nome, così
-          la riga sotto non comincia con un «·» (lib/rigaRichiesta). */}
-      <p data-titolo-richiesta aria-label={titoloRigaRichiesta(nomeCompleto(r), periodo)}
-        className="flex flex-wrap items-center gap-x-1.5 text-[15px] font-semibold text-green-dark leading-snug mt-0.5">
-        {/* I due segni davanti al nome, sempre nello stesso ordine (Ania,
-            13/09/2026): prima la RICEVUTA 🧾, poi la STELLA della cliente
-            ottima, poi il nome — «🧾 ★ Carmela Sabia». Sono testo, nella
-            misura del nome, divisi da uno spazio normale; la parolina
-            «RICEVUTA» dopo il nome non serve più. Il puntino sta col NOME:
-            andando a capo non resta appeso in testa alla riga sotto, come un
-            elenco puntato. */}
-        <span className="break-words">
-          {cliente.ricevuta && <span data-ricevuta aria-label="vuole la ricevuta" title="Vuole la ricevuta">{'🧾 '}</span>}
-          {cliente.stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style={{ color: OTTONE }}>{'★ '}</span>}
-          {nomeCompleto(r)} ·
-        </span>
-        <span className="whitespace-nowrap">{periodo}</span>
-      </p>
-      {/* La riga sotto: le parole di mezzo come il «motivo» della Home, 12,5 px
-          color stone; i DATI invece grandi come il titolo — 15 px semibold
-          verde scuro — così si leggono a colpo d'occhio come il nome (Ania,
-          dal telefono, 12/09/2026): il numero delle notti, quello delle
-          persone (o la sequenza «3 → 1») e la camera. La parola «camera» non
-          si scrive (lib/rigaRichiesta). */}
-      <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>
-        {pezzi.map((x, i) => (
-          <span key={i} className={x.forte ? 'text-[15px] font-semibold' : undefined}
-            style={x.speso ? { color: ROSSO_SPESO } : x.forte ? { color: 'var(--color-green-dark)' } : undefined}>{x.testo}</span>
-        ))}
-      </p>
-      {/* Solo quando c'è qualcosa da dire: timer della proposta, richiesta
-          ferma, sovrapposizioni con le prenotazioni confermate */}
-      {(scadenzaProposta(r, adesso) || ferma) && (
-        <div className="flex flex-wrap items-center gap-x-1.5 mt-1">
-          <RigaScadenza r={r} adesso={adesso} />
-          {ferma && <span className="text-[11.5px] font-semibold text-brass">{ferma}</span>}
-        </div>
-      )}
-      {conflitti.length > 0 && (
-        <p className="mt-1" style={{ fontSize: 11.5, color: '#7a5f2c' }} title={conflitti.join(' · ')}>
-          si sovrappone con {conflitti.join(', ')}
+    <li id={`richiesta-${r.id}`} className={`ric-riga ${nelGruppo ? 'gruppo' : ''} ${selezionata ? 'scelta' : ''}`} data-riga-richiesta={r.id}>
+      <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}>
+        <p className="re" data-etichetta-richiesta>
+          {etichetta}
+          {stesseDate && onGruppo && (
+            <>{' · '}<button type="button" data-stesse-date data-senza-sottolinea className="blu" onClick={e => { e.stopPropagation(); onGruppo() }}>⧉ {stesseDate} per le stesse date</button></>
+          )}
         </p>
-      )}
-      {/* La nota del cliente: lo STESSO componente della Home, ma nella misura
-          grande — 15 px come il titolo, tutta rossa (Ania, 12/09/2026) */}
-      <NotaCliente note={r.note} grande className="mt-1" />
-      {/* Ultima riga: la pastiglia verde, «Modifica» e «Rifiuta», e in fondo a
-          destra le due icone nude per chiamare e per scrivere su WhatsApp */}
-      <div className="flex items-center mt-2" style={{ gap: SPAZIO_COMANDI }}>
-        <TastoPrincipale r={r} onConferma={onConferma} />
-        <ComandiRichiesta r={r} onRifiuta={onRifiuta} />
-        <IconeContatto r={r} className="ml-auto" />
+        <p className="rt" data-titolo-richiesta aria-label={titoloRigaRichiesta(nome, periodo)}>
+          {icone && <span className="ic">{cliente.ricevuta && <span data-ricevuta aria-label="vuole la ricevuta">🧾</span>}{cliente.ricevuta && cliente.stella && ' '}{cliente.stella && <span data-stella aria-label="cliente ottima">★</span>}{' '}</span>}
+          {nome} · <span className="per">{periodo}</span>
+        </p>
+        {telefono && (
+          <div className="tel" data-telefono-richiesta onClick={e => e.stopPropagation()}>
+            <span className="num">{telefono}</span>
+            <IconeContatto telefono={r.telefono} nome={nome} dati="elenco" />
+          </div>
+        )}
+        <p className="rd">
+          {pezzi.map((x, i) => <span key={i} className={x.speso ? 'mat' : undefined}>{x.testo}</span>)}
+        </p>
+        {(scadenza || ferma) && (
+          <p className="rm2" data-timer-richiesta>
+            {scadenza && <>{primaScadenza}{restoScadenza.length > 0 && <> · <b>{restoScadenza.join(' · ')}</b></>}</>}
+            {scadenza && ferma && ' · '}
+            {ferma}
+          </p>
+        )}
+        {conflitti.length > 0 && (
+          <p className="rm2" title={conflitti.join(' · ')}>si sovrappone con {conflitti.join(', ')}</p>
+        )}
+        {nota && <p className="rn2" data-nota-cliente>«{nota}»</p>}
+        {tasto && (
+          <div className="ra" onClick={e => e.stopPropagation()}>
+            <button type="button" className="mz-lnk" data-tasto-principale
+              onClick={() => (r.stato === 'in_attesa' ? router.push(`/richieste/${r.id}/proposta`) : onConferma(r))}>{tasto}</button>
+            <button type="button" className="mz-lnk q" data-comando="modifica" onClick={() => router.push(`/richieste/${r.id}/modifica`)}>Modifica</button>
+            <button type="button" className="mz-lnk q" data-comando="rifiuta" onClick={() => onRifiuta(r)}>Rifiuta</button>
+          </div>
+        )}
       </div>
-    </div>
     </li>
   )
 }
 
-// Linguetta «Chiuse» (06/09/2026): riga di stato in ottone (scaduta, chiusa da sola),
-// grigia (rifiutata da te) o verde (confermata) e «Riapri» che riporta in attesa
+// ── Una chiusa (telefono 5 del riferimento) ─────────────────────────────────
+// Etichetta di stato: scaduta e chiusa da sola in mattone, rifiutata da te in
+// grigio, confermata in verde; nome e date in Cormorant, i dati, «Riapri»
+// (scaduta, rifiutata) oppure «Apri la scheda» (confermata).
 function RigaChiusa({ r, adesso, evidenziata = false, onRiapri, riaprendo }: { r: Richiesta; adesso: Date; evidenziata?: boolean; onRiapri: (r: Richiesta) => void; riaprendo: boolean }) {
   const stato = rigaChiusa(r, adesso)
-  const colore = stato.tono === 'ottone' ? '#A9884E' : stato.tono === 'verde' ? '#6C9A7C' : 'var(--color-stone)'
+  let personeNotti: number[]
+  try { personeNotti = personePerNotte(r) } catch { personeNotti = [Math.max(1, Number(r.persone) || 1)] }
+  const dati = pezziRigaElenco({ notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null, maison: true }).map(x => x.testo).join('')
   return (
-    <li id={`richiesta-${r.id}`} data-chiusa={stato.tono} className={`flex items-center justify-between gap-3 py-2.5 -mx-2 px-2 border-b-[0.5px] border-border-soft last:border-b-0 text-sm ${evidenziata ? 'bg-sage/50 rounded-lg' : ''}`}>
-      <div className="min-w-0">
-        <p className="text-green-dark truncate">{nomeCompleto(r)}</p>
-        <p className="text-xs text-stone">{formatDateRichiesta(r)} · {r.persone} {r.persone === 1 ? 'persona' : 'persone'} · {CANALE_LABEL[r.canale]}</p>
-        <p className="text-xs font-semibold mt-0.5" style={{ color: colore }}>{stato.testo}
+    <li id={`richiesta-${r.id}`} data-chiusa={stato.tono} className={`ric-riga chiusa ${evidenziata ? 'scelta' : ''}`}>
+      <div>
+        <p className={`re ${stato.tono}`}>{stato.testo}</p>
+        <p className="rt">{nomeCompleto(r)} · <span className="per">{periodoRichiesta(r)}</span></p>
+        <p className="rd">{dati} · {CANALE_LABEL[r.canale]}</p>
+        <div className="ra">
           {r.stato === 'confermata' && r.prenotazione_id && (
-            <Link href={`/scheda/${r.prenotazione_id}`} className="ml-1.5 font-normal underline underline-offset-2 text-green-mid" onClick={e => e.stopPropagation()}>scheda</Link>
+            <Link href={`/scheda/${r.prenotazione_id}`} className="mz-lnk">Apri la scheda</Link>
           )}
-        </p>
+          {riapribile(r) && (
+            <button type="button" onClick={() => onRiapri(r)} disabled={riaprendo} className="mz-lnk" data-riapri>{riaprendo ? 'Riapro…' : 'Riapri'}</button>
+          )}
+        </div>
       </div>
-      {riapribile(r) && (
-        <button type="button" onClick={() => onRiapri(r)} disabled={riaprendo} className="ed-pillola-tenue shrink-0 text-green-dark" data-riapri>{riaprendo ? 'Riapro…' : 'Riapri'}</button>
-      )}
     </li>
   )
 }
@@ -331,6 +312,9 @@ function Richieste() {
     () => tutte.filter(r => inArchivio(r, adesso)).sort((a, b) => (b.chiusa_at ?? b.created_at).localeCompare(a.chiusa_at ?? a.created_at)),
     [tutte, adesso],
   )
+  // Le chiuse si aprono con «Mostra»; arrivando da una scheda (?apri=) già aperte sulla riga
+  const [chiuseAperte, setChiuseAperte] = useState<boolean | null>(null)
+  const chiuseVisibili = chiuseAperte ?? (!!apriId && archivio.some(r => r.id === apriId))
   // Sul nastro restano piene le richieste trovate dalla ricerca, quella scelta
   // nell'elenco o quelle del foglietto aperto; il resto si attenua (0,35)
   const evidenziate = useMemo(() => {
@@ -401,103 +385,64 @@ function Richieste() {
           onRichieste={(gruppo, e) => setPannello({ gruppo, ancora: { x: e?.clientX ?? 0, y: e?.clientY ?? 0 } })} />
       )}
 
-      <div className="px-4 pb-4">
-      <div>
-        <section className="min-w-0">
-          {capogruppo && (
-            <div data-barra-gruppo className="flex items-start justify-between gap-3 bg-white mb-3" style={{ border: '1px solid var(--color-card-border)', borderRadius: 12, padding: '10px 12px' }}>
-              <div className="min-w-0">
-                <p className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>Richieste per {periodoConGiorni(capogruppo.arrivo, capogruppo.partenza)}</p>
-                <p style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{sottotitoloGruppo(gruppo.length)}</p>
-              </div>
-              <button type="button" data-vedi-tutte onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">{VEDI_TUTTE}</button>
+      {/* L'ELENCO: filo sopra, «RICHIESTE APERTE · N» con «+ Nuova richiesta», le chip dell'ordine, le righe */}
+      <div className="ric-elenco" data-elenco-richieste>
+        <div className="rk">
+          <span>{capogruppo ? 'Stesse date' : soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}{!loading && <> · {capogruppo ? contatoreGruppo(gruppo.length) : mostrate.length}</>}</span>
+          <Link href="/richieste/nuova" className="mz-lnk q" data-nuova-richiesta>+ Nuova richiesta</Link>
+        </div>
+        {!loading && (
+          <FasciaComandi maison ordine={ordine} onOrdine={setOrdine}
+            ferme={ferme.length} soloDaGuardare={soloDaGuardare} onDaGuardare={() => setSoloDaGuardare(v => !v)} />
+        )}
+        {/* Il filtro «stesse date»: la barra col periodo e «Vedi tutte» */}
+        {capogruppo && (
+          <div data-barra-gruppo className="ric-gruppo">
+            <div className="min-w-0">
+              <p className="ti">Richieste per {periodoConGiorni(capogruppo.arrivo, capogruppo.partenza)}</p>
+              <p className="so">{sottotitoloGruppo(gruppo.length)}</p>
             </div>
-          )}
-          <div data-stacco-calendario aria-hidden style={{ height: 24 }} />
-          {(!desktop || orizzontale) && (
-            <>
-              <div className="flex items-center justify-between gap-3 mt-3">
-                <TastoNuovaRichiesta />
-              </div>
-              {!loading && (
-                <FasciaComandi className="mt-3" ordine={ordine} onOrdine={setOrdine}
-                  ferme={ferme.length} soloDaGuardare={soloDaGuardare} onDaGuardare={() => setSoloDaGuardare(v => !v)} />
-              )}
-            </>
-          )}
-        </section>
-
-        {/* Lista */}
-        <section className="mt-4 md:mt-7">
-          {/* Il titoletto della lista. Sul telefono ordinamento e filtro
-              stanno nella fascia sotto il calendario; sul Mac la fascia sta
-              qui, sopra l'elenco. */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{capogruppo ? 'Stesse date' : soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
-              {/* «RICHIESTE APERTE · 4»: da quando in cima non c'è più il
-                  conto, quante sono si legge solo qui (Ania, 12/09/2026) */}
-              {!loading && <span className="text-[13px] text-stone shrink-0">· {capogruppo ? contatoreGruppo(gruppo.length) : mostrate.length}</span>}
-              <span className="flex-1 h-px" style={{ background: 'rgba(169,136,78,0.45)' }} />
-            </div>
+            <button type="button" data-vedi-tutte onClick={() => setGruppoDi(null)} className="mz-lnk">{VEDI_TUTTE}</button>
           </div>
-          {desktop && !loading && (
-            <FasciaComandi className="mb-4" ordine={ordine} onOrdine={setOrdine}
-              ferme={ferme.length} soloDaGuardare={soloDaGuardare} onDaGuardare={() => setSoloDaGuardare(v => !v)} />
-          )}
+        )}
+        {loading ? (
+          <div className="mz-caricamento">Caricamento…</div>
+        ) : mostrate.length === 0 && !richiesteNonLette ? (
+          <p className="ric-vuoto">{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</p>
+        ) : (
+          <ul className="ric-righe">
+            {mostrate.map(r => (
+              <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} cliente={clienteDi.get(r.id)}
+                stesseDate={capogruppo ? null : etichettaAltre(altreDi.get(r.id) ?? 0)} onGruppo={() => setGruppoDi(r.id)} nelGruppo={!!capogruppo}
+                selezionata={selezionata === r.id}
+                onSeleziona={() => { const nuova = selezionata === r.id ? null : r.id; setSelezionata(nuova); if (nuova) portaA(r.arrivo) }}
+                onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
+            ))}
+          </ul>
+        )}
 
-          {capogruppo && (
-            <div data-barra-gruppo className="flex items-start justify-between gap-3 bg-white mb-3" style={{ border: '1px solid var(--color-card-border)', borderRadius: 12, padding: '10px 12px' }}>
-              <div className="min-w-0">
-                <p className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>Richieste per {periodoConGiorni(capogruppo.arrivo, capogruppo.partenza)}</p>
-                <p style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{sottotitoloGruppo(gruppo.length)}</p>
-              </div>
-              <button type="button" data-vedi-tutte onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">{VEDI_TUTTE}</button>
+        {/* LE CHIUSE degli ultimi 3 giorni: «CHIUSE · N · MOSTRA», aperte «CHIUSE · ULTIMI 3 GIORNI · NASCONDI» */}
+        {!loading && (
+          <div className="ric-chiuse" data-chiuse>
+            <div className="rk">
+              <span>{chiuseVisibili ? 'Chiuse · ultimi 3 giorni' : `Chiuse · ${archivio.length}`}</span>
+              <button type="button" className="mz-lnk q" aria-expanded={chiuseVisibili} onClick={() => setChiuseAperte(!chiuseVisibili)}>{chiuseVisibili ? 'Nascondi' : 'Mostra'}</button>
             </div>
-          )}
-          {loading ? (
-            <div className="text-center py-10 text-stone">Caricamento…</div>
-          ) : mostrate.length === 0 && !richiesteNonLette ? (
-            desktop ? (
-              <div className="flex items-center gap-4 rounded-xl border border-dashed border-border-soft px-5 py-3.5 text-sm text-stone">
-                <span>{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</span>
-                {!soloDaGuardare && <TastoNuovaRichiesta />}
-              </div>
-            ) : (
-              <div className="text-center py-12 flex flex-col items-center gap-4">
-                <p className="text-stone">{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</p>
-                {!soloDaGuardare && <TastoNuovaRichiesta />}
-              </div>
-            )
-          ) : (
-            <ul className="flex flex-col min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:gap-x-8 min-[1100px]:items-start">
-              {mostrate.map(r => (
-                <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} cliente={clienteDi.get(r.id)}
-                  stesseDate={capogruppo ? null : etichettaAltre(altreDi.get(r.id) ?? 0)} onGruppo={() => setGruppoDi(r.id)} nelGruppo={!!capogruppo}
-                  selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
-              ))}
-            </ul>
-          )}
-
-          {!loading && (
-            <details className="group mt-6" open={!!apriId && archivio.some(r => r.id === apriId) ? true : undefined}>
-              <summary className="list-none cursor-pointer flex items-center justify-between py-2 text-sm text-stone select-none [&::-webkit-details-marker]:hidden">
-                <span>Chiuse <span className="text-xs">({archivio.length})</span></span>
-                <ChevronDown size={16} strokeWidth={1.8} className="transition-transform group-open:rotate-180" aria-hidden />
-              </summary>
-              {archivio.length === 0 ? (
-                <p className="text-sm text-stone py-2">{richiesteNonLette ? 'Richieste non lette.' : 'Nessuna richiesta chiusa negli ultimi 3 giorni.'}</p>
-              ) : (
-                <ul className="mt-1">
-                  {archivio.map(r => <RigaChiusa key={r.id} r={r} adesso={adesso} evidenziata={r.id === apriId} onRiapri={riapri} riaprendo={riaprendo === r.id} />)}
-                </ul>
-              )}
-              <p className="text-[11px] text-stone pt-2">Dopo 3 giorni spariscono da sole.</p>
-            </details>
-          )}
-        </section>
+            {chiuseVisibili && (
+              <>
+                {archivio.length === 0 ? (
+                  <p className="ric-vuoto piccolo">{richiesteNonLette ? 'Richieste non lette.' : 'Nessuna richiesta chiusa negli ultimi 3 giorni.'}</p>
+                ) : (
+                  <ul className="ric-righe">
+                    {archivio.map(r => <RigaChiusa key={r.id} r={r} adesso={adesso} evidenziata={r.id === apriId} onRiapri={riapri} riaprendo={riaprendo === r.id} />)}
+                  </ul>
+                )}
+                <p className="ric-nota">Dopo 3 giorni spariscono da sole.</p>
+              </>
+            )}
+          </div>
+        )}
       </div>
-      </div>{/* fine del corpo della pagina: 16 px ai lati, come le altre */}
 
       {pannello && pannello.gruppo.length > 0 && (
         // Il foglietto della richiesta (novità 14b): al posto del vecchio pannello

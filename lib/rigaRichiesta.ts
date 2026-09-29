@@ -130,14 +130,18 @@ const unisci = (gruppi: PezzoRiga[][]): PezzoRiga[] => {
 // In fondo, per chi è già stata qui, quanto ha speso in tutto: «· 1.360 €»,
 // l'unico pezzo di storico che entra nell'elenco (Ania, 12/09/2026). Senza
 // soggiorni conclusi non c'è niente da scrivere.
-export function pezziRigaElenco({ notti, personeNotti, camera, totaleCent = 0 }: {
+// Nell'elenco «Maison» (29/09/2026, riferimento delle Richieste) la camera si
+// scrive per esteso, «qualsiasi camera», e dopo quanto ha speso c'è «spesi»:
+// «3 notti · 2 persone · qualsiasi camera · 640 € spesi».
+export function pezziRigaElenco({ notti, personeNotti, camera, totaleCent = 0, maison = false }: {
   notti: number
   personeNotti: number[]
   camera?: string | null
   totaleCent?: number | null
+  maison?: boolean
 }): PezzoRiga[] {
-  const speso = Number(totaleCent) > 0 ? [{ testo: euroTondi(Number(totaleCent)), forte: true, speso: true }] : []
-  return unisci([pezziNotti(notti), personeElenco(personeNotti), pezziCamera(camera, { soloValore: true }), speso])
+  const speso = Number(totaleCent) > 0 ? [{ testo: `${euroTondi(Number(totaleCent))}${maison ? ' spesi' : ''}`, forte: true, speso: true }] : []
+  return unisci([pezziNotti(notti), personeElenco(personeNotti), maison && !(camera ?? '').trim() ? [{ testo: 'qualsiasi camera', forte: false }] : pezziCamera(camera, { soloValore: true }), speso])
 }
 
 // La riga intera della testa della proposta, coi puntini di mezzo già dentro:

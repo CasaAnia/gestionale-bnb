@@ -84,3 +84,32 @@ test('chiuse e confermate non stanno sul nastro; notti scelte a mano = una sched
   assert.deepEqual(s.map(x => `${x.arrivo}→${x.partenza}`), ['2026-10-01→2026-10-03', '2026-10-04→2026-10-05'])
   assert.deepEqual(postiRichiesta(ric('z', { camera_id: 'amelia' }), camere, () => false), [{ riga: 'amelia', notti: ['2026-09-30', '2026-10-01', '2026-10-02'] }])
 })
+
+// ── L'elenco a righe (Richieste «Maison», elenco A del riferimento) ─────────
+import { readFileSync } from 'node:fs'
+test('la riga dell’elenco: etichetta · titolo Cormorant · telefono per esteso coi cerchi · dati · timer · nota · azioni, in quest’ordine', () => {
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  const riga = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
+  const ordine = ['className="re"', 'data-stesse-date', 'className="rt"', 'className="num"', '<IconeContatto', 'className="rd"', 'data-timer-richiesta', 'data-nota-cliente', 'data-tasto-principale', 'data-comando="modifica"', 'data-comando="rifiuta"']
+  const pos = ordine.map(x => { const i = riga.indexOf(x); assert.notEqual(i, -1, `manca ${x}`); return i })
+  assert.deepEqual(pos, [...pos].sort((a, b) => a - b))
+  // il telefono per esteso (novità 14c), l'etichetta blu per le stesse date, la scadenza in grassetto
+  assert.match(riga, /const telefono = telefonoPerEsteso\(r\.telefono\)/)
+  assert.match(riga, /⧉ \{stesseDate\} per le stesse date/)
+  assert.match(riga, /<b>\{restoScadenza\.join\(' · '\)\}<\/b>/)
+  assert.match(riga, /pezziRigaElenco\(\{[^}]*maison: true \}\)/)
+  // azioni sottolineate: la principale piena d'inchiostro, le altre tenui
+  assert.match(riga, /className="mz-lnk" data-tasto-principale/)
+  assert.match(riga, /className="mz-lnk q" data-comando="rifiuta"/)
+  // la testata dell'elenco, le chip dell'ordine, le chiuse con «Mostra/Nascondi»
+  assert.match(pagina, /'Stesse date' : soloDaGuardare \? 'Da guardare' : 'Richieste aperte'/)
+  assert.match(pagina, /<Link href="\/richieste\/nuova" className="mz-lnk q" data-nuova-richiesta>\+ Nuova richiesta<\/Link>/)
+  assert.match(pagina, /<FasciaComandi maison /)
+  assert.match(pagina, /chiuseVisibili \? 'Chiuse · ultimi 3 giorni' : `Chiuse · \$\{archivio\.length\}`/)
+  assert.match(pagina, /Dopo 3 giorni spariscono da sole\./)
+  const css = readFileSync(new URL('../app/maison.css', import.meta.url), 'utf8')
+  assert.match(css, /\.ric-riga \.tel \.num \{ font-family: var\(--m-disp\); font-size: 17px;/)
+  assert.match(css, /\.ric-riga \.rt \{[^}]*font-size: 19px;/)
+  assert.match(css, /\.ric-riga \.rn2 \{[^}]*color: var\(--m-mat\);/)
+  assert.match(css, /--cal-blu-ardesia: #41637A/)
+})

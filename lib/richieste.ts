@@ -143,10 +143,10 @@ export function inArchivio(r: Pick<Richiesta, 'stato' | 'chiusa_at' | 'created_a
 }
 
 // Riga di stato nella linguetta «Chiuse» (06/09/2026):
-//  · scaduta e chiusa da sola → «Scaduta, chiusa da sola ieri alle 16:40» (ottone)
+//  · scaduta e chiusa da sola → «Scaduta · chiusa da sola ieri alle 16:40» (mattone, Richieste «Maison» 29/09/2026)
 //  · rifiutata da Ania → «Rifiutata da te · 4 set» (grigio)
 //  · confermata → «Confermata · 4 set» (verde)
-export type RigaChiusa = { testo: string; tono: 'ottone' | 'grigio' | 'verde' }
+export type RigaChiusa = { testo: string; tono: 'mattone' | 'grigio' | 'verde' }
 function quandoChiusa(chiusaAt: string | null, adesso: Date, conOra: boolean): string {
   if (!chiusaAt) return ''
   const d = new Date(chiusaAt)
@@ -157,7 +157,7 @@ function quandoChiusa(chiusaAt: string | null, adesso: Date, conOra: boolean): s
 }
 //  · rifiutata con motivo (07/09/2026) → «Rifiutata da te · ha detto di no · 4 set»
 export function rigaChiusa(r: Pick<Richiesta, 'stato' | 'chiusa_at' | 'chiusura_motivo' | 'motivo_rifiuto'>, adesso: Date = new Date()): RigaChiusa {
-  if (eScadutaChiusa(r)) { const q = quandoChiusa(r.chiusa_at, adesso, true); return { testo: `Scaduta, chiusa da sola${q ? ` ${q}` : ''}`, tono: 'ottone' } }
+  if (eScadutaChiusa(r)) { const q = quandoChiusa(r.chiusa_at, adesso, true); return { testo: `Scaduta · chiusa da sola${q ? ` ${q}` : ''}`, tono: 'mattone' } }
   if (eRifiutata(r)) {
     const q = quandoChiusa(r.chiusa_at, adesso, false)
     const motivo = motivoRifiutoInParole(r.motivo_rifiuto)

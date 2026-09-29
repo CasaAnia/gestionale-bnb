@@ -838,6 +838,47 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-camera.qualsiasi { white-space: normal; font-size: 13px; line-height: 1.15; padding-right: 4px; color: var(--cal-richiesta-testo); }
 .cal-scheda.rq.scelta { filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
 
+/* L'elenco delle richieste (elenco A del riferimento): righe separate da un filo */
+.ric-elenco { margin-top: 14px; border-top: 1px solid var(--m-line); padding-bottom: 16px; }
+.ric-elenco .rk { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 16px 6px; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }
+.ric-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 16px 6px; }
+.ric-chips button { position: relative; border: 1px solid #C9BFA8; border-radius: 999px; padding: 4px 10px; font-family: var(--home-ui-font); font-size: 11px; color: var(--m-ink); background: transparent; line-height: 1.3; }
+.ric-chips button::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.ric-chips button.on { background: var(--m-ink); color: #F6F2EA; border-color: var(--m-ink); }
+.ric-gruppo { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 8px 16px 4px; padding: 8px 0; border-top: 1px solid rgba(168,137,79,.55); border-bottom: 1px solid rgba(168,137,79,.55); }
+.ric-gruppo .ti { font-family: var(--m-disp); font-size: 17px; font-weight: 500; color: var(--m-ink); margin: 0; }
+.ric-gruppo .so { font-size: 12px; color: var(--m-mut); margin: 2px 0 0; }
+.ric-righe { list-style: none; margin: 8px 0 0; padding: 0; }
+@media (min-width: 1100px) { .ric-righe { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; } }
+.ric-riga > div { padding: 10px 16px 12px; border-top: 1px solid var(--m-line); cursor: pointer; }
+.ric-riga.chiusa > div { cursor: default; }
+.ric-riga.gruppo > div { border-left: 2px solid var(--m-acc); }
+.ric-riga.scelta > div { background: #FBF8F1; }
+.ric-riga .re { margin: 0; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--m-acc); line-height: 1.5; }
+.ric-riga .re.mattone { color: var(--m-mat); }
+.ric-riga .re.grigio { color: var(--m-mut); }
+.ric-riga .re.verde { color: var(--cal-verde); }
+.ric-riga .re .blu { position: relative; background: none; border: 0; padding: 0; font: inherit; letter-spacing: inherit; text-transform: uppercase; color: var(--cal-blu-ardesia); }
+.ric-riga .re .blu::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.ric-riga .rt { margin: 3px 0 0; font-family: var(--m-disp); font-size: 19px; font-weight: 500; line-height: 1.2; color: var(--m-ink); }
+.ric-riga .rt .ic { font-size: 15px; }
+.ric-riga .rt .per { white-space: nowrap; }
+.ric-riga .tel { display: flex; align-items: center; gap: 10px; margin-top: 3px; }
+.ric-riga .tel .num { font-family: var(--m-disp); font-size: 17px; letter-spacing: .02em; font-variant-numeric: tabular-nums; color: var(--m-ink); }
+.ric-riga .tel .sch-ic a { width: 26px; height: 26px; }
+.ric-riga .tel .sch-ic svg { width: 13px; height: 13px; }
+.ric-riga .rd { margin: 2px 0 0; font-size: 12.5px; color: var(--m-mut); line-height: 1.4; }
+.ric-riga .rd .mat { color: var(--m-mat); font-weight: 500; }
+.ric-riga .rm2 { margin: 4px 0 0; font-size: 12px; color: var(--cal-richiesta-testo); }
+.ric-riga .rm2 b { font-weight: 600; }
+.ric-riga .rn2 { margin: 4px 0 0; font-size: 13px; color: var(--m-mat); line-height: 1.4; overflow-wrap: anywhere; }
+.ric-riga .ra { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 8px; }
+.ric-vuoto { padding: 18px 16px; font-size: 13px; color: var(--m-mut); margin: 0; }
+.ric-vuoto.piccolo { padding: 8px 16px; }
+.ric-chiuse { margin-top: 14px; border-top: 1px solid var(--m-line); }
+.ric-chiuse .rk { padding-top: 14px; }
+.ric-nota { padding: 12px 16px 0; font-size: 12px; color: var(--m-mut); margin: 0; }
+
 /* ───────────────────────────────────────────────────────────────────────
    MENU DEL MAC «MAISON» (riferimento approvato da Ania il 29/09/2026:
    docs/design/menu-mac-riferimento.html, colonna M2). Solo la barra

@@ -77,8 +77,8 @@ test('le scritte della barra del filtro', () => {
 test('il link del filtro si chiama «Vedi tutte», e la pagina usa quel nome', () => {
   assert.equal(VEDI_TUTTE, 'Vedi tutte')
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
-  // la barra del gruppo c'è due volte (calendario e lista): tutte e due col nome unico
-  assert.equal(pagina.split('{VEDI_TUTTE}</button>').length - 1, 2)
+  // la barra del gruppo (sopra l'elenco, Richieste «Maison»): col nome unico
+  assert.equal(pagina.split('{VEDI_TUTTE}</button>').length - 1, 1)
   // nessuna traccia della parola vecchia, nemmeno negli agganci per le prove
   assert.equal(/togli/i.test(pagina), false)
 })
