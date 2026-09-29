@@ -1,3 +1,4 @@
+-- ✅ APPLICATA in produzione il 29/09/2026 (backup verificato prima e dopo, dati invariati).
 -- =====================================================================
 -- «COME PAGA» IN UN COLPO SOLO (15/09/2026) — proposta 0052
 --

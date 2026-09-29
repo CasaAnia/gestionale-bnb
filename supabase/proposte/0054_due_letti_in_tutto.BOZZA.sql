@@ -1,3 +1,4 @@
+-- ✅ APPLICATA in produzione il 29/09/2026 (backup verificato prima e dopo, dati invariati).
 -- =====================================================================
 -- DUE LETTI IN TUTTA LA CASA (15/09/2026) — proposta 0054
 --

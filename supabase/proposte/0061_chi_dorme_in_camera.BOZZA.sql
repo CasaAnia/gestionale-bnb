@@ -1,3 +1,4 @@
+-- ✅ APPLICATA in produzione il 29/09/2026 (backup verificato prima e dopo, dati invariati).
 -- 0061 · «Chi dorme in camera»: la spunta «Non è lei a dormire qui»
 -- (Nuova prenotazione «Maison», Ania, 28/09/2026, punto 12c).
 --
