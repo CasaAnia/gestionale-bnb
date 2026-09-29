@@ -1,4 +1,5 @@
 'use client'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 // ============================================================================
 // ARRIVI «MAISON» (riferimento approvato da Ania il 29/09/2026:
 // docs/design/arrivi-riferimento.html, checklist in docs/design/arrivi-checklist.md).
@@ -610,7 +611,7 @@ export default function Arrivi() {
             )}
             azioni={<>
               {wa && <BottoniOrario wa={wa} maison />}
-              <button type="button" className="mz-lnk q" onClick={() => router.push(`/scheda/${popup.id}`)}>Apri prenotazione</button>
+              <button type="button" className="mz-lnk q" onClick={() => router.push(hrefScheda(popup.id, 'arrivi'))}>Apri prenotazione</button>
             </>}
             salvaPieno={{ salvando: 'Salvo...' }} />
         )

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 import DocumentiCliente from '@/components/DocumentiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
@@ -255,7 +256,7 @@ export default function ClienteDetail() {
           {/* Una riga per SOGGIORNO (cambio camera = riga sola con le camere), toccabile: apre la scheda
               della prenotazione, che con ?da=cliente torna qui con «← Indietro» (08/09/2026) */}
           {righeStorico(bookings).map(r => (
-            <Link key={r.chiave} href={`/scheda/${r.prenotazioneId}?da=cliente&cliente=${id}`} data-riga-storico={r.chiave}
+            <Link key={r.chiave} href={hrefScheda(r.prenotazioneId, 'cliente', { cliente: String(id) })} data-riga-storico={r.chiave}
               className={`block rounded-xl p-3 border transition-transform duration-100 active:scale-[0.99] ${r.status === 'annullata' ? 'bg-gray-50 border-card-border opacity-60' : r.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
               <div className="flex justify-between items-start">
                 <div>

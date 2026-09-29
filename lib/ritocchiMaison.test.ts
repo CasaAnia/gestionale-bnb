@@ -169,3 +169,47 @@ test('D1: la pastiglia già accesa è quella della cliente (Nuova prenotazione, 
   assert.match(scheda, /modo=\{comePagaSchedaConAbituale\(comePagaSalvato\(/)
   assert.match(leggi('components/maison/PagamentoDaHome.tsx'), /abituale: pagamentoAbitualeDi\(scheda\.guests/)
 })
+
+// ── C4 · la freccia torna da dove si è venuti ───────────────────────────────
+test('C4: la freccia «‹» dice e riporta alla pagina di provenienza, per ogni pagina; senza, «‹ Prenotazioni»', async () => {
+  const { hrefScheda, provenienzaScheda, conDaDellaScheda } = await import('./provenienzaScheda.ts')
+  const p = (q: string) => new URLSearchParams(q)
+  const casi: [string, string, string][] = [
+    ['da=home', 'Oggi', '/'],
+    ['da=calendario', 'Calendario', '/calendario'],
+    ['da=arrivi', 'Arrivi', '/arrivi'],
+    ['da=richieste', 'Richieste', '/richieste'],
+    ['da=richiesta&avviso=x', 'Richieste', '/richieste'],
+    ['da=cliente&cliente=g1', 'Cliente', '/clienti/g1'],
+    ['da=prenotazioni', 'Prenotazioni', '/prenotazioni'],
+    ['', 'Prenotazioni', '/prenotazioni'],
+    ['da=boh', 'Prenotazioni', '/prenotazioni'],
+    ['azione=pagato&da=home', 'Oggi', '/'],
+  ]
+  for (const [q, etichetta, riserva] of casi) {
+    const r = provenienzaScheda(p(q))
+    assert.deepEqual([r.etichetta, r.riserva], [etichetta, riserva], q)
+  }
+  assert.equal(hrefScheda('b1', 'calendario'), '/scheda/b1?da=calendario')
+  assert.equal(hrefScheda('b1', 'cliente', { cliente: 'g1' }), '/scheda/b1?da=cliente&cliente=g1')
+  assert.equal(hrefScheda('b1', 'home', { query: 'azione=pagato' }), '/scheda/b1?azione=pagato&da=home')
+  // passando a un'altra camera (dopo un salvataggio) la provenienza resta
+  assert.equal(conDaDellaScheda('b2', p('da=arrivi')), '/scheda/b2?da=arrivi')
+  assert.equal(conDaDellaScheda('b2', p('da=cliente&cliente=g1&salvata=1')), '/scheda/b2?da=cliente&cliente=g1')
+  assert.equal(conDaDellaScheda('b2', p('')), '/scheda/b2')
+  const scheda = leggi('app/scheda/[id]/page.tsx')
+  assert.match(scheda, />‹ \{daDove\.etichetta\}<\/button>/)
+  assert.equal((scheda.match(/router\.replace\(conDaDellaScheda\(/g) || []).length, 2)
+  assert.doesNotMatch(scheda, /router\.replace\(`\/scheda\//)
+  // le linguette cambiano l'indirizzo tenendo i parametri (il `da` resta dopo i salvataggi)
+  assert.match(leggi('components/scheda/LinguetteScheda.tsx'), /const url = `\$\{window\.location\.pathname\}\$\{window\.location\.search\}#\$\{l\}`/)
+  // ogni link che apre la scheda dice da dove
+  const link: [string, RegExp][] = [
+    ['components/ArriviOggi.tsx', /hrefScheda\(b\.id, 'home'\)/], ['components/maison/SoldiHome.tsx', /hrefScheda\(p\.bookingId, 'home'\)/],
+    ['components/RichiesteHome.tsx', /hrefScheda\(r\.id, 'home'\)/], ['lib/daControllare.ts', /hrefScheda\(d\.prenotazioneId, 'home'\)/],
+    ['app/calendario/page.tsx', /hrefScheda\(booking\.id, 'calendario'\)/], ['app/arrivi/page.tsx', /hrefScheda\(popup\.id, 'arrivi'\)/],
+    ['app/richieste/page.tsx', /hrefScheda\(r\.prenotazione_id, 'richieste'\)/], ['components/richieste/NastroRichieste.tsx', /hrefScheda\(aperta\.id, 'richieste'\)/],
+    ['app/prenotazioni/page.tsx', /hrefScheda\(b\.id, 'prenotazioni'\)/], ['app/clienti/[id]/page.tsx', /hrefScheda\(r\.prenotazioneId, 'cliente', \{ cliente: String\(id\) \}\)/],
+  ]
+  for (const [file, re] of link) assert.match(leggi(file), re, file)
+})

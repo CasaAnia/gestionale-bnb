@@ -30,6 +30,7 @@ import { nomeConAltri } from '@/lib/guestName'
 import { arrivoInHome, leggiArrivo, type IconaArrivo } from '@/lib/arrivo'
 import { BONIFICO_ATTESO, PAGAMENTO_ATTESO, SEGNA_PAGATO, type PartenzaConResiduo } from '@/lib/incassiHome'
 import type { PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 
 export const TITOLO_GIORNATA = 'La giornata'
 export const TITOLO_ARRIVI_DOMANI = 'Arrivi di domani'
@@ -72,7 +73,7 @@ function Riquadro({ b, onApri }: { b: Riga; onApri: (b: Riga) => void }) {
   return (
     <article data-arrivo-home={String(b.id)} className="mz-arr">
       <div className="id">
-        <Link href={`/scheda/${b.id}`} aria-label={`Apri prenotazione di ${nome}`} className="nm mz-nome-link">{nome}</Link>
+        <Link href={hrefScheda(b.id, 'home')} aria-label={`Apri prenotazione di ${nome}`} className="nm mz-nome-link">{nome}</Link>
         {camera && <span className="rm" data-camera>{camera}</span>}
       </div>
       {!!b.extra_bed && <p data-letto-agg className="letto">+ Letto aggiuntivo</p>}
@@ -127,7 +128,7 @@ export default function ArriviOggi({ oggi, domani, partenze = [], cambi = [], pa
           {partenze.map(p => (
             <div key={`out-${p.id}`} className="mz-ev" data-partenza-home={p.id}>
               <span className="k o">Check-out</span>
-              <Link href={`/scheda/${p.id}`} className="gn">{p.nome}</Link>
+              <Link href={hrefScheda(p.id, 'home')} className="gn">{p.nome}</Link>
               <span className="r">— {p.camera}</span>
               <span className="eur" data-residuo>{euro(p.residuoCent)}</span>
               <span className="nota">{p.bonifico ? BONIFICO_ATTESO : PAGAMENTO_ATTESO} · <button type="button" className="mz-lnk" onClick={() => setPagamento(p.id)} data-segna-pagato>{SEGNA_PAGATO}</button></span>

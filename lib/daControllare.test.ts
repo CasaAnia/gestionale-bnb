@@ -359,8 +359,9 @@ test('destinazioni: ogni bottone porta al punto esatto', () => {
   // `?da=home`: aperta dalla Home, la freccia «Indietro» della richiesta riporta qui
   assert.equal(hrefDestinazione({ tipo: 'richiesta', id: 'r' }), '/richieste/r?da=home')
   // la scheda nuova (16/09/2026): ?azione=pagato le apre il foglio del pagamento
-  assert.equal(hrefDestinazione({ tipo: 'saldo', prenotazioneId: 'p' }), '/scheda/p?azione=pagato')
-  assert.equal(hrefDestinazione({ tipo: 'prenotazione', prenotazioneId: 'p' }), '/scheda/p')
+  // dalla Home: ?da=home, la freccia della scheda dice «‹ Oggi» (ritocchi C4)
+  assert.equal(hrefDestinazione({ tipo: 'saldo', prenotazioneId: 'p' }), '/scheda/p?azione=pagato&da=home')
+  assert.equal(hrefDestinazione({ tipo: 'prenotazione', prenotazioneId: 'p' }), '/scheda/p?da=home')
   assert.equal(hrefDestinazione({ tipo: 'calendario', giorno: '2026-09-16' }), '/calendario?giorno=2026-09-16')
   assert.equal(hrefDestinazione({ tipo: 'arrivo', prenotazioneId: 'p' }), '/arrivi?apri=p')
   assert.equal(hrefDestinazione({ tipo: 'fattura', documentoId: 'd' }), '/spese?documento=d')

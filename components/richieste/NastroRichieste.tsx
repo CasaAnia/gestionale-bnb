@@ -44,6 +44,7 @@ import { barreTenute, barrePerCamera, testoTenuta, type RichiestaTenuta, type Ba
 import { schedeRichieste, righeSchedaRichieste, TINTA_RICHIESTA, type RichiestaNastro, type SchedaRichieste } from '@/lib/richiesteNastro'
 import { eAperta, type Richiesta } from '@/lib/richieste'
 import type { Vista } from '@/lib/richiesteVista'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']   // l'ordine del Calendario
 // Le misure del Calendario «Maison»: righello 22 px sul telefono e 26 dal Mac,
@@ -216,7 +217,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   // Tocco su una prenotazione (come nel Calendario): il primo apre il foglietto e
   // accende la catena del cambio camera; il secondo, o «Apri la scheda», la scheda
   function tocca(b: PrenotazioneRichieste, chainKey: string | undefined) {
-    if (aperta?.id === b.id) { router.push(`/scheda/${b.id}`); return }
+    if (aperta?.id === b.id) { router.push(hrefScheda(b.id, 'richieste')); return }
     setAperta(b)
     setSelectedGroupId(chainKey ?? null)
   }
@@ -224,7 +225,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   function toccoSulVelo(e: MouseEvent<HTMLDivElement>) {
     const sotto = document.elementsFromPoint(e.clientX, e.clientY)
     const scheda = sotto.find(el => el instanceof HTMLElement && el.dataset.scheda) as HTMLElement | undefined
-    if (aperta && scheda?.dataset.scheda === aperta.id) { router.push(`/scheda/${aperta.id}`); return }
+    if (aperta && scheda?.dataset.scheda === aperta.id) { router.push(hrefScheda(aperta.id, 'richieste')); return }
     chiudiFoglietto()
   }
   function toccaTenuta(barra: BarraTenuta) {
@@ -372,7 +373,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
       {aperta && (
         <FogliettoPrenotazione prenotazione={aperta as Parameters<typeof FogliettoPrenotazione>[0]['prenotazione']} tutte={prenotazioni as Parameters<typeof FogliettoPrenotazione>[0]['tutte']}
           camere={rooms} pagamenti={pagamenti}
-          onApri={() => router.push(`/scheda/${aperta.id}`)} onChiudi={chiudiFoglietto} onVelo={toccoSulVelo} />
+          onApri={() => router.push(hrefScheda(aperta.id, 'richieste'))} onChiudi={chiudiFoglietto} onVelo={toccoSulVelo} />
       )}
     </div>
   )

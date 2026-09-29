@@ -10,6 +10,7 @@ import AvvisoAzione from './AvvisoAzione'
 import NotaCliente from './richieste/NotaCliente'
 import type { useRichiesteWeb } from '@/lib/webRequests'
 import type { useDaControllare } from '@/lib/daControllareDati'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 
 const data = (giorno: string) => new Date(giorno + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
 export default function RichiesteHome({ web, controlli }: { web: ReturnType<typeof useRichiesteWeb>; controlli: ReturnType<typeof useDaControllare> }) {
@@ -23,7 +24,7 @@ export default function RichiesteHome({ web, controlli }: { web: ReturnType<type
       <p className="sm">{data(r.check_in)} – {data(r.check_out)}<br />{r.room_name} · {r.num_guests} {r.num_guests === 1 ? 'ospite' : 'ospiti'}</p>
       <NotaCliente note={r.notes} maison className="sm nota" />
       {r.nome_diverso && <p className="sm nota">Il numero risulta in archivio come {r.nome_archivio}: verifica il nominativo.</p>}
-      <Link className="mz-lnk" href={`/scheda/${r.id}`}>Apri richiesta</Link>
+      <Link className="mz-lnk" href={hrefScheda(r.id, 'home')}>Apri richiesta</Link>
     </article>)}
     <DaControllare dati={controlli} richieste />
   </section>

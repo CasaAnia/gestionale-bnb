@@ -16,6 +16,7 @@ import { ID_DA_INCASSARE } from '@/components/NumeriOggi'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { rigaConto, type IncassoOggi, type VoceIncasso } from '@/lib/incassiHome'
 import type { PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 
 export const TITOLO_DA_INCASSARE = 'Da incassare'
 export const TITOLO_INCASSATI_OGGI = 'Incassati oggi'
@@ -32,7 +33,7 @@ export default function SoldiHome({ voci, incassati, onPagato }: { voci: VoceInc
       <p className="mz-eyebrow">{TITOLO_DA_INCASSARE} <small>· {voci.length} · {euroHome(totale)}</small></p>
       {voci.map(v => <div key={v.chiave} className="mz-dc" data-voce-incasso={v.id}>
         <p className="mz-eyebrow" style={{ fontSize: 8.5 }}>{v.stato}</p>
-        <p className="ti"><Link href={`/scheda/${v.id}`} className="mz-nome-link">{v.nome}</Link>{v.camere && ` · ${v.camere}`}{v.date && ` · ${v.date}`}</p>
+        <p className="ti"><Link href={hrefScheda(v.id, 'home')} className="mz-nome-link">{v.nome}</Link>{v.camere && ` · ${v.camere}`}{v.date && ` · ${v.date}`}</p>
         <p className="mo">{rigaConto(v, euroHome)} <span className="mat" data-residuo>{euroHome(v.residuoCent)}</span></p>
         <div className="azioni">
           <button type="button" className="mz-lnk" onClick={() => setPagamento(v.id)} data-registra-pagamento>{REGISTRA_PAGAMENTO}</button>
@@ -43,7 +44,7 @@ export default function SoldiHome({ voci, incassati, onPagato }: { voci: VoceInc
     {incassati.length > 0 && <section className="mz-sec" data-incassati-oggi>
       <p className="mz-eyebrow">{TITOLO_INCASSATI_OGGI} <small>· {incassati.length} · {euroHome(totaleOggi)}</small></p>
       {incassati.map(p => <div key={p.id} className="mz-ev">
-        <Link href={`/scheda/${p.bookingId}`} className="gn">{p.nome}</Link>
+        <Link href={hrefScheda(p.bookingId, 'home')} className="gn">{p.nome}</Link>
         <span className="r">— {p.testo}</span>
         <span className="eur ink">{euroHome(p.importoCent)}</span>
       </div>)}

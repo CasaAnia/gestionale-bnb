@@ -38,6 +38,7 @@ import {
   type BarraTenuta, type RichiestaTenuta,
 } from '@/lib/calendarioOpzioni'
 import { campiLibera, indirizzoPrenotazioneNuova, testoConferma, quandoInParole, type MotivoLibera } from '@/lib/opzioneLibera'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
@@ -529,7 +530,7 @@ export default function Calendario() {
   }
   function apriScheda(booking: CalendarBooking) {
     ricordaPosizione()
-    router.push(`/scheda/${booking.id}`)
+    router.push(hrefScheda(booking.id, 'calendario'))
   }
   function chiudiFoglietto() {
     setAperta(null)
@@ -702,7 +703,7 @@ export default function Calendario() {
                 <button type="button" className="mz-lnk"
                   onClick={e => {
                     e.stopPropagation()
-                    router.push(`/scheda/${b.id}`)
+                    router.push(hrefScheda(b.id, 'calendario'))
                   }}>
                   Apri
                 </button>

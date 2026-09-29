@@ -50,7 +50,7 @@ test('modifica e prolungamento mantengono la stessa protezione delle caselle dat
 // apre /scheda/<id>, e la parolina provvisoria «nuova ›» non c'è più.
 test('dall’elenco la riga intera apre la scheda nuova; «nuova ›» non c’è più', () => {
   const elenco = readFileSync(new URL('../app/prenotazioni/page.tsx', import.meta.url), 'utf8')
-  assert.match(elenco, /onClick=\{\(\) => router\.push\(`\/scheda\/\$\{b\.id\}`\)\}/)
+  assert.match(elenco, /onClick=\{\(\) => router\.push\(hrefScheda\(b\.id, 'prenotazioni'\)\)\}/)   // ?da=prenotazioni (ritocchi C4)
   assert.equal(/nuova ›|data-scheda-nuova|DA TOGLIERE/.test(elenco), false, 'la parolina provvisoria è ancora lì')
   assert.equal(/`\/prenotazioni\/\$\{/.test(elenco), false, 'l’elenco apre ancora la scheda vecchia')
   // e «+ Nuova» apre l'inserimento nuovo

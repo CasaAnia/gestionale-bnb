@@ -1,4 +1,5 @@
 'use client'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 // ============================================================================
 // LE RICHIESTE «MAISON» (riferimento approvato da Ania il 29/09/2026:
 // docs/design/richieste-riferimento.html, checklist in
@@ -156,7 +157,7 @@ function RigaChiusa({ r, adesso, evidenziata = false, onRiapri, riaprendo }: { r
         <p className="rd">{dati} · {CANALE_LABEL[r.canale]}</p>
         <div className="ra">
           {r.stato === 'confermata' && r.prenotazione_id && (
-            <Link href={`/scheda/${r.prenotazione_id}`} className="mz-lnk">Apri la scheda</Link>
+            <Link href={hrefScheda(r.prenotazione_id, 'richieste')} className="mz-lnk">Apri la scheda</Link>
           )}
           {riapribile(r) && (
             <button type="button" onClick={() => onRiapri(r)} disabled={riaprendo} className="mz-lnk" data-riapri>{riaprendo ? 'Riapro…' : 'Riapri'}</button>

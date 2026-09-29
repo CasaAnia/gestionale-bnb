@@ -12,6 +12,7 @@ import { matchPrenotazione } from '@/lib/ricerca'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { periodoCompatto } from '@/lib/dateItaliane'
+import { hrefScheda } from '@/lib/provenienzaScheda'
 
 // Pallino di stato discreto: colori coerenti con il calendario
 const STATUS_DOT: Record<string, string> = {
@@ -126,7 +127,7 @@ export default function Prenotazioni() {
             <p className="text-xs text-gray-500 -mt-1">{filtered.length} {filtered.length === 1 ? 'risultato' : 'risultati'} per «{search.trim()}»</p>
           )}
           {filtered.map(b => (
-            <div key={b.id} onClick={() => router.push(`/scheda/${b.id}`)}
+            <div key={b.id} onClick={() => router.push(hrefScheda(b.id, 'prenotazioni'))}
               className="ed-riga py-4 transition-all cursor-pointer active:opacity-70 leading-relaxed">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">

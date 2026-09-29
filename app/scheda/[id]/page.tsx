@@ -121,6 +121,7 @@ import type { PrenotazioneDC } from '@/lib/daControllare'
 import type { PagamentoStat } from '@/lib/statistiche/tipi'
 import type { SegmentoStorico } from '@/lib/storicoCliente'
 import { pagamentoAbitualeDi, comePagaSchedaConAbituale } from '@/lib/pagamentoAbituale'
+import { provenienzaScheda, conDaDellaScheda } from '@/lib/provenienzaScheda'
 
 const COLONNE_ALTRE = '*, rooms(name), guests(full_name, phone)'
 // quante notti intorno al soggiorno si leggono le altre prenotazioni (per «Cambia date»)
@@ -195,10 +196,11 @@ export default function SchedaPage() {
   // richiesta (?da=richiesta): la pastiglia verde che sparisce da sé
   const daRichiesta = parametri.get('da') === 'richiesta'
   const [salvata, setSalvata] = useState(parametri.get('salvata') === '1' || daRichiesta)
-  // dalla scheda del cliente (?da=cliente&cliente=<id>): «Indietro» torna lì
-  const daCliente = parametri.get('da') === 'cliente' ? parametri.get('cliente') : null
-  const hrefIndietro = daCliente ? `/clienti/${daCliente}` : '/prenotazioni'
-  // «‹ Prenotazioni»: l'indietro di sempre (la pagina di prima, o la riserva)
+  // da dove si è aperta (ritocchi del 29/09/2026, C4): ?da=home|calendario|arrivi|richieste|
+  // cliente(&cliente=<id>)|prenotazioni; «‹» ne scrive il nome e, senza cronologia, torna lì
+  const daDove = provenienzaScheda(parametri)
+  const hrefIndietro = daDove.riserva
+  // «‹ Oggi», «‹ Calendario»…: l'indietro di sempre (la pagina di prima, o la riserva)
   const indietro = () => smartBack(router, hrefIndietro)
   useRegistraIndietro(indietro, 'Indietro')
   // la linguetta scelta, nell'indirizzo (#oggi, #conto, …): una parte alla volta
@@ -478,7 +480,7 @@ export default function SchedaPage() {
       const altreLinee = linee.filter(l => l.chiave !== linea.chiave).flatMap(l => l.segmenti.map(s => ({ id: s.id, check_in: s.check_in })))
       const rimaste = [...altreLinee, ...piano.aggiorna.map(a => ({ id: a.id, check_in: a.campi.check_in })), ...esito.create]
         .sort((x, z) => x.check_in.localeCompare(z.check_in))
-      if (rimaste[0]) { router.replace(`/scheda/${rimaste[0].id}`); return }
+      if (rimaste[0]) { router.replace(conDaDellaScheda(rimaste[0].id, parametri)); return }
     }
     // il pop-up grande (Ania, 17/09/2026): il conto com'è adesso e, con un
     // prezzo finale concordato e notti diverse, «rivedi lo sconto» — ma se il
@@ -615,7 +617,7 @@ export default function SchedaPage() {
     <div className="sch-top" data-riga-navigazione>
       {/* dal Mac (29/09/2026, Ania) la scrittina «PRENOTAZIONE» come la barra del telefono, senza freccia */}
       <span className="sch-scritta" data-scritta-mac>Prenotazione</span>
-      <button type="button" className="np-back" onClick={indietro} data-indietro>‹ Prenotazioni</button>
+      <button type="button" className="np-back" onClick={indietro} data-indietro>‹ {daDove.etichetta}</button>
       {!loading && booking && <span data-stato-scheda className="stato">{statoBarra(statoTesto)}</span>}
     </div>
   )
@@ -872,7 +874,7 @@ export default function SchedaPage() {
             // se la riga aperta era fra quelle tolte, la scheda passa a un'altra camera
             const altre = linee.filter(l => l.chiave !== lineaDaTogliere.chiave).flatMap(l => l.segmenti.map(s => ({ id: s.id, check_in: s.check_in })))
             const dove = schedaDopo(booking.id, ids, altre)
-            if (dove) { setTogliAperto(null); router.replace(`/scheda/${dove}`); return }
+            if (dove) { setTogliAperto(null); router.replace(conDaDellaScheda(dove, parametri)); return }
             setLineaTolta(lineaDaTogliere)
             chiudiConConferma(() => { setTogliAperto(null); setLineaTolta(null) })
             const aggiorna = (r: Prenotazione): Prenotazione => (ids.includes(r.id) ? { ...r, ...campi } : r)

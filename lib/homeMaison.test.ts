@@ -224,7 +224,7 @@ test('sfondo della Home: bianco dal telefono E dal Mac (29/09/2026); fili con --
 test('riquadro arrivo: il nome è un link a /scheda/<id> col filo d\'ottone, oggi e domani; la matita è un\'icona a filo, non un carattere', () => {
   const src = leggi('components/ArriviOggi.tsx')
   const riquadro = src.slice(src.indexOf('function Riquadro('), src.indexOf('export default function ArriviOggi'))
-  assert.match(riquadro, /<Link href=\{`\/scheda\/\$\{b\.id\}`\} aria-label=\{`Apri prenotazione di \$\{nome\}`\} className="nm mz-nome-link">\{nome\}<\/Link>/)
+  assert.match(riquadro, /<Link href=\{hrefScheda\(b\.id, 'home'\)\} aria-label=\{`Apri prenotazione di \$\{nome\}`\} className="nm mz-nome-link">\{nome\}<\/Link>/)
   assert.match(riquadro, /const nome = nomeConAltri\(b\)/)
   // lo stesso riquadro per gli arrivi di oggi e di domani
   assert.match(src, /\{oggi\.map\(b => <Riquadro /)

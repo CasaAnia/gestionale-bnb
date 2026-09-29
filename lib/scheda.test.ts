@@ -48,8 +48,9 @@ test('la pagina è «Maison»: le variabili della Home, bianco dal telefono e da
 
 test('la barra in cima: «‹ Prenotazioni» a sinistra (l’indietro di sempre), lo stato in maiuscoletto ottone a destra, anche «Confermata»', () => {
   assert.match(pagina, /const indietro = \(\) => smartBack\(router, hrefIndietro\)/)
-  assert.match(pagina, /const hrefIndietro = daCliente \? `\/clienti\/\$\{daCliente\}` : '\/prenotazioni'/)
-  assert.match(pagina, />‹ Prenotazioni<\/button>/)
+  // ritocchi C4: il nome della pagina da cui si è venuti; senza, «‹ Prenotazioni»
+  assert.match(pagina, /const hrefIndietro = daDove\.riserva/)
+  assert.match(pagina, />‹ \{daDove\.etichetta\}<\/button>/)
   assert.match(pagina, /data-stato-scheda className="stato">\{statoBarra\(statoTesto\)\}/)
   assert.match(css, /\.sch-top \.stato \{[^}]*color: var\(--m-acc\)/)
   // le pastiglie di sempre, sottili sotto la barra, 5 secondi
@@ -199,7 +200,7 @@ test('sotto la striscia «Cambia date · Cambio camera · Aggiungi camera», e �
   assert.equal(/supabase/.test(togli), false)
   assert.match(pagina, /<FoglioTogliCamera titolo=\{lineaDaTogliere\.titolo\} ids=\{lineaDaTogliere\.segmenti\.map\(s => s\.id\)\}/)
   assert.match(pagina, /const dove = schedaDopo\(booking\.id, ids, altre\)/)
-  assert.match(pagina, /if \(dove\) \{ setTogliAperto\(null\); router\.replace\(`\/scheda\/\$\{dove\}`\); return \}/)
+  assert.match(pagina, /if \(dove\) \{ setTogliAperto\(null\); router\.replace\(conDaDellaScheda\(dove, parametri\)\); return \}/)   // la provenienza resta (C4)
   assert.match(leggi('lib/togliCamera.ts'), /status: 'annullata', cancelled_at: adesso, cancelled_reason: MOTIVO_TOGLI_CAMERA/)
 })
 

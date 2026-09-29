@@ -62,16 +62,17 @@ test('nessun link del gestionale apre più l’inserimento vecchio /nuova', () =
 })
 
 test('i punti di partenza, uno per uno, portano alla scheda nuova', () => {
-  assert.match(leggi('components/maison/SoldiHome.tsx'), /href=\{`\/scheda\/\$\{v\.id\}`\}/)                        // Home, «Da incassare» (veste «Maison», 28/09/2026)
-  assert.match(leggi('lib/daControllare.ts'), /case 'prenotazione': return `\/scheda\/\$\{d\.prenotazioneId\}`/)   // Home, «Da controllare»
-  assert.match(leggi('lib/daControllare.ts'), /case 'saldo': return `\/scheda\/\$\{d\.prenotazioneId\}\?azione=pagato`/)
-  assert.equal((leggi('app/calendario/page.tsx').match(/router\.push\(`\/scheda\/\$\{(b|booking)\.id\}`\)/g) || []).length, 2)   // Calendario: «Apri» delle richieste e la scheda dal foglietto (secondo tocco o «Apri la scheda»)
-  assert.match(leggi('app/arrivi/page.tsx'), /router\.push\(`\/scheda\/\$\{popup\.id\}`\)/)                 // Arrivi
-  assert.match(leggi('app/prenotazioni/page.tsx'), /router\.push\(`\/scheda\/\$\{b\.id\}`\)/)               // elenco Prenotazioni
+  // dai ritocchi del 29/09/2026 (C4) ogni punto di partenza dice da dove si apre (?da=…, lib/provenienzaScheda)
+  assert.match(leggi('components/maison/SoldiHome.tsx'), /href=\{hrefScheda\(v\.id, 'home'\)\}/)                        // Home, «Da incassare»
+  assert.match(leggi('lib/daControllare.ts'), /case 'prenotazione': return hrefScheda\(d\.prenotazioneId, 'home'\)/)   // Home, «Da controllare»
+  assert.match(leggi('lib/daControllare.ts'), /case 'saldo': return hrefScheda\(d\.prenotazioneId, 'home', \{ query: 'azione=pagato' \}\)/)
+  assert.equal((leggi('app/calendario/page.tsx').match(/router\.push\(hrefScheda\((b|booking)\.id, 'calendario'\)\)/g) || []).length, 2)   // Calendario
+  assert.match(leggi('app/arrivi/page.tsx'), /router\.push\(hrefScheda\(popup\.id, 'arrivi'\)\)/)                 // Arrivi
+  assert.match(leggi('app/prenotazioni/page.tsx'), /router\.push\(hrefScheda\(b\.id, 'prenotazioni'\)\)/)               // elenco Prenotazioni
   assert.match(leggi('app/richieste/page.tsx'), /router\.push\(`\/scheda\/\$\{id\}\?da=richiesta/)          // richiesta confermata
-  assert.match(leggi('app/richieste/page.tsx'), /href=\{`\/scheda\/\$\{r\.prenotazione_id\}`\}/)             // «scheda» nella riga della richiesta
+  assert.match(leggi('app/richieste/page.tsx'), /href=\{hrefScheda\(r\.prenotazione_id, 'richieste'\)\}/)             // «scheda» nella riga della richiesta
   assert.match(leggi('app/richieste/[id]/proposta/page.tsx'), /router\.push\(`\/scheda\/\$\{x\}\?da=richiesta/)
-  assert.match(leggi('app/clienti/[id]/page.tsx'), /href=\{`\/scheda\/\$\{r\.prenotazioneId\}\?da=cliente&cliente=\$\{id\}`\}/)   // scheda del Cliente
+  assert.match(leggi('app/clienti/[id]/page.tsx'), /hrefScheda\(r\.prenotazioneId, 'cliente', \{ cliente: String\(id\) \}\)/)   // scheda del Cliente
   assert.match(leggi('components/ParteCliente.tsx'), /href=\{`\/scheda\/\$\{s\.prenotazioneId\}`\}/)         // soggiorni nella proposta
   assert.match(leggi('components/WebRequestAlert.tsx'), /router\.push\(`\/scheda\/\$\{primo\.id\}`\)/)      // avviso richiesta dal sito
 })
@@ -91,8 +92,8 @@ test('la scheda nuova capisce da dove si arriva: ?da=richiesta, ?da=cliente, ?av
   const scheda = leggi('app/scheda/[id]/page.tsx')
   assert.match(scheda, /const daRichiesta = parametri\.get\('da'\) === 'richiesta'/)
   assert.match(scheda, /\{daRichiesta \? PRENOTAZIONE_DA_RICHIESTA : PRENOTAZIONE_SALVATA\}/)
-  assert.match(scheda, /const daCliente = parametri\.get\('da'\) === 'cliente' \? parametri\.get\('cliente'\) : null/)
-  assert.match(scheda, /const hrefIndietro = daCliente \? `\/clienti\/\$\{daCliente\}` : '\/prenotazioni'/)
+  // ?da=cliente&cliente=<id> esteso a tutte le pagine (ritocchi C4, lib/provenienzaScheda)
+  assert.match(scheda, /const daDove = provenienzaScheda\(parametri\)\n\s*const hrefIndietro = daDove\.riserva/)
   assert.match(scheda, /useState<string \| null>\(parametri\.get\('avviso'\)\)/)
 })
 
