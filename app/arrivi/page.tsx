@@ -346,7 +346,7 @@ export default function Arrivi() {
       {/* La testa è quella condivisa da Calendario, Arrivi e Richieste:
           components/TestaPagina (spazio in alto uguale per tutt'e tre) */}
       <TestaPagina titolo="Arrivi" maison desktop={isDesktop} indietro={<BackLink href="/" />}
-        sottotitolo={isDesktop && !orizzontale ? sottotitoloArrivi(DAYS_TOTAL - DAYS_BEFORE) : undefined}
+        scrittaMac={isDesktop && !orizzontale}
         comandi={<CampoRicerca maison value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[340px]') : 'w-full'} />}>
         {cercando && matches.length === 0 && (
           <div className="cal-nessuno">Nessun arrivo trovato nei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</div>
@@ -505,7 +505,7 @@ export default function Arrivi() {
       {/* Sotto il nastro: «Oggi», i mesi cliccabili (quelli dei 90 giorni) e la nota, come il Calendario */}
       {!loading && (
         <RigaMesi maison colonna={NAME_W} mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
-          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(indiceOggi())} nota={isDesktop && !orizzontale ? undefined : sottotitoloArrivi(DAYS_TOTAL - DAYS_BEFORE)}
+          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(indiceOggi())} nota={sottotitoloArrivi(DAYS_TOTAL - DAYS_BEFORE)}
           className={`shrink-0 ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
       )}
       {/* «LEGENDA» sotto «Oggi» (novità del 29/09/2026): apre la legenda nel foglio dal basso,

@@ -24,7 +24,6 @@ import FoglioMaison from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese } from '@/lib/schedaPrenotazione'
 import TestaPagina from '@/components/TestaPagina'
-import { meseIntero, sottotitoloCalendario } from '@/lib/testaMac'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
 import InterruttorePillola from '@/components/InterruttorePillola'
@@ -460,12 +459,6 @@ export default function Calendario() {
   // Striscia dei mesi (condivisa con Arrivi e Richieste) e mese del primo giorno in vista
   const mesi = mesiCliccabili(today, MESI_CLICCABILI)
   const meseVisibile = toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)
-  // Sottotitolo della testa dal Mac: lo stesso periodo dell'etichetta della
-  // riga di navigazione (segue lo scorrimento) e le camere, «26 set → 9 ott · 4 camere»
-  const giorniVista = days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)
-  const sottotitoloVista = modo === 'quindici'
-    ? sottotitoloCalendario(giorniVista[0], giorniVista[giorniVista.length - 1], rooms.length)
-    : sottotitoloCalendario(meseIntero(`${meseVisibile}-01`).dal, meseIntero(`${meseVisibile}-01`).al, rooms.length)
 
   const vaiARef = useRef(vaiA)
   useEffect(() => {
@@ -633,7 +626,7 @@ export default function Calendario() {
       {/* La testa è quella condivisa da Calendario, Arrivi e Richieste:
           components/TestaPagina (spazio in alto uguale per tutt'e tre) */}
       <TestaPagina titolo="Calendario" maison desktop={isDesktop} indietro={<BackLink href="/" />}
-        sottotitolo={isDesktop && !orizzontale ? sottotitoloVista : undefined}
+        scrittaMac={isDesktop && !orizzontale}
         comandi={<CampoRicerca maison value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[340px]') : 'w-full'} />}>
         {/* Nessun risultato: messaggio semplice, calendario normale */}
         {cercando && matches.length === 0 && (

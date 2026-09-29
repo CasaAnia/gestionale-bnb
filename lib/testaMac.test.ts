@@ -7,16 +7,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { meseIntero, sottotitoloArrivi, sottotitoloCalendario, sottotitoloRichieste, sottotitoloPrenotazioni, sottotitoloClienti, sottotitoloOggi, sottotitoloSpese } from './testaMac.ts'
+import { sottotitoloArrivi, sottotitoloRichieste, sottotitoloPrenotazioni, sottotitoloClienti, sottotitoloOggi, sottotitoloSpese } from './testaMac.ts'
 
 const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 
-test('i sottotitoli dicono periodo e camere, i giorni degli arrivi, le richieste da gestire', () => {
-  assert.equal(sottotitoloCalendario('2026-09-26', '2026-10-09', 4), '26 set → 9 ott · 4 camere')
-  assert.equal(sottotitoloCalendario('2026-09-26', '2026-10-09', 1), '26 set → 9 ott · 1 camera')
-  assert.equal(sottotitoloCalendario(undefined, '2026-10-09', 4), '')
-  assert.deepEqual(meseIntero('2026-02-01'), { dal: '2026-02-01', al: '2026-02-28' })
-  assert.deepEqual(meseIntero('2026-09-14'), { dal: '2026-09-01', al: '2026-09-30' })
+test('la nota degli arrivi e le richieste da gestire', () => {
   assert.equal(sottotitoloArrivi(83), 'arrivi dei prossimi 83 giorni')
   assert.equal(sottotitoloRichieste(3), '3 da gestire')
   assert.equal(sottotitoloRichieste(0), 'nessuna da gestire')
@@ -38,14 +33,38 @@ test('la testa del Mac: niente Indietro, titolo e sottotitolo, ricerca a destra'
   assert.match(css, /padding: 64px 0 0; font-family: var\(--m-ui\)/)
 })
 
-test('le tre pagine passano il sottotitolo solo dal Mac; la nota degli Arrivi sta in un posto solo', () => {
+test('Calendario e Arrivi (Maison) dal Mac: la sola scrittina; Richieste col titolo e «N da gestire»', () => {
   const cal = leggi('app/calendario/page.tsx'), arr = leggi('app/arrivi/page.tsx'), ric = leggi('app/richieste/page.tsx')
-  assert.match(cal, /sottotitolo=\{isDesktop && !orizzontale \? sottotitoloVista : undefined\}/)
-  assert.match(arr, /sottotitolo=\{isDesktop && !orizzontale \? sottotitoloArrivi\(DAYS_TOTAL - DAYS_BEFORE\) : undefined\}/)
-  assert.match(arr, /nota=\{isDesktop && !orizzontale \? undefined : sottotitoloArrivi\(DAYS_TOTAL - DAYS_BEFORE\)\}/)
+  for (const t of [cal, arr]) {
+    assert.match(t, /scrittaMac=\{isDesktop && !orizzontale\}/)
+    assert.equal(/sottotitolo=/.test(t), false, 'niente sottotitolo nelle pagine Maison')
+    assert.match(t, /'w-\[340px\]'/)
+  }
+  // senza sottotitolo la nota degli Arrivi torna nella riga dei mesi anche dal Mac
+  assert.match(arr, /nota=\{sottotitoloArrivi\(DAYS_TOTAL - DAYS_BEFORE\)\}/)
   assert.match(ric, /sottotitolo=\{desktop && !orizzontale \? sottotitoloRichieste\(loading \|\| richiesteNonLette \? null : bolliniRichieste\(tutte, adesso\)\.nuove\) : undefined\}/)
-  for (const t of [cal, arr]) assert.match(t, /'w-\[340px\]'/)
   assert.match(ric, /<CampoRicerca value=\{query\} onChange=\{cambiaRicerca\} className="w-\[340px\]" \/>/)
+})
+
+// ── PAGINE MAISON DAL MAC UGUALI AL TELEFONO (Ania, 29/09/2026) ────────────
+test('la scrittina in cima: maiuscoletto 10,5 px, .22em, #6E6558, e la ricerca a destra', () => {
+  const testa = leggi('components/TestaPagina.tsx')
+  const scritta = testa.slice(testa.indexOf('if (scrittaMac)'), testa.indexOf('if (sottotitolo !== undefined)'))
+  assert.match(scritta, /<h1 className="testa-mac-scritta mr-auto">\{titolo\}<\/h1>\s*\{comandi\}/)
+  assert.equal(/indietro|sottotitolo|testa-mac-titolo/.test(scritta), false)
+  const css = leggi('app/maison.css')
+  assert.match(css, /\[data-testa-scritta\] \.testa-mac-riga-scritta \{ margin-top: 34\.5px; \}/)
+  assert.match(css, /\[data-testa-scritta\] \.testa-mac-scritta \{[^}]*font-size: 10\.5px; letter-spacing: \.22em; text-transform: uppercase; color: #6E6558;/)
+})
+
+test('fondo bianco e fili #E8E3DA anche dal Mac: via l’eccezione crema', () => {
+  const css = leggi('app/maison.css')
+  for (const pagina of ['mz-home', 'cal', 'sch', 'np']) {
+    assert.match(css, new RegExp(`:root:has\\(\\.${pagina}\\) \\{ --home-bg: #FFFFFF; --home-line: #E8E3DA; \\}`), pagina)
+    assert.equal(new RegExp(`:root:has\\(\\.${pagina}\\) \\{ --home-bg: #F6F2EA`).test(css), false, `${pagina}: ancora crema`)
+  }
+  // la colonna del menu resta crema
+  assert.match(css, /width: 200px; background: #F6F2EA;/)
 })
 
 // ── TUTTE LE PAGINE (Ania, 29/09/2026) ─────────────────────────────────────

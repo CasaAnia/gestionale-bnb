@@ -39,13 +39,16 @@
 .maison { background: var(--m-bg); min-height: 100vh; }
 body:has(.maison) { background: #F6F2EA; }
 
-/* Sfondo e fili della Home (prova «C», Ania, 28/09/2026): dal Mac il crema
-   di sempre, dal telefono il bianco (valori nel media query in fondo). Stanno
+/* Sfondo e fili della Home (prova «C», Ania, 28/09/2026): bianco puro e fili
+   #E8E3DA, dal 29/09/2026 anche dal Mac (via l'eccezione crema: le pagine
+   Maison dal Mac sono uguali al telefono; la colonna del menu resta crema). Stanno
    sulla radice perché li leggono anche il fondo della pagina e la barra in
    basso (BottomNav), che sono fuori da .maison; valgono solo con la Home
    aperta (.mz-home). Il crema resta come tinta del riquadro sotto la
    striscia della settimana, dei fogli dal basso e delle loro chip. */
-:root:has(.mz-home) { --home-bg: #F6F2EA; --home-line: #E1D9CB; }
+:root:has(.mz-home) { --home-bg: #FFFFFF; --home-line: #E8E3DA; }
+/* Sul bianco il riquadro sotto la striscia della settimana prende il crema */
+.mz-home .mz-wkin { background: #F6F2EA; }
 body:has(.mz-home) { background: var(--home-bg); }
 .maison.mz-home { --m-bg: var(--home-bg); --m-line: var(--home-line); }
 /* La conferma «Salvato» aperta nella pagina (Rimanda o salta) si sbianca
@@ -298,14 +301,6 @@ body:has(.mz-home) { background: var(--home-bg); }
     --home-fs-lnk: 10.5px;
     --home-fs-cap: 10.5px;
   }
-  /* Prova «C»: sfondo bianco puro; per tornare al crema basta rimettere
-     --home-bg: #F6F2EA (e --home-line: #E1D9CB). */
-  :root:has(.mz-home) {
-    --home-bg: #FFFFFF;
-    --home-line: #E8E3DA;
-  }
-  /* Sul bianco il riquadro sotto la striscia della settimana prende il crema */
-  .mz-home .mz-wkin { background: #F6F2EA; }
   .maison .mz-arr .id .nm { font-size: 19px; }
 }
 
@@ -314,6 +309,10 @@ body:has(.mz-home) { background: var(--home-bg); }
    <div class="maison np">: prende le variabili --home-* della Home (dal
    telefono Figtree, margini 16 px; dal Mac Jost). I pezzi condivisi
    (components/nuova/PezziNuova) dentro <VesteMaison> usano queste classi. ── */
+/* bianca come le altre pagine Maison, dal Mac e dal telefono (Ania, 29/09/2026) */
+:root:has(.np) { --home-bg: #FFFFFF; --home-line: #E8E3DA; }
+body:has(.np) { background: var(--home-bg); }
+.maison.np { --m-bg: var(--home-bg); --m-line: var(--home-line); }
 .np { padding-bottom: 16px; }
 .np-hd { padding: 18px var(--home-gutter) 6px; display: flex; align-items: flex-end; gap: 10px; }
 .np-hd h1 { font-family: var(--m-disp); font-size: 26px; font-weight: 500; margin: 0; flex: 1; line-height: 1; color: var(--m-ink); min-width: 0; }
@@ -457,13 +456,10 @@ body:has(.mz-home) { background: var(--home-bg); }
    docs/design/scheda-riferimento.html). La pagina è
    <div class="maison sch">: prende le variabili --home-* della Home (dal
    telefono Figtree, margini 16 px, fondo bianco e fili #E8E3DA come la
-   prova C; dal Mac Jost e crema). Una parte alla volta, a linguette. ── */
-:root:has(.sch) { --home-bg: #F6F2EA; --home-line: #E1D9CB; }
+   prova C, dal 29/09/2026 anche dal Mac; dal Mac Jost). Una parte alla volta, a linguette. ── */
+:root:has(.sch) { --home-bg: #FFFFFF; --home-line: #E8E3DA; }
 body:has(.sch) { background: var(--home-bg); }
 .maison.sch { --m-bg: var(--home-bg); --m-line: var(--home-line); padding-bottom: 18px; }
-@media (max-width: 1023px) {
-  :root:has(.sch) { --home-bg: #FFFFFF; --home-line: #E8E3DA; }
-}
 .sch-top { display: flex; justify-content: space-between; align-items: center; padding: 14px var(--home-gutter) 0; min-height: 30px; }
 .sch-top .stato { font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--m-acc); font-weight: 500; }
 .sch-pastiglia { margin: 8px var(--home-gutter) 0; padding: 6px 0; border-bottom: 1px solid var(--m-acc); text-align: center; font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--m-acc); font-weight: 500; cursor: pointer; }
@@ -619,14 +615,11 @@ body:has(.sch) { background: var(--home-bg); }
 /* ── Calendario «Maison» (riferimento del 29/09/2026:
    docs/design/calendario-riferimento.html). La pagina è
    <div class="maison cal">: prende le variabili --home-* della Home (dal
-   telefono Figtree, fondo bianco e fili #E8E3DA come la prova C; dal Mac
-   Jost e crema). I colori delle schede stanno in lib/calendarioMobile. ── */
-:root:has(.cal) { --home-bg: #F6F2EA; --home-line: #E1D9CB; }
+   telefono Figtree; fondo bianco e fili #E8E3DA come la prova C, dal
+   29/09/2026 anche dal Mac, dove resta Jost). I colori delle schede stanno in lib/calendarioMobile. ── */
+:root:has(.cal) { --home-bg: #FFFFFF; --home-line: #E8E3DA; }
 body:has(.cal) { background: var(--home-bg); }
 .maison.cal { --m-bg: var(--home-bg); --m-line: var(--home-line); min-height: 0; font-family: var(--home-ui-font); }
-@media (max-width: 1023px) {
-  :root:has(.cal) { --home-bg: #FFFFFF; --home-line: #E8E3DA; }
-}
 /* la fascia ferma in cima (components/TestaPagina) nel colore del fondo */
 .cal [data-testa-pagina] { background: color-mix(in srgb, var(--home-bg) 95%, transparent); }
 .cal .mz-lnk { font-size: 10.5px; }
@@ -875,3 +868,13 @@ body:has(.cal) { background: var(--home-bg); }
   .titolo-mac.titolo-mac { font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: calc(30px / var(--zoom-pagina, 1)); font-weight: 400; line-height: 1; color: #241F1A; letter-spacing: normal; }
   .testa-mac-sopra { margin-top: calc(64px / var(--zoom-pagina, 1) - 16px); }
 }
+
+/* ── Testa delle pagine Maison dal Mac (29/09/2026, Ania): come la barra del
+   telefono. Niente titolo grande né sottotitolo: in cima la sola scrittina
+   maiuscoletta («CALENDARIO», «ARRIVI»), a sinistra col bordo alto a 64 px
+   come il marchio della colonna, e la ricerca a destra sulla stessa riga
+   (components/TestaPagina `scrittaMac`). ── */
+/* la riga: 16 px della fascia + 34,5 qui + 13,5 (la ricerca alta 37,5 centra
+   la scrittina alta 10,5) = bordo alto della scrittina a 64 px */
+[data-testa-scritta] .testa-mac-riga-scritta { margin-top: 34.5px; }
+[data-testa-scritta] .testa-mac-scritta { margin-top: 0; margin-bottom: 0; font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }

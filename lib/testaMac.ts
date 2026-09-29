@@ -5,22 +5,7 @@
 // ============================================================================
 import { periodoCompatto, dataLunga, GIORNI_LUNGHI } from './dateItaliane.ts'
 
-// Calendario: il periodo in vista e le camere, «26 set → 9 ott · 4 camere»
-export function sottotitoloCalendario(dal: string | null | undefined, al: string | null | undefined, camere: number): string {
-  const periodo = periodoCompatto(dal, al)
-  if (!periodo) return ''
-  return `${periodo} · ${camere === 1 ? '1 camera' : `${camere} camere`}`
-}
-
-// Il mese intero di un giorno («2026-09-14» → 1 set … 30 set), per la vista a mese
-export function meseIntero(iso: string): { dal: string; al: string } {
-  const [a, m] = iso.split('-').map(Number)
-  const ultimo = new Date(a, m, 0).getDate()
-  const mm = String(m).padStart(2, '0')
-  return { dal: `${a}-${mm}-01`, al: `${a}-${mm}-${String(ultimo).padStart(2, '0')}` }
-}
-
-// Arrivi: la stessa nota che dal telefono sta nella riga dei mesi
+// Arrivi: la nota della riga dei mesi, «arrivi dei prossimi 83 giorni»
 export function sottotitoloArrivi(giorni: number): string {
   return `arrivi dei prossimi ${giorni} giorni`
 }

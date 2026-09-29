@@ -35,11 +35,11 @@ test('la scheda sta a /scheda/<id> e non rimanda alla vecchia', () => {
 })
 
 // ── 1. LA VESTE «MAISON» ───────────────────────────────────────────────────
-test('la pagina è «Maison»: le variabili della Home, dal telefono bianco e Figtree, dal Mac crema a 620 px', () => {
+test('la pagina è «Maison»: le variabili della Home, bianco dal telefono e dal Mac (29/09/2026), dal Mac a 620 px', () => {
   assert.match(pagina, /<div className="maison sch -mt-12 lg:mt-0 md:max-w-\[620px\] md:mx-auto" data-senza-sottolinea data-scheda-maison>/)
   assert.match(pagina, /<VesteMaison>/, 'la striscia deve prendere la veste della Nuova prenotazione')
-  assert.match(css, /:root:has\(\.sch\) \{ --home-bg: #F6F2EA; --home-line: #E1D9CB; \}/)
-  assert.match(css, /@media \(max-width: 1023px\) \{\n  :root:has\(\.sch\) \{ --home-bg: #FFFFFF; --home-line: #E8E3DA; \}/)
+  assert.match(css, /:root:has\(\.sch\) \{ --home-bg: #FFFFFF; --home-line: #E8E3DA; \}/)
+  assert.equal(/:root:has\(\.sch\) \{ --home-bg: #F6F2EA/.test(css), false, 'niente più eccezione crema dal Mac')
   // sul telefono la barra alta dell'app non c'è: la barra è quella della scheda
   assert.match(leggi('components/MobileTopBar.tsx'), /pathname\.startsWith\('\/scheda\/'\)\) return null/)
   // «Caricamento…» e l'errore nella veste nuova
