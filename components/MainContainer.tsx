@@ -12,7 +12,7 @@ const FULL_WIDTH = ['/calendario', '/arrivi', '/statistiche', '/richieste']
 // testa del Mac (TestaMac, .titolo-mac), che si rimpicciolisce di tanto:
 // titolo a 30 px e bordo alto a 64 px VERI, come nelle pagine senza zoom. Calendario e Arrivi sono
 // esclusi: le loro griglie hanno già un ingrandimento proprio (GRID_SCALE).
-const NO_ZOOM = ['/calendario', '/arrivi', '/richieste']
+const NO_ZOOM = ['/calendario', '/arrivi', '/richieste', '/clienti']   // Clienti Maison (29/09/2026): misure vere anche dal Mac
 
 export default function MainContainer({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

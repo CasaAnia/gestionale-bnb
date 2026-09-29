@@ -213,3 +213,46 @@ test('C4: la freccia «‹» dice e riporta alla pagina di provenienza, per ogni
   ]
   for (const [file, re] of link) assert.match(leggi(file), re, file)
 })
+
+// ── D2 · elenco clienti ─────────────────────────────────────────────────────
+test('D2: le righe dell’elenco clienti — icone, nome, telefono per esteso coi cerchi, «da Nida · 4 soggiorni · 640 €»', async () => {
+  const { rigaElenco, iconeCliente, filtraElenco, conclusiPerCliente } = await import('./clientiElenco.ts')
+  const testo = (p: { testo: string }[]) => p.map(x => x.testo).join('')
+  const maria = { id: 'm', full_name: 'Maria Rossi', phone: '393427004354', rating: 'ottimo', vuole_ricevuta: true, provenienza: 'altra_struttura', struttura_nome: 'Nida' }
+  assert.equal(testo(rigaElenco(maria, { n: 4, ricaviCent: 64000 })), 'da Nida · 4 soggiorni · 640 €')
+  assert.deepEqual(rigaElenco(maria, { n: 4, ricaviCent: 64000 }).find(p => p.mat)?.testo, '640 €', 'lo speso in mattone')
+  assert.equal(testo(rigaElenco({ id: 'l', provenienza: 'passaparola' }, { n: 0, ricaviCent: 0 })), 'da passaparola · prima volta')
+  assert.equal(testo(rigaElenco({ id: 'p', provenienza: 'google', motivo_problematico: 'non ha pagato' }, { n: 2, ricaviCent: 31000 })), 'da Google · 2 soggiorni · 310 € · motivo interno')
+  assert.equal(testo(rigaElenco({ id: 'x' }, { n: 1, ricaviCent: 18000 })), 'provenienza non nota · 1 soggiorno · 180 €')
+  assert.deepEqual(iconeCliente(maria), { ricevuta: true, stella: true, problema: false })
+  assert.deepEqual(iconeCliente({ id: 'p', rating: 'problematico' }), { ricevuta: false, stella: false, problema: true })
+  // la ricerca di sempre: nome o telefono
+  const tutti = [maria, { id: 'g', full_name: 'Giovanni Serra', phone: '393351182204' }]
+  assert.deepEqual(filtraElenco(tutti, 'mar').map(g => g.id), ['m'])
+  assert.deepEqual(filtraElenco(tutti, '335118').map(g => g.id), ['g'])
+  // i soggiorni conclusi per cliente (un cambio camera = un soggiorno)
+  const c = conclusiPerCliente([
+    { id: 'a', guest_id: 'm', prenotazione_id: 'P', check_in: '2026-04-29', check_out: '2026-05-02', status: 'completata', total_amount: 200 },
+    { id: 'b', guest_id: 'm', prenotazione_id: 'P', check_in: '2026-05-02', check_out: '2026-05-04', status: 'completata', total_amount: 200 },
+    { id: 'c', guest_id: 'm', check_in: '2026-12-01', check_out: '2026-12-03', status: 'confermata', total_amount: 160 },
+  ], '2026-09-29')
+  assert.deepEqual(c.get('m'), { n: 1, ricaviCent: 40000 })
+  const pagina = leggi('app/clienti/page.tsx')
+  assert.match(pagina, /<CampoRicerca maison value=\{search\} onChange=\{setSearch\} \/>/)
+  assert.match(pagina, /Clienti · \{filtered\.length\}/)
+  assert.match(pagina, /`\/clienti\/nuovo\?ricerca=\$\{encodeURIComponent\(search\.trim\(\)\)\}`/)
+  assert.match(pagina, /\{nuovo\('\+ Nuovo cliente'\)\}/)
+  assert.match(pagina, /supabase\.from\('guests'\)\.select\('\*'\)\.order\('created_at', \{ ascending: false \}\)/)
+  assert.match(pagina, /Nessun cliente trovato/)
+  assert.match(pagina, /onClick=\{\(\) => router\.push\(`\/clienti\/\$\{g\.id\}`\)\}/)
+  assert.match(pagina, /<IconeContatto telefono=\{g\.phone \?\? null\}/)
+  const css = leggi('app/maison.css')
+  assert.match(css, /\.cli-riga \.cn2 \{ font-family: var\(--m-disp\); font-size: 19px;/)
+  assert.match(css, /\.cli-riga \.tel2 \.num \{ font-family: var\(--m-disp\); font-size: 16px;/)
+  assert.match(css, /\.cli-riga \.tel2 \.sch-ic a \{ width: 26px; height: 26px; \}/)
+  assert.match(css, /\.cli-riga \.cd \{[^}]*font-size: 12\.5px;/)
+  // dal Mac: scrittina con ricerca e «+ Nuovo cliente», elenco a 620 px, misure vere
+  assert.match(pagina, /<TestaMac titolo="Clienti"/)
+  assert.match(css, /@media \(min-width: 1024px\) \{ \.cli-elenco \{ max-width: 620px; margin: 0 auto; \} \}/)
+  assert.match(leggi('components/MainContainer.tsx'), /const NO_ZOOM = \[[^\]]*'\/clienti'\]/)
+})

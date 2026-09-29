@@ -54,7 +54,8 @@ test('le pagine non ancora Maison: TestaMac con la sola scrittina, zoom compensa
   assert.match(leggi('components/MainContainer.tsx'), /lg:\[zoom:1\.2\] lg:\[--zoom-pagina:1\.2\]/)
   const pagine: [string, RegExp][] = [
     ['app/prenotazioni/page.tsx', /<TestaMac titolo="Prenotazioni"\s*comandi=\{<>\{ricerca\('w-\[calc\(340px\/var\(--zoom-pagina,1\)\)\]'\)\}\{nuova\}<\/>\}/],
-    ['app/clienti/page.tsx', /<TestaMac titolo="Clienti"\s*comandi=\{<>\{ricerca\('w-\[calc\(340px\/var\(--zoom-pagina,1\)\)\]'\)\}\{nuovo\}<\/>\}/],
+    // Clienti è «Maison» dal 29/09/2026 (ritocchi D2): senza zoom, ricerca a filo e «+ Nuovo cliente»
+    ['app/clienti/page.tsx', /<TestaMac titolo="Clienti" contenitore=\{16\}\s*comandi=\{<><CampoRicerca maison value=\{search\} onChange=\{setSearch\} className="w-\[300px\]" \/>\{nuovo\('\+ Nuovo cliente'\)\}<\/>\}/],
     ['app/pulizie/page.tsx', /<TestaMac titolo="Pulizie" contenitore=\{24\} \/>/],
     ['app/statistiche/page.tsx', /<TestaMac titolo="Statistiche" \/>/],
     ['app/impostazioni/page.tsx', /<TestaMac titolo="Impostazioni" \/>/],
@@ -63,7 +64,6 @@ test('le pagine non ancora Maison: TestaMac con la sola scrittina, zoom compensa
   for (const [file, re] of pagine) assert.match(leggi(file), re, file)
   // dal telefono la ricerca e «+ Nuova» restano dov'erano
   assert.match(leggi('app/prenotazioni/page.tsx'), /\{ricerca\('mb-3 lg:hidden'\)\}/)
-  assert.match(leggi('app/clienti/page.tsx'), /\{ricerca\('w-full mb-4 lg:hidden'\)\}/)
   // le pagine interne (scheda cliente, nuovo cliente, nuova e modifica richiesta): scrittina anche lì
   for (const file of ['app/clienti/[id]/page.tsx', 'app/clienti/nuovo/page.tsx']) {
     assert.match(leggi(file), /titolo-mac testa-mac-sopra/, file)

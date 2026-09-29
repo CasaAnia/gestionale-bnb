@@ -1137,3 +1137,23 @@ textarea.cli-in { resize: none; }
 .cli-cta { display: block; width: 100%; background: var(--m-ink); color: #F6F2EA; text-align: center; padding: 11px; border: 0; border-radius: 999px; font-family: var(--home-ui-font); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; text-decoration: none !important; }
 .cli-cta:disabled { opacity: .5; }
 .cli-piede p { display: flex; justify-content: center; margin: 10px 0 0; }
+
+/* ── Clienti «Maison» (ritocchi del 29/09/2026, D2–D4; riferimento 2) ── */
+.cli-pagina { background: var(--m-bg); padding-bottom: 32px; }
+.cli-elenco { width: 100%; }
+@media (min-width: 1024px) { .cli-elenco { max-width: 620px; margin: 0 auto; } }
+.cli-rk2 { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 4px; font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }
+.cli-rk2 .mz-lnk { font-size: 10.5px; }
+.cli-riga { padding: 12px 16px; border-bottom: 1px solid var(--m-line); cursor: pointer; }
+.cli-riga .cn2 { font-family: var(--m-disp); font-size: 19px; font-weight: 500; line-height: 1.2; color: var(--m-ink); }
+.cli-riga .cn2 .st { color: var(--m-acc); font-weight: 400; }
+.cli-riga .cn2 .pb { color: var(--m-mat); }
+.cli-riga .tel2 { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.cli-riga .tel2 .num { font-family: var(--m-disp); font-size: 16px; letter-spacing: .02em; color: var(--m-ink); }
+.cli-riga .tel2 .sch-ic { margin-left: 10px; }
+.cli-riga .tel2 .sch-ic a { width: 26px; height: 26px; }
+.cli-riga .tel2 .sch-ic a::before { inset: -9px; }
+.cli-riga .tel2 .sch-ic svg { width: 13px; height: 13px; }
+.cli-riga .cd { font-family: var(--home-ui-font); font-size: 12.5px; color: var(--m-mut); margin-top: 3px; }
+.cli-riga .cd .mat { color: var(--m-mat); font-weight: 500; }
+.cli-vuoto { text-align: center; padding: 40px 16px; color: var(--m-mut); font-size: 13px; }
