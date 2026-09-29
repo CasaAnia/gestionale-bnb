@@ -1,3 +1,19 @@
+## Arrivi «Maison» — PUBBLICATO — 29/09/2026
+
+Riferimento approvato da Ania il 29/09/2026: `docs/design/arrivi-riferimento.html`; checklist e riscontro accanto (`arrivi-checklist.md`, `arrivi-riscontro.md`), due schermate a 390 px. Commit e29b92d → 3f9040c più riscontro, Vercel success. Gli Arrivi sono il nastro del Calendario (stessi pezzi, ora condivisi in `components/calendario/Nastro.tsx`): ogni arrivo è una scheda con l'orario grande davanti al nome e sotto luogo · mezzo · navetta; verde = orario e autista, ottone = arrivo autonomo con l'orario, blu = manca qualcosa («?» in mattone se manca l'orario); gli arrivi già avvenuti sono attenuati con «· arrivata»; «LEGENDA» sotto «Oggi»; il tocco apre il foglio «Arrivo e navetta» (quello della scheda, 752 px) con storico, «Chiedi orario», «Apri chat», «Apri prenotazione» e «Salva». Colori in `TINTE_ARRIVO` (`lib/calendarioMobile`). Dal Mac tutti i fogli Maison ora stanno davvero al centro. Da decidere con Ania: gli Arrivi mostrano anche le richieste dal sito da confermare (tratteggiate), come chiede la scheda del riferimento; prima non si vedevano. Anteprima senza rete: `ANTEPRIMA_ARRIVI_MAISON=1` (porta 3218).
+
+**Prove dal telefono in 10 minuti**
+1. Apri gli Arrivi: sotto la ricerca «‹ periodo · MESE | 2 SETTIMANE ›», poi le camere con le schede; su ognuna l'orario grande nero (o «?» rosso mattone), il nome e sotto come arriva.
+2. Guarda i colori: verde chi ha orario e autista, ottone chi arriva da solo con l'orario, azzurro chi ha ancora qualcosa da sistemare.
+3. Le schede dei giorni passati sono sbiadite e dicono «· arrivata».
+4. Tocca «›»: va avanti di UNA settimana. Tocca «MESE»: i giorni si stringono.
+5. Tocca «LEGENDA» sotto «Oggi»: cinque voci e la riga delle icone; «CHIUDI».
+6. Tocca una scheda: sale «Arrivo e navetta · camera · giorno», col nome, cornetta e WhatsApp, la riga riassunto e il modulo coi chip.
+7. Cambia l'autista: la riga riassunto sotto il nome cambia subito. Tocca fuori dal foglio: si chiude senza salvare.
+8. Riaprilo, sistema l'orario e tocca «SALVA»: «Salvato», il foglio si chiude e la scheda cambia colore se ora è tutto a posto.
+9. Scrivi un cognome nella ricerca: «🔎 N arrivi trovati», le trovate col contorno verde, le altre spente; ✕ per tornare.
+10. Dalla Home, «Apri arrivo» su un arrivo da controllare: si apre direttamente il foglio di quella prenotazione.
+
 ## Calendario «Maison» — PUBBLICATO — 29/09/2026
 
 Riferimento approvato da Ania il 29/09/2026: `docs/design/calendario-riferimento.html`; checklist e riscontro accanto (`calendario-checklist.md`, `calendario-riscontro.md`), quattro schermate a 390 px. Commit 68de3dd → 5e462bc più riscontro, Vercel success. Le prenotazioni sono schede con quattro righe (date · icone e nome · ospiti e stato · arrivo), i giorni liberi sono riquadri «+», il colore dice solo il pagamento, il letto extra è un filo rosso e la riga «🛏 extra» diventa rossa a 2/2; il primo tocco apre il foglietto di dettaglio, il secondo la scheda; a «2 settimane» le frecce spostano di una settimana. I colori stanno in un punto solo (`lib/calendarioMobile`, TINTE_SCHEDA). Da sapere: una scheda ha un colore solo, quindi non si colora più a metà con gli acconti parziali (diventa verde quando è tutto pagato).
