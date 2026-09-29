@@ -105,7 +105,7 @@ test('la testata «Maison» (28/09/2026): titolo in Cormorant, la data e il clie
   assert.match(testa, /<h1>\{TITOLO_PAGINA\}<small data-oggi>\{data\}\{sotto \? ` · \$\{sotto\}` : ''\}<\/small><\/h1>/)
   assert.match(testa, /export const INDIETRO = '‹ Indietro'/)
   assert.match(testa, /useRegistraIndietro\(indietro, 'Indietro'\)/)
-  assert.match(leggiFile('components/MobileTopBar.tsx'), /pathname === '\/nuova-prenotazione' \|\| pathname\.startsWith\('\/scheda\/'\)( \|\| pathname\.startsWith\('\/richieste\/'\))?\) return null/)
+  assert.match(leggiFile('components/MobileTopBar.tsx'), /pathname === '\/nuova-prenotazione' \|\| pathname\.startsWith\('\/scheda\/'\)( \|\| pathname\.startsWith\('\/richieste\/'\))?( \|\| pathname\.startsWith\('\/clienti\/'\))?\) return null/)
   // la testata è la prima cosa della pagina
   assert.ok(pagina.indexOf('<TestaNuova') < pagina.indexOf('data-cerca-cliente'))
 })

@@ -41,7 +41,7 @@ test('la pagina è «Maison»: le variabili della Home, bianco dal telefono e da
   assert.match(css, /:root:has\(\.sch\) \{ --home-bg: #FFFFFF; --home-line: #E8E3DA; \}/)
   assert.equal(/:root:has\(\.sch\) \{ --home-bg: #F6F2EA/.test(css), false, 'niente più eccezione crema dal Mac')
   // sul telefono la barra alta dell'app non c'è: la barra è quella della scheda
-  assert.match(leggi('components/MobileTopBar.tsx'), /pathname\.startsWith\('\/scheda\/'\)( \|\| pathname\.startsWith\('\/richieste\/'\))?\) return null/)
+  assert.match(leggi('components/MobileTopBar.tsx'), /pathname\.startsWith\('\/scheda\/'\)( \|\| pathname\.startsWith\('\/richieste\/'\))?( \|\| pathname\.startsWith\('\/clienti\/'\))?\) return null/)
   // «Caricamento…» e l'errore nella veste nuova
   assert.match(pagina, /<p className="mz-caricamento">Caricamento…<\/p>/)
 })

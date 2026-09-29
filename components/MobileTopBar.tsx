@@ -30,7 +30,7 @@ export default function MobileTopBar() {
   // «Nuova prenotazione» Maison ha la sua testata con «‹ Indietro», e la
   // scheda prenotazione Maison la sua barra con «‹ Prenotazioni»; la richiesta,
   // la nuova richiesta e la modifica «Maison» (29/09/2026) la loro con «‹ Richieste»
-  if (pathname === '/login' || pathname === '/' || pathname === '/nuova-prenotazione' || pathname.startsWith('/scheda/') || pathname.startsWith('/richieste/')) return null
+  if (pathname === '/login' || pathname === '/' || pathname === '/nuova-prenotazione' || pathname.startsWith('/scheda/') || pathname.startsWith('/richieste/') || pathname.startsWith('/clienti/')) return null
   const entry = SECTION_TITLES.find(([prefix]) => pathname.startsWith(prefix))
   const title = entry ? entry[1] : 'Casa Ania'
   return (

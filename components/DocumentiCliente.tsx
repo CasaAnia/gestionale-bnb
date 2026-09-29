@@ -8,6 +8,11 @@ import {
 } from '@/lib/documentiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import VisoreDocumento from '@/components/VisoreDocumento'
+import FoglioMaison from '@/components/maison/FoglioMaison'
+import { giornoMeseAnno } from '@/lib/dateItaliane'
+
+/** Il foglio «Eliminare questo documento?»: la domanda, una riga e i due comandi (B1) */
+export const ALTEZZA_ELIMINA_DOCUMENTO = 190
 
 // Documenti d'identità del cliente (05/09/2026, richiesta di Ania): foto dal
 // telefono, ridotte e salvate nel bucket privato «documenti» (migrazione
@@ -118,86 +123,89 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
     setDaCancellare(null)
   }
 
+  // Veste «Maison» della scheda cliente (ritocchi del 29/09/2026, D3; riferimento 2):
+  // «DOCUMENTI · N», griglia a due colonne con l'anteprima 4:3, sotto l'etichetta e
+  // «data · dimensione · elimina»; le chip del tipo e del lato, «Aggiungi documento»
+  // sottolineato; la conferma dell'eliminazione nel foglio Maison. Stessa lettura,
+  // stessa riduzione delle foto, stesso archivio e stessi errori di prima.
   return (
-    <div id="documenti" className="ed-riga py-4 mb-4">
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <p className="font-semibold text-green-dark">Documenti</p>
-        {!loading && !avviso && <span className="text-xs text-stone">{rigaDocumenti(documenti.length)}</span>}
-      </div>
+    <section id="documenti" className="np-sec cli-doc" style={{ paddingTop: 22 }}>
+      <p className="mz-eyebrow">Documenti{!loading && !avviso ? ` · ${documenti.length}` : ''}</p>
 
-      {avviso && <p className="text-sm rounded-lg p-3" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>{avviso}</p>}
+      {avviso && <p className="mz-hint" style={{ color: '#8C3B2E' }}>{avviso}</p>}
 
       {!avviso && (
         <>
-          {erroreAnteprime && <AvvisoAzione testo={erroreAnteprime} onRiprova={riprovaAnteprime} className="mb-2" />}
+          {erroreAnteprime && <AvvisoAzione testo={erroreAnteprime} onRiprova={riprovaAnteprime} className="mt-2" />}
           {loading ? (
-            <p className="text-sm text-stone">Caricamento…</p>
+            <p className="mz-hint">Caricamento…</p>
           ) : documenti.length === 0 ? (
-            <p className="text-sm text-stone">Nessun documento allegato.</p>
+            <p className="mz-hint" data-nessun-documento>Nessun documento allegato.</p>
           ) : (
-            <ul className="grid grid-cols-2 gap-2 mb-3">
+            <ul className="cli-doc-griglia" data-griglia-documenti>
               {documenti.map(d => (
-                <li key={d.id} className="rounded-lg border border-card-border overflow-hidden bg-cream">
-                  <button type="button" onClick={() => anteprime[d.id] && setAperto(d)} className="block w-full aspect-[4/3] bg-sand" aria-label={`Apri ${etichettaLeggibile(d)}`}>
+                <li key={d.id} data-documento={d.id}>
+                  <button type="button" onClick={() => anteprime[d.id] && setAperto(d)} className="ant" aria-label={`Apri ${etichettaLeggibile(d)}`}>
                     {anteprime[d.id] ? (
                       d.percorso.endsWith('.pdf')
-                        ? <span className="flex items-center justify-center h-full text-3xl">📄</span>
+                        ? <span className="pdf">📄</span>
                         // eslint-disable-next-line @next/next/no-img-element
-                        : <img src={anteprime[d.id]} alt={etichettaLeggibile(d)} className="w-full h-full object-cover" />
-                    ) : <span className="flex items-center justify-center h-full text-xs text-stone">…</span>}
+                        : <img src={anteprime[d.id]} alt={etichettaLeggibile(d)} />
+                    ) : <span>…</span>}
                   </button>
-                  <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-green-dark truncate">{etichettaLeggibile(d)}</p>
-                      <p className="text-[11px] text-stone">{new Date(d.created_at).toLocaleDateString('it-IT')}{d.dimensione ? ` · ${dimensioneLeggibile(d.dimensione)}` : ''}</p>
-                    </div>
-                    <button type="button" onClick={() => setDaCancellare(d)} className="shrink-0 text-[11px] font-semibold px-2 py-1 rounded-full" style={{ color: '#8C3B2E', background: '#F6E4DE' }}>Elimina</button>
-                  </div>
+                  <p className="et">{etichettaLeggibile(d)}</p>
+                  <p className="da">
+                    {[giornoMeseAnno(String(d.created_at).slice(0, 10)), dimensioneLeggibile(d.dimensione)].filter(Boolean).join(' · ')}
+                    {' · '}<button type="button" className="mz-lnk q el" data-elimina-documento onClick={() => setDaCancellare(d)}>elimina</button>
+                  </p>
                 </li>
               ))}
             </ul>
           )}
 
-          {/* Aggiunta: tipo di documento, lato, poi il pulsante che apre fotocamera/galleria */}
-          <div className="flex flex-wrap items-center gap-1.5 mb-2">
-            <select value={etichetta} onChange={e => setEtichetta(e.target.value as EtichettaDocumento)}
-              className="ed-campo px-2 py-1.5 text-xs text-green-dark">
-              {ETICHETTE.map(e => <option key={e.chiave} value={e.chiave}>{e.label}</option>)}
-            </select>
-            {(['fronte', 'retro'] as const).map(l => (
-              <button key={l} type="button" onClick={() => setLato(lato === l ? null : l)} aria-pressed={lato === l}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors ${lato === l ? 'bg-green-mid text-cream-text border-green-mid' : 'bg-white text-stone border-card-border'}`}>{l}</button>
+          {/* Aggiunta: tipo di documento, lato, poi «Aggiungi documento» che apre fotocamera/galleria */}
+          <div className="cli-chips" style={{ marginTop: 14 }} data-tipo-documento>
+            {ETICHETTE.filter(e => e.chiave !== 'documento').map(e => (
+              <button key={e.chiave} type="button" aria-pressed={etichetta === e.chiave} className={etichetta === e.chiave ? 'on' : ''} onClick={() => setEtichetta(e.chiave)}>{e.label}</button>
             ))}
           </div>
-          <label className={`inline-flex items-center justify-center w-full rounded-xl py-2.5 text-sm font-semibold cursor-pointer ${caricando ? 'opacity-60' : ''}`} style={{ background: '#2D6A4F', color: '#F5EFE4' }}>
-            {caricando ? 'Carico…' : '📷 Aggiungi documento'}
-            <input type="file" accept="image/*,application/pdf" className="hidden" disabled={caricando}
-              onChange={e => { const f = e.target.files?.[0]; if (f) carica(f); e.target.value = '' }} />
-          </label>
-          <p className="text-[11px] text-stone mt-2">Le foto vengono ridotte e salvate in un archivio privato, visibile solo a chi è entrato nel gestionale. Restano finché non le elimini tu.</p>
+          <div className="cli-doc-lato">
+            <span className="cli-chips" data-lato-documento>
+              {(['fronte', 'retro'] as const).map(l => (
+                <button key={l} type="button" onClick={() => setLato(lato === l ? null : l)} aria-pressed={lato === l} className={lato === l ? 'on' : ''}>{l}</button>
+              ))}
+            </span>
+            <label className={`mz-lnk ${caricando ? 'q' : ''}`} data-aggiungi-documento>
+              {caricando ? 'Carico…' : 'Aggiungi documento'}
+              <input type="file" accept="image/*,application/pdf" className="hidden" disabled={caricando}
+                onChange={e => { const f = e.target.files?.[0]; if (f) carica(f); e.target.value = '' }} />
+            </label>
+          </div>
+          <p className="cli-doc-nota">Le foto vengono ridotte e salvate in un archivio privato, visibile solo a chi è entrato nel gestionale. Restano finché non le elimini tu.</p>
         </>
       )}
 
-      {errore && <p role="alert" className="text-sm mt-2 rounded-lg p-3" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>{errore}</p>}
+      {errore && <p role="alert" className="mz-hint" style={{ color: '#8C3B2E' }}>{errore}</p>}
 
       {daCancellare && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 ed-velo" onClick={() => setDaCancellare(null)} />
-          <div className="relative ed-foglio rounded-xl p-4 w-full max-w-sm shadow-md">
-            <p className="font-semibold text-green-dark mb-1">Eliminare questo documento?</p>
-            <p className="text-sm text-stone mb-3">{etichettaLeggibile(daCancellare)} · non si può recuperare.</p>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => cancella(daCancellare)} className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white" style={{ background: '#8C3B2E' }}>Elimina</button>
-              <button type="button" onClick={() => setDaCancellare(null)} className="flex-1 rounded-xl py-2.5 text-sm font-semibold border border-card-border bg-white text-green-dark">Annulla</button>
+        <FoglioMaison titolo="Eliminare questo documento?" altezza={ALTEZZA_ELIMINA_DOCUMENTO} larghezzaDesktop={440} dati="elimina-documento" onChiudi={() => setDaCancellare(null)}
+          piede={
+            <div className="mz-foot" data-piede-foglio>
+              <span />
+              <span className="acts">
+                <button type="button" className="mz-lnk q" data-annulla-foglio onClick={() => setDaCancellare(null)}>Annulla</button>
+                <button type="button" className="mz-cta mat" data-azione-foglio="elimina-documento" onClick={() => cancella(daCancellare)}>Elimina</button>
+              </span>
             </div>
-          </div>
-        </div>
+          }>
+          <p className="mz-hint">{etichettaLeggibile(daCancellare)} · non si può recuperare.</p>
+        </FoglioMaison>
       )}
 
       {aperto && anteprime[aperto.id] && (
         <VisoreDocumento url={anteprime[aperto.id]} etichetta={etichettaLeggibile(aperto)} onChiudi={() => setAperto(null)} />
       )}
-    </div>
+    </section>
   )
 }
 

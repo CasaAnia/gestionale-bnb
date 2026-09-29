@@ -19,7 +19,7 @@ test('la barra Maison vale per TUTTE le pagine (29/09/2026); Home, Nuova e Sched
   assert.match(barra, /barra-alta barra-maison lg:hidden fixed top-0 left-0 right-0 z-40 h-\[52px\]/)
   // area di tocco della freccia: 44 px
   assert.match(barra, /h-11 w-11/)
-  assert.match(barra, /pathname === '\/' \|\| pathname === '\/nuova-prenotazione' \|\| pathname\.startsWith\('\/scheda\/'\)( \|\| pathname\.startsWith\('\/richieste\/'\))?\) return null/)
+  assert.match(barra, /pathname === '\/' \|\| pathname === '\/nuova-prenotazione' \|\| pathname\.startsWith\('\/scheda\/'\)( \|\| pathname\.startsWith\('\/richieste\/'\))?( \|\| pathname\.startsWith\('\/clienti\/'\))?\) return null/)
 })
 
 test('la barra Maison ha le misure e i colori decisi', () => {

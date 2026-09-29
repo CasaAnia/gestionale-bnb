@@ -202,7 +202,16 @@ test('«Con lei» (chi dorme con la cliente): campi condivisi, e il nome si comp
 })
 
 test('Pagine vecchie (clienti/nuovo, scheda cliente, scheda prenotazione, /nuova): campo unico condiviso e nomeDaSalvareONull', () => {
-  for (const [file, quanti] of [['app/clienti/nuovo/page.tsx', 1], ['app/clienti/[id]/page.tsx', 1], ['app/prenotazioni/[id]/page.tsx', 1], ['app/nuova/page.tsx', 3]] as [string, number][]) {
+  // la scheda cliente dal 29/09/2026 (ritocchi D3) cambia i dati SOLO dal foglio «Dati della cliente»
+  // (CampiNomeCognome + campiDaModulo → nomeDaSalvare): niente più campi del nome suoi
+  const schedaCliente = leggi('app/clienti/[id]/page.tsx')
+  assert.match(schedaCliente, /<FoglioCliente cliente=\{/)
+  assert.doesNotMatch(schedaCliente, /<CampoNomeCognome |<CampiNomeCognome |<input[^>]*full_name/)
+  // il nuovo cliente «Maison» (ritocchi D4): i due campi del componente condiviso, poi nomeDaSalvareONull
+  const nuovo = leggi('app/clienti/nuovo/page.tsx')
+  assert.match(nuovo, /<CampiNomeCognome nome=\{form\.nome\} cognome=\{form\.cognome\}/)
+  assert.match(nuovo, /nomeDaSalvareONull\(\{ nome: form\.nome, cognome: form\.cognome \}\)/)
+  for (const [file, quanti] of [['app/prenotazioni/[id]/page.tsx', 1], ['app/nuova/page.tsx', 3]] as [string, number][]) {
     const s = leggi(file)
     assert.equal((s.match(/<CampoNomeCognome /g) ?? []).length, quanti, `${file}: campi condivisi`)
     assert.match(s, /nomeDaSalvareONull\(\{ full_name: /, `${file}: salvataggio`)
