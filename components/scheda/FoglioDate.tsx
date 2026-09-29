@@ -11,7 +11,7 @@ import { useState } from 'react'
 import Foglio, { PiedeFoglio } from './Foglio'
 import CampoData from '@/components/nuova/CampoData'
 import { MATTONE, OTTONE } from '@/components/nuova/PezziNuova'
-import { TITOLO_DATE, ERRORE_DATE, dateLinea, nottiConDate } from '@/lib/lineeSoggiorno'
+import { TITOLO_DATE, ERRORE_DATE, dateLinea, nottiConDate, partenzaSpostandoArrivo } from '@/lib/lineeSoggiorno'
 import type { ContestoNotti, NotteStriscia } from '@/lib/strisciaNotti'
 import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
@@ -37,7 +37,8 @@ export default function FoglioDate({ notti, contesto, sottotitolo, contoDopo, on
   return (
     <Foglio titolo={TITOLO_DATE} altezza={ALTEZZE_FOGLI.date} onChiudi={onChiudi}>
       {sottotitolo && <p data-sottotitolo-date style={{ marginTop: -6, marginBottom: 10, fontSize: 12.5, fontWeight: 600, color: OTTONE }}>{sottotitolo}</p>}
-      <CampoData etichetta="Arrivo" valore={arrivo} onValore={setArrivo} dati="arrivo" ottone />
+      {/* cambiando l'arrivo la partenza si sposta con le stesse notti (Ania, 29/09/2026); la partenza non tocca l'arrivo */}
+      <CampoData etichetta="Arrivo" valore={arrivo} onValore={v => { setPartenza(partenzaSpostandoArrivo(arrivo, partenza, v)); setArrivo(v) }} dati="arrivo" ottone />
       <CampoData etichetta="Partenza" valore={partenza} onValore={setPartenza} min={arrivo || undefined} dati="partenza" ottone />
       {/* il conto non si anticipa qui (Ania, 17/09/2026): lo dice il pop-up dopo «Fatto»; resta solo il motivo se così non si può salvare */}
       {conto && conto.guaio && <p data-conto-dopo style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: MATTONE }}>{conto.testo}</p>}

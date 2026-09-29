@@ -218,3 +218,31 @@ test('cambio camera da una notte in poi: le camere libere in tutte quelle notti,
   // senza notti niente camere
   assert.deepEqual(camereDaLi(A.notti, '2026-12-01', ctxA), [])
 })
+
+// ── Cambiando l'arrivo la partenza si sposta con le stesse notti (Ania, 29/09/2026) ──
+import { partenzaSpostandoArrivo } from './lineeSoggiorno.ts'
+import { readFileSync as leggiFile } from 'node:fs'
+
+test('cambiando l’ARRIVO la partenza tiene le notti di prima; senza partenza, il giorno dopo', () => {
+  assert.equal(partenzaSpostandoArrivo('2026-10-20', '2026-10-21', '2026-10-25'), '2026-10-26')   // 1 notte
+  assert.equal(partenzaSpostandoArrivo('2026-10-20', '2026-10-23', '2026-10-25'), '2026-10-28')   // 3 notti
+  assert.equal(partenzaSpostandoArrivo('2026-10-20', '2026-10-23', '2026-10-15'), '2026-10-18')   // anche indietro
+  assert.equal(partenzaSpostandoArrivo('2026-10-30', '2026-11-02', '2026-12-30'), '2027-01-02')   // a cavallo d'anno
+  assert.equal(partenzaSpostandoArrivo('', '', '2026-10-25'), '2026-10-26')                       // nessuna partenza prima
+  assert.equal(partenzaSpostandoArrivo('2026-10-20', '', '2026-10-25'), '2026-10-26')
+  assert.equal(partenzaSpostandoArrivo('', '2026-10-30', '2026-10-25'), '2026-10-30')             // partenza senza arrivo: resta se viene dopo
+  assert.equal(partenzaSpostandoArrivo('', '2026-10-22', '2026-10-25'), '2026-10-26')
+  assert.equal(partenzaSpostandoArrivo('2026-10-20', '2026-10-23', ''), '2026-10-23')             // arrivo cancellato: la partenza resta
+})
+
+test('i due punti che cambiano le date lo usano solo per l’ARRIVO, per ogni linea', () => {
+  const leggi = (f: string) => leggiFile(new URL(`../${f}`, import.meta.url), 'utf8')
+  const foglio = leggi('components/scheda/FoglioDate.tsx')
+  assert.match(foglio, /etichetta="Arrivo" valore=\{arrivo\} onValore=\{v => \{ setPartenza\(partenzaSpostandoArrivo\(arrivo, partenza, v\)\); setArrivo\(v\) \}\}/)
+  assert.match(foglio, /etichetta="Partenza" valore=\{partenza\} onValore=\{setPartenza\}/)   // la partenza non tocca l'arrivo
+  const nuova = leggi('app/nuova-prenotazione/page.tsx')
+  assert.match(nuova, /const partenza = pezzo\.partenza \?\? \(pezzo\.arrivo !== undefined \? partenzaSpostandoArrivo\(d\.arrivo, d\.partenza, pezzo\.arrivo\) : d\.partenza\)/)
+  assert.match(nuova, /const arrivo = pezzo\.arrivo \?\? d\.arrivo/)
+  assert.match(nuova, /onArrivo=\{v => cambiaLinea\(linea\.gruppo, \{ arrivo: v \}\)\}/)
+  assert.match(nuova, /onPartenza=\{v => cambiaLinea\(linea\.gruppo, \{ partenza: v \}\)\}/)
+})

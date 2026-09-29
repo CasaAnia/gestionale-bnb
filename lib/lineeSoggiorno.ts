@@ -141,6 +141,24 @@ const giorniFra = (dal: string, al: string): string[] => {
   return out
 }
 
+/**
+ * La partenza quando si cambia l'ARRIVO (Ania, 29/09/2026): si sposta da sola
+ * e tiene le notti di prima («dal 20 al 23» = 3 notti → arrivo il 25,
+ * partenza il 28). Senza una partenza di prima, il giorno dopo l'arrivo; con
+ * una partenza ma senza arrivo (notti che non si sanno) la partenza resta se
+ * viene ancora dopo, altrimenti il giorno dopo. Cambiare la partenza, invece,
+ * non tocca mai l'arrivo: questa funzione serve solo al campo Arrivo.
+ */
+export function partenzaSpostandoArrivo(arrivoPrima: string, partenzaPrima: string, arrivoNuovo: string): string {
+  if (!arrivoNuovo) return partenzaPrima
+  if (arrivoPrima && partenzaPrima && partenzaPrima > arrivoPrima) {
+    const notti = Math.round((Date.parse(`${partenzaPrima}T00:00:00Z`) - Date.parse(`${arrivoPrima}T00:00:00Z`)) / 86400000)
+    return new Date(Date.parse(`${arrivoNuovo}T00:00:00Z`) + notti * 86400000).toISOString().slice(0, 10)
+  }
+  if (partenzaPrima && !arrivoPrima && partenzaPrima > arrivoNuovo) return partenzaPrima
+  return giornoDopo(arrivoNuovo)
+}
+
 /** Arrivo e partenza della linea com'è adesso */
 export function dateLinea(notti: NotteStriscia[]): { arrivo: string; partenza: string } | null {
   const dentro = notti.filter(n => n.dentro)

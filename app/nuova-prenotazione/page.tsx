@@ -58,6 +58,7 @@ import { SALVATO, COSA_SALVATA, DURATA_SALVATO_MS, testoSalvato } from '@/lib/sa
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import ContoNuova, { TastoSalva } from '@/components/nuova/ContoNuova'
 import { scontoPerRiga, totaliScontati, righeDaSalvare } from '@/lib/nuovaPrenotazione'
+import { partenzaSpostandoArrivo } from '@/lib/lineeSoggiorno'
 import { AVVISO_AGGIUNTA, CLIENTE_DIVERSO, LEGAME_NON_CONFERMATO, legameConfermato } from '@/lib/aggiungiCamera'
 import { problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
@@ -299,7 +300,9 @@ export default function NuovaPrenotazionePage() {
       const cambiaCamera = pezzo.roomId !== undefined && pezzo.roomId !== d.roomId
       const camera = trovaCamera(pezzo.roomId !== undefined ? pezzo.roomId : d.roomId)
       const arrivo = pezzo.arrivo ?? d.arrivo
-      const partenza = pezzo.partenza ?? d.partenza
+      // cambiando l'ARRIVO la partenza si sposta con le stesse notti (Ania,
+      // 29/09/2026); cambiando la partenza l'arrivo resta dov'è
+      const partenza = pezzo.partenza ?? (pezzo.arrivo !== undefined ? partenzaSpostandoArrivo(d.arrivo, d.partenza, pezzo.arrivo) : d.partenza)
       // una prenotazione che comincia prima del giorno già letto deve vedere
       // chi c'era allora: si rilegge da lì (15/09/2026)
       if (arrivo && arrivo < occupazioni.dal) { setOccupazioni(o => ({ ...o, stato: 'carico' })); void caricaOccupazioni(arrivo) }
