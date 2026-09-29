@@ -55,7 +55,7 @@ build puliti.
 ## 5. Il nastro
 - S1 fatta · S2 fatta · S3 fatta (92) · S4 fatta · S5–S9 fatte.
 - S10 fatta · S11 fatta · S12 fatta (filo 3 px `inset`, uno per 1 o 2 letti; via righe diagonali e colore-letto).
-  **Conseguenza da sapere**: prima una barra si colorava di verde notte per notte fin dove arrivavano gli acconti; una scheda ha un colore solo, quindi resta blu finché i soldi non coprono tutte le notti, poi diventa verde. Quanto resta si legge nel foglietto.
+  **Acconti, come prima** (scelta di Ania dopo il riscontro, 29/09/2026): le notti già coperte dai soldi ricevuti si colorano di verde da sinistra, il resto della scheda tiene il suo colore (`fondoConAcconti`); lo stato scritto resta «da incassare» finché non è tutto pagato.
 - S13 fatta. I buchi dicono le date vere anche quando cominciano fuori vista; oltre sei mesi portano l'anno. Il testo di schede e buchi lunghi resta in vista scorrendo.
 - S14 fatta (tocco sul buco: arrivo = inizio del buco, o il primo giorno in vista se l'inizio è fuori a sinistra; giorno libero fuori dai buchi: quel giorno).
 - S15–S17 fatte · S18–S20 fatte · S21 fatta (60/40, girato e Mac come oggi) · S22 fatta · S23 fatta (schede 72 px).

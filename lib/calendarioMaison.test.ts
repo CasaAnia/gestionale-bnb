@@ -148,7 +148,7 @@ test('cambio camera: «poi Lena» sul tratto che parte, «da Ambra» su quello c
   // il filo obliquo sta PROPRIO sul bordo tagliato, largo quanto il filo sinistro, del colore del filo
   assert.equal(filoObliquo('destra', 100, 72), 'polygon(96px 0px, 100px 0px, 86px 72px, 82px 72px)')
   assert.equal(filoObliquo('sinistra', 100, 72), 'polygon(0px 0px, 4px 0px, 18px 72px, 14px 72px)')
-  assert.match(pagina, /style=\{\{ background: tinta\.filo, clipPath: filoObliquo\('destra', g\.width, SCHEDA_H\) \}\}/)
+  assert.match(pagina, /style=\{\{ background: tintaBase\.filo, clipPath: filoObliquo\('destra', g\.width, SCHEDA_H\) \}\}/)
   assert.match(pagina, /style=\{\{ background: tinta\.filo, clipPath: filoObliquo\('sinistra', g\.width, SCHEDA_H\) \}\}/)
   // COLORI_CAMBIO non si usa più nel calendario (resta per Arrivi e Richieste)
   assert.doesNotMatch(pagina, /COLORI_CAMBIO|coloriCatene/)
@@ -295,4 +295,11 @@ test('«Oggi» e «Legenda» sotto la colonna delle camere; la camera tenuta e l
 
 test('svuotando la ricerca il calendario torna sempre a oggi (Ania, 29/09/2026)', () => {
   assert.match(pagina, /setDaysTotal\(DAYS_TOTAL\)\n      \}\n      vaiAOggi\(\)/)
+})
+
+test('acconti come prima: le notti coperte in verde da sinistra, il resto del suo colore (Ania, 29/09/2026)', async () => {
+  const { fondoConAcconti } = await import('./calendarioSchede.ts')
+  assert.equal(fondoConAcconti('#BFDCC8', '#C5D6E2', 117), 'linear-gradient(to right, #BFDCC8 0 117px, #C5D6E2 117px)')
+  assert.equal(fondoConAcconti('#BFDCC8', '#C5D6E2', 0), '#C5D6E2')
+  assert.match(pagina, /const coperte = paidNightsByBooking\[booking\.id\] \?\? 0/)
 })

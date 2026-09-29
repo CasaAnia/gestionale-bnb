@@ -75,6 +75,15 @@ export function tintaScheda(stato: StatoScheda, colore?: string | null): TintaSc
   return TINTE_SCHEDA[stato]
 }
 
+/**
+ * Il fondo di una scheda pagata in parte (come prima delle schede): verde
+ * fin dove arrivano gli acconti (`px` dal bordo sinistro), poi il suo colore.
+ */
+export function fondoConAcconti(verde: string, resto: string, px: number): string {
+  if (px <= 0) return resto
+  return `linear-gradient(to right, ${verde} 0 ${Math.round(px)}px, ${resto} ${Math.round(px)}px)`
+}
+
 /** Lo stato in parole, riga (c) */
 export function testoStato(stato: StatoScheda): string {
   if (stato === 'dalSito') return 'da confermare'

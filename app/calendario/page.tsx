@@ -13,7 +13,7 @@ import type { Booking, Guest, Room } from '@/lib/types'
 import { COLORE_LETTI_ESAURITI, statoLettiAggiuntivi } from '@/lib/calendarioLetti'
 import {
   CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, geometriaScheda, statoScheda, tintaScheda, testoStato,
-  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, filoObliquo, CAMBIO_CAMERA, FILO_SINISTRO,
+  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, filoObliquo, CAMBIO_CAMERA, FILO_SINISTRO, fondoConAcconti,
 } from '@/lib/calendarioSchede'
 import { leggiArrivo } from '@/lib/arrivo'
 import { oraRoma } from '@/lib/opzioni'
@@ -895,7 +895,13 @@ export default function Calendario() {
                     // Richiesta dal sito da confermare: scheda tratteggiata verde
                     const isWebPending = booking.status === 'in_attesa' && booking.source === 'sito_web'
                     const stato = statoScheda(booking, paidNightsByBooking[booking.id] === -1)
-                    const tinta = tintaScheda(stato, booking.color)
+                    const tintaBase = tintaScheda(stato, booking.color)
+                    // Acconti (come prima, Ania 29/09/2026): le notti già coperte dai soldi
+                    // ricevuti si colorano di verde da sinistra, il resto tiene il suo colore
+                    const coperte = paidNightsByBooking[booking.id] ?? 0
+                    const tinta = stato !== 'pagato' && stato !== 'dalSito' && coperte > 0
+                      ? { ...tintaBase, fondo: fondoConAcconti(TINTE_SCHEDA.pagato.fondo, tintaBase.fondo, (coperte - (startIdx - dayIndex(booking.check_in))) * CELL_W - ARIA_SCHEDA), filo: TINTE_SCHEDA.pagato.filo }
+                      : tintaBase
                     const g = geometriaScheda(startIdx, endIdx, CELL_W)
                     // Cambio camera: il tratto che parte tagliato in basso a destra, quello che arriva in basso a sinistra
                     const cutLeft = hasIncoming && startIdx === dayIndex(booking.check_in)
@@ -921,7 +927,7 @@ export default function Calendario() {
                             ...(isWebPending ? { borderColor: tinta.filo } : {}),
                             clipPath, borderRadius: clipPath ? 0 : 6,
                           }}>
-                          {cutRight && <span aria-hidden data-filo-obliquo="uscita" className="cal-cuneo" style={{ background: tinta.filo, clipPath: filoObliquo('destra', g.width, SCHEDA_H) }} />}
+                          {cutRight && <span aria-hidden data-filo-obliquo="uscita" className="cal-cuneo" style={{ background: tintaBase.filo, clipPath: filoObliquo('destra', g.width, SCHEDA_H) }} />}
                           {cutLeft && <span aria-hidden data-filo-obliquo="arrivo" className="cal-cuneo" style={{ background: tinta.filo, clipPath: filoObliquo('sinistra', g.width, SCHEDA_H) }} />}
                           {/* il testo resta in vista anche quando la scheda comincia fuori, a sinistra */}
                           <span className="tx" style={{ left: NAME_W + ARIA_SCHEDA + 8, width: larghezzaTesto(startIdx, endIdx) }}>
