@@ -21,6 +21,7 @@
 import { waHrefTesto, numeroWhatsAppPrenotazione } from '@/lib/messaggiWhatsApp'
 import { pezziRigaCliente } from '@/lib/clienteCheTorna'
 import { NESSUN_NUMERO, QUESTA_VOLTA, testoDorme, type PersonaCheDorme } from '@/lib/schedaMaison'
+import { telefonoPerEsteso } from '@/lib/whatsapp'
 
 const ICONA_TEL = <svg viewBox="0 0 24 24" aria-hidden><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></svg>
 const ICONA_WA = <svg viewBox="0 0 24 24" aria-hidden><path d="M21 11.5a9 9 0 0 1-9 9 10 10 0 0 1-4-.9L3 21l1.4-4.6a9 9 0 1 1 16.6-4.9Z" /></svg>
@@ -63,9 +64,17 @@ export default function TestataMaison({ nome, stella, ricevuta, telefono, dorme,
           {(ricevuta || stella) && <b>{ricevuta && <span data-ricevuta aria-label="vuole la ricevuta" title="Vuole la ricevuta">🧾</span>}{ricevuta && stella && ' '}{stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima">★</span>}</b>}
           {(ricevuta || stella) && ' '}{nome}
         </h1>
-        <IconeContatto telefono={telefono} nome={nome} dati="intestataria" />
       </div>
-      {senzaNumero && <p data-senza-numero className="sch-senza-numero">{NESSUN_NUMERO}</p>}
+      {/* Ritocchi del 29/09/2026 (C1): sotto il nome il numero per esteso in
+          Cormorant 19 coi cerchi da 32 a destra, sulla stessa riga */}
+      {senzaNumero
+        ? <p data-senza-numero className="sch-senza-numero">{NESSUN_NUMERO}</p>
+        : (
+          <div className="sch-tel" data-telefono-testa>
+            <span className="num">{telefonoPerEsteso(telefono)}</span>
+            <IconeContatto telefono={telefono} nome={nome} dati="intestataria" />
+          </div>
+        )}
 
       {dorme && (
         <div className="sch-dorme" data-riga-dorme>

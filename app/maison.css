@@ -499,6 +499,34 @@ body:has(.sch) { background: var(--home-bg); }
 .sch-tabs small.mat { color: var(--m-mat); }
 .sch-tabs .punto { position: absolute; top: 5px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--m-mat); }
 
+/* Ritocchi del 29/09/2026 (C1, C2; riferimento 1 «Dopo» e «Senza note»): sotto il
+   nome il numero per esteso in Cormorant 19 coi cerchi da 32 a destra; più aria
+   (10 px nome → numero, 14 prima di «dorme …», 12 prima di «Già ospite …», 14
+   prima delle note, 22 prima delle linguette); le linguette più alte (13 sopra,
+   11 sotto) con date e conto in Cormorant 14 su una riga */
+.sch-head { padding-top: 14px; }
+.sch-head .sch-nome { margin-top: 4px; }
+.sch-tel { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px; }
+.sch-tel .num { font-family: var(--m-disp); font-size: 19px; font-weight: 500; letter-spacing: .02em; line-height: 1.05; color: var(--m-ink); white-space: nowrap; }
+.sch-tel .sch-ic { margin-left: 10px; }
+.sch-tel .sch-ic a { width: 32px; height: 32px; }
+.sch-tel .sch-ic a::before { inset: -6px; }
+.sch-head .sch-dorme { margin-top: 14px; }
+.sch-head .sch-gia { margin-top: 12px; }
+.sch-head .sch-note { margin-top: 14px; padding-top: 12px; line-height: 1.5; }
+.sch-head .sch-note .sch-k { margin-top: 8px; }
+.sch-head + .sch-tabs { margin-top: 22px; }
+.sch-tabs[data-linguette] button { padding: 13px 0 11px; font-size: 9.5px; }
+.sch-tabs[data-linguette] small { font-family: var(--m-disp); font-size: 14px; font-weight: 500; letter-spacing: 0; margin-top: 3px; white-space: nowrap; overflow: visible; text-overflow: clip; padding: 0; line-height: 1.1; }
+/* Ritocchi C3: i comandi sotto la striscia in una fascia con i fili, e le camere più alte */
+.sch-fascia { margin-top: 22px; padding: 14px 0; border-top: 1px solid var(--m-line); border-bottom: 1px solid var(--m-line); }
+.sch-fascia p { margin: 0; }
+.sch-fascia .r1 { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sch-fascia .r2 { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 12px; }
+.sch .sch-fascia .mz-lnk { font-size: 10.5px; }
+[data-camere-soggiorno] .sch-camera { padding: 12px 0; }
+[data-camere-soggiorno] .sch-camera .de { margin-top: 3px; }
+
 /* Oggi */
 .sch-brief { padding: 12px var(--home-gutter) 0; }
 .sch-brief-k { margin: 4px 0; }

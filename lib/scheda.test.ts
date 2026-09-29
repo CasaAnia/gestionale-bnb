@@ -69,7 +69,7 @@ test('la testata: nome in Cormorant 28 centrato con 🧾 e ★ davanti, cornetta
   assert.match(css, /\.sch-ic a \{ position: relative; width: 34px; height: 34px;/)
   assert.match(css, /\.sch-ic a::before \{ content: ""; position: absolute; inset: -5px; \}/)
   // senza numero: la scritta in mattone al posto dei cerchi
-  assert.match(testata, /\{senzaNumero && <p data-senza-numero className="sch-senza-numero">\{NESSUN_NUMERO\}<\/p>\}/)
+  assert.match(testata, /\{senzaNumero\s*\? <p data-senza-numero className="sch-senza-numero">\{NESSUN_NUMERO\}<\/p>/)
   // date, orario, percorso, oggi, residuo, contatti e documento non stanno più in testata
   for (const vecchio of ['data-date-testa', 'data-arrivo-testa', 'data-percorso-testa', 'data-oggi-testa', 'data-residuo-testa', 'data-contatti-testa', 'data-documento-testa', 'data-scrivi']) {
     assert.equal(testata.includes(vecchio), false, `${vecchio} è ancora in testata`)
@@ -118,7 +118,7 @@ test('cinque linguette, una parte alla volta, la scelta nell’indirizzo; puntin
   // la fascia che scorreva non c'è più nella scheda
   assert.equal(/FasciaSezioni|SEZIONI_SCHEDA/.test(pagina), false, 'la scheda usa ancora la fascia delle sezioni')
   // i link di prima: #arrivo e #conto portano ancora al posto giusto
-  assert.match(pagina, /<section id="arrivo" className="np-sec">/)
+  assert.match(pagina, /<section id="arrivo" className="np-sec" style=\{\{ paddingTop: 18 \}\}>/)
   assert.match(pagina, /<div id="conto">/)
 })
 
@@ -145,7 +145,8 @@ test('Soggiorno: «Arrivo e navetta» con «Modifica arrivo» e «Arrivi precede
   assert.deepEqual([...ordine].sort((a, b) => a - b), ordine, 'i pezzi del soggiorno non sono nell’ordine del riferimento')
   assert.match(parte, /\{arriviAperti \? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'\}/)
   assert.match(parte, /style=\{\{ paddingTop: 30 \}\}/)
-  assert.match(parte, /\{SOTTO_STRISCIA\}/)
+  // ritocchi del 29/09/2026 (C3): la riga «un tocco su una notte…» non c'è più
+  assert.doesNotMatch(parte, /\{SOTTO_STRISCIA\}/)
   assert.match(soggiornoParte, /data-modifica-arrivo onClick=\{onModifica\}/)
   // «Modifica soggiorno» non c'è più
   const senzaNote = (t: string) => t.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')

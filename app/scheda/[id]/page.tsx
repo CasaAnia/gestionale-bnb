@@ -88,7 +88,7 @@ import {
 import {
   puntiniLinguette, periodoLinguetta, contoLinguetta, statoBarra, chiDormeAlPosto, spesoTestata,
   arrivoInBreve, camereInBreve, ospitiInBreve, nottiConLetto, contoInBreve, caparraDaRicevere, documentoInBreve, noteInBreve,
-  azioneDaFare, prossimiGiorni, camereSoggiorno, cambiCamere, SOTTO_STRISCIA,
+  azioneDaFare, prossimiGiorni, camereSoggiorno, cambiCamere,
   fraseComePagaEstesa, nessunPagamento, tipoPagamenti, destinatariMessaggi, giaOspite, documentiCliente,
   type Destinatario,
 } from '@/lib/schedaMaison'
@@ -666,7 +666,7 @@ export default function SchedaPage() {
       {/* ── SOGGIORNO: arrivo e navetta, le notti, le camere ─────────────── */}
       {linguetta === 'soggiorno' && (
         <div id="parte-soggiorno" role="tabpanel" data-parte="soggiorno">
-          <section id="arrivo" className="np-sec">
+          <section id="arrivo" className="np-sec" style={{ paddingTop: 18 }}>
             <p className="mz-eyebrow">Arrivo e navetta</p>
             {arriviPeriodi.length > 1 ? arriviPeriodi.map(r => (
               <div key={r.id} data-arrivo-periodo={r.id}>
@@ -692,19 +692,27 @@ export default function SchedaPage() {
                 <StrisciaNottiCamere notti={l.notti} oggi={oggi} spiegazione={false} riassunto={false}
                   ospitiAttesi={Math.max(1, ...l.segmenti.map(s => Number(s.num_guests) || 1))}
                   onNotte={nonSiSposta ? undefined : n => setNotteAperta({ linea: l.chiave, iso: n.iso })} className="mt-2" />
-                {i === 0 && !nonSiSposta && <p className="np-hint" data-sotto-striscia>{SOTTO_STRISCIA}</p>}
-                {/* i comandi della linea: «Cambia date · Cambio camera», sull'ultima «Aggiungi camera» */}
+                {/* i comandi della linea (ritocchi del 29/09/2026, C3): niente più la riga «un tocco su
+                    una notte…»; una fascia con un filo sopra e uno sotto, «Cambia date» a sinistra e
+                    «Cambio camera» a destra, sotto «Aggiungi camera» centrata (sull'ultima linea) e
+                    «Togli camera» in mattone dove c'era */}
                 {!nonSiSposta && (
-                  <p data-comandi-linea className="sch-azioni">
-                    <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="mz-lnk">{COMANDO_DATE}</button>
-                    <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="mz-lnk">{COMANDO_CAMBIO_CAMERA}</button>
-                    {i === linee.length - 1 && statoSoggiorno !== 'annullata' && (
-                      <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="mz-lnk q">{COMANDO_AGGIUNGI_CAMERA}</button>
+                  <div data-comandi-linea className="sch-fascia">
+                    <p className="r1">
+                      <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="mz-lnk">{COMANDO_DATE}</button>
+                      <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="mz-lnk">{COMANDO_CAMBIO_CAMERA}</button>
+                    </p>
+                    {((i === linee.length - 1 && statoSoggiorno !== 'annullata') || siPuoTogliere(linee.length)) && (
+                      <p className="r2">
+                        {i === linee.length - 1 && statoSoggiorno !== 'annullata' && (
+                          <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="mz-lnk">{COMANDO_AGGIUNGI_CAMERA}</button>
+                        )}
+                        {siPuoTogliere(linee.length) && (
+                          <button type="button" data-togli-camera={l.chiave} onClick={() => setTogliAperto(l.chiave)} className="mz-lnk q sch-lnk-mat">{COMANDO_TOGLI_CAMERA}</button>
+                        )}
+                      </p>
                     )}
-                    {siPuoTogliere(linee.length) && (
-                      <button type="button" data-togli-camera={l.chiave} onClick={() => setTogliAperto(l.chiave)} className="mz-lnk q sch-lnk-mat">{COMANDO_TOGLI_CAMERA}</button>
-                    )}
-                  </p>
+                  </div>
                 )}
               </div>
             ))}
@@ -713,7 +721,7 @@ export default function SchedaPage() {
           </section>
 
           {righeCamere.length > 0 && (
-            <section className="np-sec" data-camere-soggiorno>
+            <section className="np-sec" data-camere-soggiorno style={{ paddingTop: 26 }}>
               <p className="mz-eyebrow">Camere {cambi && <small>· {cambi}</small>}</p>
               <CamereMaison righe={righeCamere} />
             </section>
