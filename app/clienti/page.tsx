@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import BackBar from '@/components/BackBar'
 import TestaMac from '@/components/TestaMac'
-import { sottotitoloClienti } from '@/lib/testaMac'
 
 import { valutazioneDi, vuoleRicevuta, COLORE_VALUTAZIONE, ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐', problematico: '⚠️', normale: '' }
@@ -34,8 +33,8 @@ export default function Clienti() {
   return (
     <div className="p-4">
       <BackBar href="/" />
-      {/* Dal Mac la testa condivisa (29/09/2026): titolo, «N clienti», ricerca e «+ Nuovo» */}
-      <TestaMac titolo="Clienti" sottotitolo={loading ? '' : sottotitoloClienti(guests.length)}
+      {/* Dal Mac la testa condivisa (29/09/2026): la scrittina, la ricerca e «+ Nuovo» */}
+      <TestaMac titolo="Clienti"
         comandi={<>{ricerca('w-[calc(340px/var(--zoom-pagina,1))]')}{nuovo}</>} />
       <div className="flex items-center justify-between mb-4 lg:hidden">
         {nuovo}

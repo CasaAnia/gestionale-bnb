@@ -24,26 +24,20 @@ import type { ReactNode } from 'react'
 //    nascosto NON riserva più il suo spazio — il campo di ricerca sta 16 px
 //    sotto la barra bianca (alta 52 px, vedi MobileTopBar), come sulla Home.
 //    Dal Mac non cambia nulla.
-//  · `sottotitolo` (29/09/2026, Ania): la testa del Mac. Le pagine lo passano
-//    solo dal Mac (mai dal telefono, dove non cambia nulla). Niente riga
-//    «← Indietro» (basta il menu a sinistra); titolo Cormorant 30 px col
-//    bordo alto a 64 px, alla stessa altezza del marchio «Casa Ania» della
-//    colonna; sotto, a 6 px, il sottotitolo maiuscoletto d'ottone; la ricerca
-//    a destra sulla stessa riga. Misure in app/maison.css (.testa-mac-*).
-//  · `scrittaMac` (29/09/2026, Ania): le pagine Maison dal Mac sono uguali al
-//    telefono — niente titolo grande né sottotitolo, la sola scrittina
-//    maiuscoletta come la barra del telefono, col bordo alto a 64 px, e la
-//    ricerca a destra sulla stessa riga (.testa-mac-scritta).
+//  · `scrittaMac` (29/09/2026, Ania): dal Mac tutte le pagine hanno la testa
+//    della barra del telefono — niente titolo grande, niente sottotitolo,
+//    niente «← Indietro»: la sola scrittina maiuscoletta col bordo alto a
+//    64 px come il marchio della colonna, e i comandi (la ricerca) a destra
+//    sulla stessa riga, centrati sulla scrittina (.testa-mac-scritta).
 // ============================================================================
 
 // ferma sotto la barra del telefono (alta 52 px, su tutte le pagine dal 29/09/2026)
 export const FASCIA = 'shrink-0 sticky top-[52px] lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm'
 
-export default function TestaPagina({ titolo, titoloNascosto = false, maison = false, sottotitolo, scrittaMac = false, desktop, indietro, comandi, children, className = '' }: {
+export default function TestaPagina({ titolo, titoloNascosto = false, maison = false, scrittaMac = false, desktop, indietro, comandi, children, className = '' }: {
   titolo: string
   titoloNascosto?: boolean
   maison?: boolean
-  sottotitolo?: string
   scrittaMac?: boolean
   desktop: boolean
   indietro?: ReactNode
@@ -53,21 +47,9 @@ export default function TestaPagina({ titolo, titoloNascosto = false, maison = f
 }) {
   if (scrittaMac) return (
     <div data-testa-pagina data-testa-scritta className={`${FASCIA} ${className}`}>
-      <div className="testa-mac-riga-scritta mb-2 flex items-center gap-4">
-        <h1 className="testa-mac-scritta mr-auto">{titolo}</h1>
-        {comandi}
-      </div>
-      {children}
-    </div>
-  )
-  if (sottotitolo !== undefined) return (
-    <div data-testa-pagina data-testa-mac className={`${FASCIA} ${className}`}>
-      <div className="testa-mac-riga mb-2 flex items-end gap-4">
-        <div className="mr-auto min-w-0">
-          <h1 className="testa-mac-titolo">{titolo}</h1>
-          <p className="testa-mac-sotto">{sottotitolo}</p>
-        </div>
-        {comandi}
+      <div className="testa-mac-riga-scritta relative">
+        <h1 className="testa-mac-scritta">{titolo}</h1>
+        {comandi && <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-4">{comandi}</div>}
       </div>
       {children}
     </div>

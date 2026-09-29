@@ -5,7 +5,9 @@
 // ottone la data di oggi e, quando c'è, il nome del cliente; a destra
 // «‹ Indietro». L'indietro è quello di sempre (BackLink: smartBack con la
 // riserva, registrato per la barra in alto), solo vestito da Maison. Sul
-// telefono la barra in alto qui non c'è: la testata è la pagina.
+// telefono la barra in alto qui non c'è: la testata è la pagina. Dal Mac
+// (29/09/2026, Ania) come tutte le pagine: la sola scrittina «NUOVA
+// PRENOTAZIONE» a 64 px, niente titolo grande né «‹ Indietro» (.np-scritta).
 // ============================================================================
 import { useRouter } from 'next/navigation'
 import { smartBack } from '@/lib/navHistory'
@@ -27,6 +29,7 @@ export default function TestaNuova({ data, sotto, riserva }: {
   useRegistraIndietro(indietro, 'Indietro')
   return (
     <header className="np-hd" data-testa-nuova>
+      <p className="np-scritta" data-scritta-mac>{TITOLO_PAGINA}</p>
       <h1>{TITOLO_PAGINA}<small data-oggi>{data}{sotto ? ` · ${sotto}` : ''}</small></h1>
       <button type="button" className="np-back" onClick={indietro} data-indietro>{INDIETRO}</button>
     </header>

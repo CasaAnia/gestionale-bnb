@@ -612,6 +612,8 @@ export default function SchedaPage() {
   // La barra in cima: «‹ Prenotazioni» e lo stato in maiuscoletto ottone
   const barra = (
     <div className="sch-top" data-riga-navigazione>
+      {/* dal Mac (29/09/2026, Ania) la scrittina «PRENOTAZIONE» come la barra del telefono, senza freccia */}
+      <span className="sch-scritta" data-scritta-mac>Prenotazione</span>
       <button type="button" className="np-back" onClick={indietro} data-indietro>‹ Prenotazioni</button>
       {!loading && booking && <span data-stato-scheda className="stato">{statoBarra(statoTesto)}</span>}
     </div>

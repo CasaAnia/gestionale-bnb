@@ -10,8 +10,9 @@
 // pulsante, in nessuna sezione. Nessuna seconda barra in basso.
 // ============================================================================
 import TestaMac from '@/components/TestaMac'
-import { sottotitoloSpese } from '@/lib/testaMac'
+
 import { useMemo, useState, type ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { TEMA as t } from './tema'
 import { PanoramicaMia, PanoramicaAnia } from './PanoramicaTab'
@@ -59,6 +60,7 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
   const [contesto, setContesto] = useState<Contesto>(contestoIniziale)
   const [sezione, setSezione] = useState<SezioneSpese>(sezioneIniziale)
   const [filtriAperti, setFiltriAperti] = useState(filtriApertiIniziale)
+  const pathname = usePathname()
   const [aggiungiAperto, setAggiungiAperto] = useState(false)
 
   // opzioni per ambito (dai dati) e UNO stato filtri per ciascun ambito
@@ -95,11 +97,12 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
     // su telefono il guscio occupa lo schermo e lo scorrimento è INTERNO:
     // l'area dei contenuti termina sopra la fascia del ＋ (niente ci passa
     // sotto); su schermo grande resta il flusso normale col ＋ fisso.
-    <div className="flex flex-col max-lg:fixed max-lg:inset-0 max-lg:top-[52px] max-lg:z-30 lg:min-h-dvh"
+    // dal Mac fondo bianco come tutte le pagine (29/09/2026); dal telefono il suo
+    <div className="flex flex-col max-lg:fixed max-lg:inset-0 max-lg:top-[52px] max-lg:z-30 lg:min-h-dvh lg:!bg-white"
       style={{ background: t.fondo, color: t.inchiostro }}>
       {sopra}
-      {/* Dal Mac la testa condivisa (29/09/2026): «Spese» e il periodo in vista */}
-      <div className="hidden lg:block px-4 pt-4"><TestaMac titolo="Spese" sottotitolo={sottotitoloSpese(opzioniAttuali.periodi, filtri)} /></div>
+      {/* Dal Mac la testa condivisa (29/09/2026): la scrittina col nome della pagina */}
+      <div className="hidden lg:block px-4 pt-4"><TestaMac titolo={pathname.startsWith('/spese-famiglia') ? 'Spese Famiglia' : 'Spese B&B'} /></div>
       <div className="shrink-0 w-full max-w-md mx-auto px-4">
         {/* selettore di contesto: un confine reale per tutte le sezioni */}
         <div className="flex items-center justify-between lg:justify-end pt-4 lg:pt-0 pb-3">

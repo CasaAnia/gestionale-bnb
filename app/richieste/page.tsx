@@ -7,8 +7,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
-import { sottotitoloRichieste } from '@/lib/testaMac'
-import { bolliniRichieste } from '@/lib/richiesteContatore'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
 import { TastoNuovaRichiesta } from '@/components/richieste/ComandiPagina'
 import FasciaComandi from '@/components/richieste/FasciaComandi'
@@ -397,12 +395,12 @@ function Richieste() {
           (components/TestaPagina): la pagina comincia allo stesso punto delle
           altre. Dal telefono il titolo «Richieste» resta NASCOSTO (lo dice la
           barra in alto) ma il suo spazio resta. Dal Mac (29/09/2026, Ania) la
-          testa nuova: titolo con sotto «N da gestire» (il numero del bollino
-          d'ottone del menu), senza la riga «← Indietro». Dal telefono girato
+          sola scrittina «RICHIESTE» come la barra del telefono, i comandi a
+          destra, senza la riga «← Indietro». Dal telefono girato
           «← Indietro» torna alla Home; solo arrivando dalla scheda di una
           prenotazione (?apri=) si torna davvero indietro, a quella scheda. */}
       <TestaPagina titolo="Richieste" titoloNascosto maison desktop={desktop && !orizzontale}
-        sottotitolo={desktop && !orizzontale ? sottotitoloRichieste(loading || richiesteNonLette ? null : bolliniRichieste(tutte, adesso).nuove) : undefined}
+        scrittaMac={desktop && !orizzontale}
         indietro={<BackLink onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />}
         comandi={desktop && !orizzontale ? (
           <>

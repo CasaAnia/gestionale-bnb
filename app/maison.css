@@ -851,21 +851,13 @@ body:has(.cal) { background: var(--home-bg); }
 .barra-maison .freccia { font-family: var(--font-jost), Jost, system-ui, sans-serif; font-weight: 300; font-size: 20px; line-height: 1; color: #241F1A; }
 .barra-maison .titolo { font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }
 
-/* ── Testa delle pagine dal Mac (29/09/2026, Ania): Calendario, Arrivi,
-   Richieste (components/TestaPagina con `sottotitolo`). Il bordo alto del
-   titolo sta a 64 px dall'alto come il marchio «Casa Ania» della colonna
-   (16 px della fascia + 48 qui); sotto, a 6 px, il sottotitolo d'ottone. ── */
-[data-testa-mac] .testa-mac-riga { margin-top: 48px; }
-[data-testa-mac] .testa-mac-titolo { margin: 0; font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: calc(30px / var(--zoom-pagina, 1)); font-weight: 400; line-height: 1; color: #241F1A; letter-spacing: normal; }
-[data-testa-mac] .testa-mac-sotto { margin: calc(6px / var(--zoom-pagina, 1)) 0 0; min-height: calc(13px / var(--zoom-pagina, 1)); font-family: var(--font-jost), Jost, system-ui, sans-serif; font-size: calc(9.5px / var(--zoom-pagina, 1)); letter-spacing: .24em; text-transform: uppercase; color: #A8894F; line-height: calc(13px / var(--zoom-pagina, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
 /* Titoli delle pagine interne (scheda cliente, nuovo cliente, nuova e
-   modifica richiesta, 29/09/2026): dal Mac la stessa veste del titolo di
-   TestaMac; il bordo alto a 64 px lo dà .testa-mac-sopra (16 del
+   modifica richiesta): dal Mac la scrittina maiuscoletta come le altre
+   pagine (29/09/2026), col bordo alto a 64 px (.testa-mac-sopra: 16 del
    contenitore p-4 + il resto, diviso per lo zoom delle pagine vecchie,
    --zoom-pagina). Dal telefono restano come sono. */
 @media (min-width: 1024px) {
-  .titolo-mac.titolo-mac { font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: calc(30px / var(--zoom-pagina, 1)); font-weight: 400; line-height: 1; color: #241F1A; letter-spacing: normal; }
+  .titolo-mac.titolo-mac { font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: calc(10.5px / var(--zoom-pagina, 1)); letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }
   .testa-mac-sopra { margin-top: calc(64px / var(--zoom-pagina, 1) - 16px); }
 }
 
@@ -874,7 +866,38 @@ body:has(.cal) { background: var(--home-bg); }
    maiuscoletta («CALENDARIO», «ARRIVI»), a sinistra col bordo alto a 64 px
    come il marchio della colonna, e la ricerca a destra sulla stessa riga
    (components/TestaPagina `scrittaMac`). ── */
-/* la riga: 16 px della fascia + 34,5 qui + 13,5 (la ricerca alta 37,5 centra
-   la scrittina alta 10,5) = bordo alto della scrittina a 64 px */
-[data-testa-scritta] .testa-mac-riga-scritta { margin-top: 34.5px; }
-[data-testa-scritta] .testa-mac-scritta { margin-top: 0; margin-bottom: 0; font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }
+/* la riga: 16 px della fascia + 48 qui = bordo alto della scrittina a 64 px;
+   i comandi sono centrati sulla scrittina e sporgono: 24 px sotto */
+[data-testa-scritta] .testa-mac-riga-scritta { margin-top: 48px; margin-bottom: 24px; }
+[data-testa-scritta] .testa-mac-scritta { margin: 0; font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }
+
+/* La scrittina di TestaMac (pagine non ancora Maison, 29/09/2026): la stessa
+   di Calendario e Arrivi, divisa per lo zoom delle pagine vecchie. Sotto,
+   lo spazio per i comandi centrati sulla scrittina (alti fino a ~44 px). */
+[data-testa-mac] .testa-mac-scritta { margin: 0; font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: calc(10.5px / var(--zoom-pagina, 1)); letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }
+.testa-mac-blocco { margin-bottom: calc(32px / var(--zoom-pagina, 1)); }
+
+/* ── Dal Mac TUTTE le pagine su fondo bianco con i fili #E8E3DA (Ania,
+   29/09/2026): anche quelle non ancora rifatte, il cui contenuto resta
+   com'è. La colonna del menu resta #F6F2EA (.mz-lato). Dal telefono le
+   pagine vecchie restano come sono. ── */
+@media (min-width: 1024px) {
+  :root { --color-cream: #FFFFFF; --color-card-border: #E8E3DA; --color-border-soft: #E8E3DA; --color-grid-line: #E8E3DA; }
+  body { background: #FFFFFF; }
+}
+
+/* Nuova prenotazione e Scheda dal Mac (29/09/2026, Ania): la sola scrittina
+   col nome della pagina, bordo alto a 64 px; niente titolo grande né
+   «‹ Indietro». La scheda tiene a destra lo stato in ottone. Dal telefono
+   restano come sono. */
+.np-scritta, .sch-scritta { display: none; }
+@media (min-width: 1024px) {
+  .np-scritta, .sch-scritta { display: block; margin: 0; font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: calc(10.5px / var(--zoom-pagina, 1)); letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }
+  .np-hd { padding-top: 64px; align-items: flex-start; }
+  .np-hd h1, .np-hd .np-back { display: none; }
+  .np-scritta { flex: 1; }
+  /* la scheda dal Mac è ingrandita del 20% (MainContainer): misure divise per lo zoom */
+  .sch-top { padding-top: calc(64px / var(--zoom-pagina, 1)); align-items: flex-start; min-height: 0; }
+  .sch-top .np-back { display: none; }
+  .sch-top .stato { line-height: calc(10.5px / var(--zoom-pagina, 1)); font-size: calc(10.5px / var(--zoom-pagina, 1)); }
+}

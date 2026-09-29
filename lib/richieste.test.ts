@@ -497,7 +497,7 @@ test('in cima alla pagina non c\u2019\u00e8 pi\u00f9 n\u00e9 titolo n\u00e9 cont
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
   assert.equal(/TestataRichieste/.test(pagina), false, 'la testa della pagina \u00e8 ancora l\u00ec')
   // il vecchio sottotitolo della testata non torna; dal Mac (29/09/2026, Ania)
-  // c'\u00e8 solo \u00abN da gestire\u00bb della testa nuova (lib/testaMac)
+  // dal Mac (29/09/2026) in cima c'\u00e8 solo la scrittina \u00abRICHIESTE\u00bb
   assert.equal(/from '@\/lib\/testataRichieste'/.test(pagina), false)
   assert.equal(/nuoveWeb|ca_richieste_ultima_visita/.test(pagina), false,
     'il conteggio delle \u00abnuove dal sito\u00bb non lo legge pi\u00f9 nessuno: va via anche lo stato')
@@ -516,8 +516,8 @@ test('in cima alla pagina non c\u2019\u00e8 pi\u00f9 n\u00e9 titolo n\u00e9 cont
   // il titolo c'\u00e8 solo come SPAZIO, nascosto anche sul Mac: \u00e8 quello che
   // tiene la pagina allineata a Calendario e Arrivi (vedi la prova dopo)
   assert.match(disegno, /titolo="Richieste" titoloNascosto/)
-  // dal Mac (29/09/2026, Ania) la testa nuova col titolo e \u00abN da gestire\u00bb, solo l\u00ec
-  assert.match(disegno, /sottotitolo=\{desktop && !orizzontale \? sottotitoloRichieste\(/)
+  // dal Mac (29/09/2026, Ania) la sola scrittina, come la barra del telefono
+  assert.match(disegno, /scrittaMac=\{desktop && !orizzontale\}/)
 
   // il conto resta dove si legge: la riga della sezione
   assert.match(pagina, /Richieste aperte/)

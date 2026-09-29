@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import TestaMac from '@/components/TestaMac'
-import { sottotitoloPrenotazioni } from '@/lib/testaMac'
 import { nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
@@ -96,8 +95,8 @@ export default function Prenotazioni() {
   return (
     <div className="p-4">
       <BackBar href="/calendario" />
-      {/* Dal Mac la testa condivisa (29/09/2026): titolo, «N in archivio», ricerca e «+ Nuova» */}
-      <TestaMac titolo="Prenotazioni" sottotitolo={loading || errore ? '' : sottotitoloPrenotazioni(bookings.length)}
+      {/* Dal Mac la testa condivisa (29/09/2026): la scrittina, la ricerca e «+ Nuova» */}
+      <TestaMac titolo="Prenotazioni"
         comandi={<>{ricerca('w-[calc(340px/var(--zoom-pagina,1))]')}{nuova}</>} />
       <div className="flex items-center justify-between mb-4 lg:hidden">
         {nuova}

@@ -300,8 +300,8 @@ export default function Statistiche() {
   return (
     <div className="p-4">
       <BackBar href="/" />
-      {/* Dal Mac la testa condivisa (29/09/2026): sotto il titolo il periodo in vista */}
-      <TestaMac titolo="Statistiche" sottotitolo={label} />
+      {/* Dal Mac la testa condivisa (29/09/2026): la sola scrittina */}
+      <TestaMac titolo="Statistiche" />
 
       <div className="flex gap-2 mb-3">
         {(['oggi', 'settimana', 'mese', 'anno'] as const).map(p => (
