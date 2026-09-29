@@ -24,6 +24,8 @@ import FoglioMaison from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese } from '@/lib/schedaPrenotazione'
 import TestaPagina from '@/components/TestaPagina'
+import RigaPeriodo from '@/components/RigaPeriodo'
+import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
 import InterruttorePillola from '@/components/InterruttorePillola'
@@ -459,6 +461,9 @@ export default function Calendario() {
   // Striscia dei mesi (condivisa con Arrivi e Richieste) e mese del primo giorno in vista
   const mesi = mesiCliccabili(today, MESI_CLICCABILI)
   const meseVisibile = toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)
+  // Dal Mac il periodo per esteso (RigaPeriodo): «26 settembre – 9 ottobre 2026», a mese «Settembre 2026»
+  const giorniMac = days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)
+  const periodoMac = modo === 'quindici' ? periodoEsteso(giorniMac[0], giorniMac[giorniMac.length - 1]) : meseEsteso(meseVisibile)
 
   const vaiARef = useRef(vaiA)
   useEffect(() => {
@@ -756,8 +761,13 @@ export default function Calendario() {
       <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : isDesktop ? 'mx-4' : ''} overflow-hidden`}>
       {!loading && (
         <>
-          {/* Riga di navigazione (veste «Maison», 29/09/2026): ‹ · periodo · Mese | 2 settimane · › */}
-          <div className="cal-nav shrink-0" data-riga-navigazione>
+          {/* Dal Mac la riga del periodo comune (components/RigaPeriodo, 29/09/2026):
+              il periodo per esteso a sinistra, ‹ · Mese | 2 settimane · › a destra */}
+          <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
+            etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0 mt-2"
+            pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />} />
+          {/* Riga di navigazione (veste «Maison», 29/09/2026): ‹ · periodo · Mese | 2 settimane · › — dal telefono */}
+          <div className="cal-nav shrink-0 lg:hidden" data-riga-navigazione>
             <button type="button" className="ar" onClick={() => freccia(-1)} aria-label={etichettaFreccia(modo, -1)}>‹</button>
             <span className="per">{etichettaVista}</span>
             <span className="dx">

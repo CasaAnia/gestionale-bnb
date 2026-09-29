@@ -12,6 +12,8 @@
 //    persone nominati NELLA domanda vincono e vengono indicati);
 //  · date nel fuso italiano (oggiARoma).
 // ============================================================================
+import RigaPeriodo from '@/components/RigaPeriodo'
+import { meseEsteso } from '@/lib/periodoEsteso'
 import { useMemo, useState } from 'react'
 import { TEMA as t } from './tema'
 import { Card, Chip, Etichetta } from './mattoni'
@@ -125,7 +127,7 @@ export function AnalisiOperativa({ ambito, spese, items, groups, cats, subcats, 
             </div>
           )}
           {isMese && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 lg:hidden">
               <button onClick={() => { setMonth(monthKey(month, -1)); setGiornoSel(''); setDettaglio(null) }}
                 aria-label="Mese precedente" className="grid place-items-center w-11 h-11 text-[18px]" style={{ color: t.inchiostro }}>‹</button>
               <span className="text-[13.5px] font-bold min-w-[74px] text-center" style={{ color: t.inchiostro }}>{etichettaMese}</span>
@@ -134,6 +136,13 @@ export function AnalisiOperativa({ ambito, spese, items, groups, cats, subcats, 
             </div>
           )}
         </div>
+        {/* Dal Mac la riga del periodo comune (components/RigaPeriodo, 29/09/2026) */}
+        {isMese && (
+          <RigaPeriodo etichetta={meseEsteso(month)} className="mt-2"
+            onPrec={() => { setMonth(monthKey(month, -1)); setGiornoSel(''); setDettaglio(null) }}
+            onSucc={() => { setMonth(monthKey(month, 1)); setGiornoSel(''); setDettaglio(null) }}
+            etichettaPrec="Mese precedente" etichettaSucc="Mese successivo" />
+        )}
         {!isMese && periodMode === 'anno' && (
           <div className="flex gap-1.5 mt-2 flex-wrap">
             {[0, 1, 2].map(off => {

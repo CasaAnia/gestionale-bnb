@@ -901,3 +901,16 @@ body:has(.cal) { background: var(--home-bg); }
   .sch-top .np-back { display: none; }
   .sch-top .stato { line-height: calc(10.5px / var(--zoom-pagina, 1)); font-size: calc(10.5px / var(--zoom-pagina, 1)); }
 }
+
+/* ── La riga del periodo dal Mac (components/RigaPeriodo, Ania, 29/09/2026):
+   identica in tutte le pagine. Il periodo a sinistra in Cormorant 30 px, a
+   destra ‹ · pillola · › a 10 px l'uno dall'altro, le frecce senza cerchi. ── */
+.riga-periodo { align-items: center; justify-content: space-between; gap: 16px; padding: calc(10px / var(--zoom-pagina, 1)) 0 calc(10px / var(--zoom-pagina, 1)); border-bottom: 1px solid #E8E3DA; }
+.riga-periodo .per { min-width: 0; margin: 0; padding: 0; border: 0; background: none; text-align: left; font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: calc(30px / var(--zoom-pagina, 1)); font-weight: 400; line-height: 1; color: #241F1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.riga-periodo button.per { cursor: pointer; }
+.riga-periodo .dx { display: flex; align-items: center; gap: calc(10px / var(--zoom-pagina, 1)); flex: none; }
+/* dal Mac la riga di sempre di Calendario e Arrivi lascia il posto a questa */
+@media (min-width: 1024px) { .cal-nav { display: none; } }
+.riga-periodo .ar { position: relative; width: calc(28px / var(--zoom-pagina, 1)); text-align: center; font-size: calc(18px / var(--zoom-pagina, 1)); line-height: 1; color: #241F1A; background: none; border: 0; padding: 0; flex: none; }
+.riga-periodo .ar::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+.riga-periodo .ar:disabled { opacity: .3; cursor: default; }

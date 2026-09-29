@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useMemo, useRef, type CSSProperties, type MouseEvent , useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import RigaPeriodo from '@/components/RigaPeriodo'
+import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import { buildChangeGroups, chainClipPath, coloriCatene, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
@@ -263,8 +265,14 @@ export default function CalendarioRichieste(p: Props) {
 
   const indietro = () => (modo === 'quindici' ? p.onInizio?.(spostaGiorni(p.inizio!, -GIORNI_QUINDICINA)) : p.onMese(spostaMese(p.mese, -1)))
   const avanti = () => (modo === 'quindici' ? p.onInizio?.(spostaGiorni(p.inizio!, GIORNI_QUINDICINA)) : p.onMese(spostaMese(p.mese, 1)))
-  const navigazione = (
-    <div className="flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: COLORE_SEPARATORE }}>
+  const navigazione = (<>
+    {/* Dal Mac la riga del periodo comune (components/RigaPeriodo, 29/09/2026) */}
+    <RigaPeriodo etichetta={modo === 'quindici' ? periodoEsteso(giorni[0], giorni[giorni.length - 1]) : meseEsteso(p.mese)}
+      onPrec={indietro} onSucc={avanti}
+      etichettaPrec={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'} etichettaSucc={modo === 'quindici' ? 'Due settimane dopo' : 'Mese successivo'}
+      pillola={p.onModo && <InterruttorePillola voci={VOCI_CALENDARIO} scelta={modo} onScegli={p.onModo} nome="Vista del calendario" dati="modo-calendario-mac" grande />} />
+    {/* dal telefono la riga di sempre */}
+    <div className="flex items-center justify-between px-2 py-2 border-b lg:hidden" style={{ borderColor: COLORE_SEPARATORE }}>
       <button type="button" onClick={indietro} aria-label={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'}
         className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
         <ChevronLeft size={20} strokeWidth={2} aria-hidden />
@@ -282,7 +290,7 @@ export default function CalendarioRichieste(p: Props) {
         </button>
       </div>
     </div>
-  )
+  </>)
 
   // ── Camere in righe, giorni in colonne (Mac e, dal 05/09/2026, anche telefono) ──
   if (orizzontale) {

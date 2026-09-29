@@ -24,6 +24,8 @@ import { nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
+import RigaPeriodo from '@/components/RigaPeriodo'
+import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import { sottotitoloArrivi } from '@/lib/testaMac'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
@@ -340,6 +342,11 @@ export default function Arrivi() {
   const larghezzaTesto = (da: number, a: number) => Math.max(0, parteInVista(da, a) - 16 - FILO_SINISTRO)
 
   const aperta = popup ? arrivi.find(b => b.id === popup.id) ?? null : null
+  // Dal Mac il periodo per esteso (RigaPeriodo): «26 settembre – 9 ottobre 2026», a mese «Settembre 2026»
+  const giorniMac = days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)
+  const periodoMac = modo === 'quindici'
+    ? periodoEsteso(giorniMac[0], giorniMac[giorniMac.length - 1])
+    : meseEsteso(toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]))
 
   return (
     <div className="maison cal flex flex-col" data-senza-sottolinea data-arrivi-maison>
@@ -358,9 +365,15 @@ export default function Arrivi() {
 
       {/* Dal telefono il nastro va da bordo a bordo, come il Calendario */}
       <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : isDesktop ? 'mx-4' : ''} overflow-hidden`}>
+      {/* Dal Mac la riga del periodo comune (components/RigaPeriodo, 29/09/2026) */}
       {!loading && (
-        // Riga di navigazione (veste «Maison», come il Calendario): ‹ · periodo · Mese | 2 settimane · ›
-        <div className="cal-nav shrink-0" data-riga-navigazione>
+        <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
+          etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0"
+          pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />} />
+      )}
+      {!loading && (
+        // Riga di navigazione (veste «Maison», come il Calendario): ‹ · periodo · Mese | 2 settimane · › — dal telefono
+        <div className="cal-nav shrink-0 lg:hidden" data-riga-navigazione>
           <button type="button" className="ar" onClick={() => freccia(-1)} aria-label={etichettaFreccia(modo, -1)}>‹</button>
           <span className="per">{modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth}</span>
           <span className="dx">

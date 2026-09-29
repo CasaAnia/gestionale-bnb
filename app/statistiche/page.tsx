@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import BackBar from '@/components/BackBar'
 import TestaMac from '@/components/TestaMac'
+import RigaPeriodo from '@/components/RigaPeriodo'
+import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { buildSiteFunnel, type SiteEvent } from '@/lib/siteStats'
@@ -260,6 +262,12 @@ export default function Statistiche() {
   const titoloRichieste = period === 'mese' ? MESI_NOMI[ref.getMonth()].toLowerCase() : period === 'anno' ? String(ref.getFullYear()) : periodLabel(ref, period)
   const label = periodLabel(ref, period)
   const current = isCurrentPeriod(ref, period)
+  // Dal Mac il periodo per esteso (RigaPeriodo): «martedì 29 settembre 2026»,
+  // «28 settembre – 4 ottobre 2026», «Settembre 2026», «2026»
+  const inVista = intervalloPeriodo(ref, period)
+  const periodoMac = period === 'anno' ? String(ref.getFullYear())
+    : period === 'mese' ? meseEsteso(inVista.da)
+    : periodoEsteso(inVista.da, spostaGiorni(inVista.a, -1))
 
   const rows = calcPeriod()
   const maxIncassi = Math.max(...rows.map(r => r.incassi), 1)
@@ -312,8 +320,12 @@ export default function Statistiche() {
         ))}
       </div>
 
-      {/* Frecce per cambiare periodo; tocco sull'etichetta = torna a oggi */}
-      <div className="flex items-center justify-between bg-white rounded-xl border border-[#C9BFA8] shadow-sm mb-4">
+      {/* Dal Mac la riga del periodo comune (components/RigaPeriodo, 29/09/2026); tocco sul periodo = torna a oggi */}
+      <RigaPeriodo etichetta={periodoMac} onPrec={() => setRef(shiftRef(ref, period, -1))} onSucc={() => setRef(shiftRef(ref, period, 1))}
+        etichettaPrec={`${nomePeriodo(period)} precedente`} etichettaSucc={`${nomePeriodo(period)} successivo`} succDisabilitato={current}
+        onEtichetta={current ? undefined : () => setRef(new Date())} titoloEtichetta="Torna a oggi" className="mb-4" />
+      {/* Frecce per cambiare periodo; tocco sull'etichetta = torna a oggi (dal telefono) */}
+      <div className="flex items-center justify-between bg-white rounded-xl border border-[#C9BFA8] shadow-sm mb-4 lg:hidden">
         <button type="button" aria-label={`${nomePeriodo(period)} precedente`} onClick={() => setRef(shiftRef(ref, period, -1))}
           className="px-5 py-1.5 text-2xl leading-none self-stretch text-green-dark active:bg-gray-50 rounded-l-xl">‹</button>
         <button type="button" onClick={() => setRef(new Date())} disabled={current}
