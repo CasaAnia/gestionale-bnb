@@ -1,3 +1,19 @@
+## Calendario «Maison» — PUBBLICATO — 29/09/2026
+
+Riferimento approvato da Ania il 29/09/2026: `docs/design/calendario-riferimento.html`; checklist e riscontro accanto (`calendario-checklist.md`, `calendario-riscontro.md`), quattro schermate a 390 px. Commit 68de3dd → 5e462bc più riscontro, Vercel success. Le prenotazioni sono schede con quattro righe (date · icone e nome · ospiti e stato · arrivo), i giorni liberi sono riquadri «+», il colore dice solo il pagamento, il letto extra è un filo rosso e la riga «🛏 extra» diventa rossa a 2/2; il primo tocco apre il foglietto di dettaglio, il secondo la scheda; a «2 settimane» le frecce spostano di una settimana. I colori stanno in un punto solo (`lib/calendarioMobile`, TINTE_SCHEDA). Da sapere: una scheda ha un colore solo, quindi non si colora più a metà con gli acconti parziali (diventa verde quando è tutto pagato).
+
+**Prove dal telefono in 10 minuti**
+1. Apri il Calendario: sotto il campo di ricerca «‹ periodo · MESE | 2 SETTIMANE ›»; ogni prenotazione è una scheda con date, nome, «2 ospiti · da incassare» e l'orario d'arrivo in ottone.
+2. Tocca «›»: il calendario va avanti di UNA settimana. Tocca «MESE»: i giorni si stringono, le schede restano le stesse.
+3. Trova una prenotazione con letto extra: filo rosso sotto la scheda; sotto le camere la riga «🛏 EXTRA» con 1/2 o 2/2 in rosso.
+4. Tocca un riquadro «+» fra due schede: si apre la Nuova prenotazione con camera e arrivo già scritti. Torna indietro senza salvare.
+5. Tocca una scheda: sale il foglietto con Camere, Ospiti, Prezzo, Pagamento, Arrivo, Note, Cliente; cornetta e WhatsApp accanto al nome.
+6. Con una prenotazione con cambio camera: al tocco i suoi tratti restano pieni e il resto si spegne; le schede sono tagliate in obliquo col filo dello stesso colore; «poi Lena» e «da Ambra» sulle schede.
+7. Tocca di nuovo la stessa scheda (o «APRI LA SCHEDA»): si apre la scheda. Torna indietro: il calendario è dove l'avevi lasciato.
+8. Scrivi un cognome nella ricerca: «N prenotazioni trovate ▾», «‹ 1 DI N ›»; la trovata ha il contorno verde, le altre sono spente. Tocca la riga ▾: l'elenco si apre sopra il calendario. Tocca ✕: tutto torna com'era.
+9. Sotto il calendario: «OGGI» nel cerchio e i mesi; tocca «LEGENDA»: foglio con otto voci e la riga delle icone; «CHIUDI».
+10. Se c'è una camera tenuta (scheda color ottone «in opzione»): toccala, foglio con «Libera e fai una prenotazione nuova», «Libera la camera», «Apri la richiesta di …»; chiudi senza liberare.
+
 ## Migrazioni 0052, 0054, 0061 — APPLICATE — 29/09/2026
 
 Ania chiede di applicarle. Backup completo prima (verificato identico al database), controllo in lettura: nessuna notte con più di due letti. SQL provata su PGlite locale, poi incollata da Ania nell'editor SQL (esito «come_paga 1, due_letti 1»). Dopo: la funzione `salva_come_paga` risponde, colonna `intestataria_non_dorme` presente (278 righe a falso), dati identici al backup. 0054 cambiata prima di applicarla: contano solo confermate e completate, come il gestionale e la 0027. File lasciati in `supabase/proposte/` con l'intestazione «APPLICATA». Effetti: «Come paga» si salva in un colpo solo (sparisce l'avviso della 0052); il database rifiuta un terzo letto nella stessa notte (LETTI_FINITI, già tradotto dal gestionale); la spunta «Non è lei a dormire qui» è attiva.
