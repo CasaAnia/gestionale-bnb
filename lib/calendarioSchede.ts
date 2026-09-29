@@ -18,6 +18,7 @@
 // dalle loro funzioni, non si riscrivono.
 // ============================================================================
 import { periodoConMese, testoNotti } from './schedaPrenotazione.ts'
+import { MESI_BREVI } from './dateItaliane.ts'
 import { AUTISTI, nomeLuogo, orarioIgnoto, periodoInStruttura, periodoOre, type Arrivo } from './arrivo.ts'
 import { TINTE_SCHEDA, TESTO_NOTA, schiarisci, type TintaScheda } from './calendarioMobile.ts'
 
@@ -135,27 +136,34 @@ export type RigheScheda = { date: string; icone: string; nome: string; sotto: st
 export type Intervallo = { da: string; a: string }   // da incluso, a escluso (date ISO)
 
 /**
- * I giorni liberi di una camera fra `inizio` e `fine` (fine esclusa): i buchi
- * fra una scheda e l'altra, prima della prima e dopo l'ultima. Le schede che
- * si sovrappongono (un errore) contano come una sola.
+ * I buchi liberi di una camera che cadono fra `inizio` e `fine` (fine
+ * esclusa): fra una scheda e l'altra, prima della prima e dopo l'ultima.
+ * `occupati` sono TUTTE le prenotazioni della camera, anche fuori vista: così
+ * il buco dice le sue date vere («3 → 4 ott»), anche quando comincia prima di
+ * `inizio`. Solo prima della prima prenotazione di sempre e dopo l'ultima il
+ * buco si ferma a `inizio` / `fine`. Le schede che si sovrappongono (un
+ * errore) contano come una sola.
  */
 export function buchiLiberi(occupati: Intervallo[], inizio: string, fine: string): Intervallo[] {
-  const ordinati = occupati
-    .map(o => ({ da: o.da < inizio ? inizio : o.da, a: o.a > fine ? fine : o.a }))
-    .filter(o => o.da < o.a)
-    .sort((x, y) => x.da.localeCompare(y.da))
-  const out: Intervallo[] = []
-  let libero = inizio
-  for (const o of ordinati) {
-    if (o.da > libero) out.push({ da: libero, a: o.da })
-    if (o.a > libero) libero = o.a
+  const uniti: Intervallo[] = []
+  for (const o of occupati.filter(o => o.da < o.a).sort((x, y) => x.da.localeCompare(y.da))) {
+    const ultimo = uniti[uniti.length - 1]
+    if (ultimo && o.da <= ultimo.a) { if (o.a > ultimo.a) ultimo.a = o.a } else uniti.push({ ...o })
   }
-  if (libero < fine) out.push({ da: libero, a: fine })
-  return out
+  const buchi: Intervallo[] = []
+  if (uniti.length === 0) return inizio < fine ? [{ da: inizio, a: fine }] : []
+  if (uniti[0].da > inizio) buchi.push({ da: inizio, a: uniti[0].da })
+  for (let i = 0; i + 1 < uniti.length; i++) buchi.push({ da: uniti[i].a, a: uniti[i + 1].da })
+  if (uniti[uniti.length - 1].a < fine) buchi.push({ da: uniti[uniti.length - 1].a, a: fine })
+  return buchi.filter(h => h.da < h.a && h.a > inizio && h.da < fine)
 }
 
-/** La riga del buco: «3 → 4 ott» */
-export const rigaBuco = (b: Intervallo) => periodoConMese(b.da, b.a)
+/** La riga del buco: «3 → 4 ott»; con l'anno quando il buco è lungo (più di sei mesi) */
+export function rigaBuco(b: Intervallo): string {
+  if (notti(b.da, b.a) <= 180) return periodoConMese(b.da, b.a)
+  const [a1, m1, g1] = b.da.split('-').map(Number), [a2, m2, g2] = b.a.split('-').map(Number)
+  return `${g1} ${MESI_BREVI[m1 - 1]} ${a1} → ${g2} ${MESI_BREVI[m2 - 1]} ${a2}`
+}
 
 /** L'indirizzo della nuova prenotazione, lo stesso di oggi */
 export const indirizzoNuova = (cameraId: string, arrivo: string) => `/nuova-prenotazione?room_id=${cameraId}&check_in=${arrivo}`

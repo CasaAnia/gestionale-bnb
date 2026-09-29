@@ -668,7 +668,7 @@ export default function Calendario() {
                   </button>
 
                   {/* Telefono: navigatore ‹ [2 di 3 · data · camera] › */}
-                  <div className="cal-navg lg:hidden">
+                  <div className="cal-navg">
                     <button type="button" className="ar"
                       onClick={() => vaiA((matchIdx - 1 + matches.length) % matches.length)}
                       aria-label="Risultato precedente">‹</button>
@@ -683,7 +683,7 @@ export default function Calendario() {
                   </div>
 
                   {/* Dal Mac: i risultati in fila */}
-                  <div className="cal-fila hidden lg:flex">
+                  <div className="cal-fila">
                     {matches.map((x, i) => (
                       <button type="button" key={x.id} onClick={() => vaiA(i)} className={i === matchIdx ? 'on' : ''}>
                         <b>{voceNavigatore(x)}</b>
@@ -821,8 +821,9 @@ export default function Calendario() {
               const prenotazioni = bookingsForRoom(room.id)
               const tenute = barrePerCamera(barre, room.id)
               // I buchi liberi: fra una scheda e l'altra, prima della prima e dopo l'ultima
+              // (su tutte le prenotazioni della camera, così il buco dice le sue date vere)
               const buchi = buchiLiberi([
-                ...prenotazioni.map(b => ({ da: b.check_in, a: b.check_out })),
+                ...bookings.filter(b => b.room_id === room.id).map(b => ({ da: b.check_in, a: b.check_out })),
                 ...tenute.map(t => ({ da: t.arrivo, a: t.partenza })),
               ], toStr(startDate), toStr(endDate))
               const occupato = (iso: string) => prenotazioni.some(b => b.check_in <= iso && iso < b.check_out) || tenute.some(t => t.arrivo <= iso && iso < t.partenza)

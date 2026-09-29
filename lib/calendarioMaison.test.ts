@@ -119,6 +119,13 @@ test('i buchi liberi: le date giuste fra una scheda e l’altra, prima della pri
   assert.equal(rigaBuco(buchi[0]), '28 set → 1 ott')
   assert.deepEqual(buchiLiberi([], '2026-10-01', '2026-10-03'), [{ da: '2026-10-01', a: '2026-10-03' }])
   assert.deepEqual(buchiLiberi([{ da: '2026-09-01', a: '2026-12-01' }], '2026-10-01', '2026-10-03'), [])
+  // le date VERE anche quando il buco comincia fuori vista (la prenotazione prima finisce il 20 set)
+  assert.deepEqual(buchiLiberi([{ da: '2026-09-15', a: '2026-09-20' }, { da: '2026-10-05', a: '2026-10-07' }], '2026-10-01', '2026-10-31'), [
+    { da: '2026-09-20', a: '2026-10-05' }, { da: '2026-10-07', a: '2026-10-31' },
+  ])
+  // un buco lungo più di sei mesi porta l'anno
+  assert.equal(rigaBuco({ da: '2025-08-02', a: '2026-08-01' }), '2 ago 2025 → 1 ago 2026')
+  assert.equal(rigaBuco({ da: '2026-12-28', a: '2027-01-03' }), '28 dic → 3 gen')
   // il tocco apre la nuova prenotazione con camera e arrivo: lo stesso indirizzo di oggi
   assert.equal(indirizzoNuova('abc', '2026-10-03'), '/nuova-prenotazione?room_id=abc&check_in=2026-10-03')
   assert.match(pagina, /data-buco=/)
