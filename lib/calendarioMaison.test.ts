@@ -10,7 +10,8 @@ import { nottiLettoExtra } from './lettiAggiuntivi.ts'
 import { PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, GIORNO_TELEFONO } from './calendarioMobile.ts'
 
 const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
-const pagina = leggi('app/calendario/page.tsx')
+// la scheda della prenotazione sta in components/calendario/SchedaPrenotazione (la stessa delle Richieste)
+const pagina = leggi('app/calendario/page.tsx') + leggi('components/calendario/SchedaPrenotazione.tsx')
 // i pezzi del nastro condivisi con gli Arrivi (29/09/2026): righello, fili, corsie, buchi, schede
 const nastro = leggi('components/calendario/Nastro.tsx')
 
@@ -150,7 +151,7 @@ test('misure: corsie 92, schede 72 (area di tocco ≥ 44), larghezza = notti × 
 test('cambio camera: «poi Lena» sul tratto che parte, «da Ambra» su quello che arriva, «⇄» e «cambio camera»', () => {
   assert.equal(rigaSotto({ ospiti: 2, stato: 'da incassare', poi: 'Lena' }), '2 ospiti · poi Lena · da incassare')
   assert.equal(rigaSotto({ ospiti: 2, stato: 'da incassare', da: 'Ambra' }), '2 ospiti · da Ambra · da incassare')
-  assert.match(pagina, /poi: poiCamera\[booking\.id\], da: daCamera\[booking\.id\]/)
+  assert.match(pagina, /poi: legami\.poiCamera\[booking\.id\], da: legami\.daCamera\[booking\.id\]/)
   assert.match(pagina, /arrivo: isWebPending \? null : hasIncoming \? CAMBIO_CAMERA :/)
   // il filo obliquo sta PROPRIO sul bordo tagliato, largo quanto il filo sinistro, del colore del filo
   assert.equal(filoObliquo('destra', 100, 72), 'polygon(96px 0px, 100px 0px, 86px 72px, 82px 72px)')
@@ -169,7 +170,7 @@ test('ricerca attiva: la scheda trovata col contorno verde, le altre attenuate a
   assert.match(css, /\.cal-nastro \.cal-scheda\.dim\.cerca > \.cal-scheda-in \{ opacity: \.35; \}/)
   assert.match(css, /\.cal-scheda\.dim > \.cal-scheda-in \{ opacity: \.3; \}/)
   assert.match(css, /\.cal-scheda\.catena \{ filter: drop-shadow\(0 2px 4px rgba\(0,0,0,\.25\)\); \}/)
-  assert.match(pagina, /isDimmed \? \(searchAttiva \? 'dim cerca' : 'dim'\)/)
+  assert.match(pagina, /attenuata \? \(cerca \? 'dim cerca' : 'dim'\)/)
   // i buchi non hanno mai la classe «dim»
   assert.doesNotMatch(pagina, /cal-buco[^"]*dim/)
 })
@@ -181,7 +182,7 @@ test('i fili di oggi e del mese stanno SOTTO buchi e schede: solo dove la corsia
   assert.ok(z('cal-filo-mese') < z('cal-buco'), 'filo del mese sopra i buchi')
   // le schede partono da z 5 (pagina): i fili restano sotto
   assert.ok(z('cal-filo-oggi') < 5 && z('cal-filo-mese') < 5)
-  assert.match(pagina, /zIndex=\{isCurrent \? 16 : isSelected \? 15 : 5\}/)
+  assert.match(pagina, /zIndex=\{trovata \? 16 : selezionata \? 15 : 5\}/)
   // il buco è pieno del colore del fondo, così il filo non gli passa sopra il «+»
   assert.match(css, /\.cal-buco \{ position: absolute; background: var\(--m-bg\);/)
 })
@@ -234,7 +235,7 @@ test('foglietto: le righe nell’ordine dato, altezza fissa, «…» finché la 
   assert.match(pagina, /if \(aperta\?\.id === booking\.id\) \{ apriScheda\(booking\); return \}/)
   assert.match(pagina, /setAperta\(booking\)\n    setSelectedGroupId\(chainKey \?\? null\)/)
   assert.match(pagina, /if \(aperta && scheda\?\.dataset\.scheda === aperta\.id\) \{ apriScheda\(aperta\); return \}/)
-  assert.match(pagina, /onClick=\{e => \{ e\.stopPropagation\(\); tocca\(booking, chainKey\) \}\}/)
+  assert.match(pagina, /onClick=\{e => \{ e\.stopPropagation\(\); onTocca\(booking, chainKey, e\) \}\}/)
   // una sola lettura al tocco, la stessa della scheda
   assert.equal((comp.match(/supabase\.from\(/g) || []).length, 1)
   assert.match(comp, /leggiPrenotazioneUnica\(prenotazione, f => supabase\.from\('bookings'\)\.select\('\*, rooms\(\*\)'\)/)
@@ -323,7 +324,7 @@ test('acconti come prima: le notti coperte in verde da sinistra, il resto del su
   const { fondoConAcconti } = await import('./calendarioSchede.ts')
   assert.equal(fondoConAcconti('#BFDCC8', '#C5D6E2', 117), 'linear-gradient(to right, #BFDCC8 0 117px, #C5D6E2 117px)')
   assert.equal(fondoConAcconti('#BFDCC8', '#C5D6E2', 0), '#C5D6E2')
-  assert.match(pagina, /const coperte = paidNightsByBooking\[booking\.id\] \?\? 0/)
+  assert.match(pagina, /const pagate = coperte \?\? 0/)
 })
 
 // ── Il tocco su un buco apre la nuova prenotazione dal GIORNO TOCCATO (Ania, 29/09/2026) ──
@@ -384,7 +385,8 @@ test('filo del letto: nessun letto → nessun tratto; le pagine e il nastro dise
   assert.deepEqual(trattiLetto(nottiLettoExtra({ check_in: '2026-09-27', check_out: '2026-09-29' }), indice, 1, 3, 60), [])
   assert.deepEqual(trattiLetto(nottiLettoExtra({ check_in: '2026-09-27', check_out: '2026-09-29', extra_bed: false, extra_bed_dates: [] }), indice, 1, 3, 60), [])
   const arrivi = leggi('app/arrivi/page.tsx')
-  for (const p of [pagina, arrivi]) assert.match(p, /lettoTratti=\{trattiLetto\(nottiLettoExtra\(booking\), dayIndex, startIdx, endIdx, CELL_W\)\}/)
+  assert.match(pagina, /lettoTratti=\{trattiLetto\(nottiLettoExtra\(booking\), indice, startIdx, endIdx, giorno\)\}/)
+  assert.match(arrivi, /lettoTratti=\{trattiLetto\(nottiLettoExtra\(booking\), dayIndex, startIdx, endIdx, CELL_W\)\}/)
   assert.match(pagina, /<FiloLetto tratti=\{trattiLetto\(barra\.lettoNotti,/)
   assert.match(nastro, /<FiloLetto tratti=\{lettoTratti\}/)
   assert.match(nastro, /data-filo-letto className="cal-letto"/)

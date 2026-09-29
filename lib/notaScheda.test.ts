@@ -13,7 +13,7 @@ test('i colori e le tre provenienze sono quelli della scheda attuale e del calen
   }
   assert.equal(COLORI_CALENDARIO[0].valore, '')       // «Auto»: la barra col colore di sempre
   assert.equal(COLORI_CALENDARIO.find(c => c.nome === 'Esclusiva')?.valore, '#f97316')
-  assert.match(leggi('app/calendario/page.tsx'), /booking\.color === '#f97316'/)
+  assert.match(leggi('components/calendario/SchedaPrenotazione.tsx'), /booking\.color === '#f97316'/)
   assert.deepEqual(ARRIVATA_DA.map(a => a.chiave), ['diretta', 'sito_web', 'whatsapp'])
   assert.match(vecchia, /\[\['diretta', 'Diretta'\], \['sito_web', '🌐 Sito'\], \['whatsapp', 'WhatsApp'\]\]/)
 })

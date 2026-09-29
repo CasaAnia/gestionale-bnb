@@ -4,7 +4,7 @@ import { Globe, Phone, MessageCircle, X } from 'lucide-react'
 import {
   CANALE_LABEL, STATO_LABEL, nomeCompleto, nottiRichiesta, formatDateRichiesta, oraArrivo, avvisoFerma, riassuntoPersone, type Richiesta,
 } from '@/lib/richieste'
-import type { Ancora } from './CalendarioRichieste'
+type Ancora = { x: number; y: number }
 import AzioniRichiesta from './AzioniRichiesta'
 import RigaScadenza from './RigaScadenza'
 

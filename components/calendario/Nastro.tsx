@@ -55,15 +55,17 @@ export function FiliNastro({ giorni, indiceOggi, colonnaCamere, giorno, top, alt
   )
 }
 
-export function CorsiaNastro({ top, larghezza, altezza, colonnaCamere, nome, descrizione, onClick }: {
+export function CorsiaNastro({ top, larghezza, altezza, colonnaCamere, nome, descrizione, classe = '', onClick }: {
   top: number; larghezza: number; altezza: number; colonnaCamere: number; nome: string; descrizione?: string
+  /** una classe in più sul nome (la riga «Qualsiasi camera» delle Richieste va a capo) */
+  classe?: string
   /** il tocco su un giorno libero fuori dai buchi disegnati */
   onClick: (e: MouseEvent<HTMLDivElement>) => void
 }) {
   return (
     <div className="cal-corsia" style={{ top, width: larghezza, height: altezza }} onClick={onClick}>
       {/* Nome camera: niente numero 01–04, solo il nome (05/09/2026) */}
-      <div className="cal-camera" title={descrizione || ''} style={{ width: colonnaCamere, minWidth: colonnaCamere }} onClick={e => e.stopPropagation()}>
+      <div className={`cal-camera ${classe}`} title={descrizione || ''} style={{ width: colonnaCamere, minWidth: colonnaCamere }} onClick={e => e.stopPropagation()}>
         {nome}
       </div>
     </div>

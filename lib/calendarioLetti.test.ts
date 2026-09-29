@@ -9,7 +9,7 @@ import {
   statoLettiAggiuntivi,
 } from './calendarioLetti.ts'
 
-const paginaCalendario = readFileSync(new URL('../app/calendario/page.tsx', import.meta.url), 'utf8')
+const paginaCalendario = readFileSync(new URL('../app/calendario/page.tsx', import.meta.url), 'utf8') + readFileSync(new URL('../components/calendario/SchedaPrenotazione.tsx', import.meta.url), 'utf8')
 
 test('un letto occupato resta terracotta, due letti su due diventano rossi (29/09/2026)', () => {
   assert.equal(statoLettiAggiuntivi(0), 'liberi')

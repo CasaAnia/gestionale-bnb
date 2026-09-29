@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { VOCI_LEGENDA, ICONE_LEGENDA, ROSSO_LETTO, areaTocco, TOCCO_MIN, codificaPosizione, indicePosizione, CHIAVE_POSIZIONE } from './calendarioMobile.ts'
 
-const pagina = readFileSync(new URL('../app/calendario/page.tsx', import.meta.url), 'utf8')
+const pagina = readFileSync(new URL('../app/calendario/page.tsx', import.meta.url), 'utf8') + readFileSync(new URL('../components/calendario/SchedaPrenotazione.tsx', import.meta.url), 'utf8')
 const legenda = readFileSync(new URL('../components/LegendaCalendario.tsx', import.meta.url), 'utf8')
 const occorrenze = (testo: string, frammento: string) => testo.split(frammento).length - 1
 

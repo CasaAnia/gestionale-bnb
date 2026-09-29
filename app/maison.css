@@ -821,6 +821,17 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-fa-cta { display: block; width: 100%; margin-top: 12px; background: var(--m-ink); color: #F6F2EA; text-align: center; padding: 10px; border: 0; border-radius: 999px; font-family: var(--home-ui-font); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
 .cal-fa-cta:disabled { opacity: .5; }
 
+/* ── RICHIESTE «MAISON» (29/09/2026, docs/design/richieste-riferimento.html): lo stesso nastro del
+   Calendario (components/richieste/NastroRichieste). Colori delle richieste in --cal-richiesta-*. ── */
+.maison.cal { --cal-richiesta-bordo: #A8894F; --cal-richiesta-testo: #6E5116; --cal-richiesta-inviata: #FBF6EA; --cal-blu-ardesia: #41637A; --cal-verde: #2D6A4F; }
+/* la riga «VISTA · REALE | PRESUNTA» allineata a destra, col filo sotto */
+.ric-vista { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 8px 12px 6px; border-bottom: 1px solid var(--m-line); }
+.ric-vista .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--m-mut); }
+/* la scheda tratteggiata delle richieste: la prima riga in ottone pieno */
+.cal-scheda.rq .cal-scheda-in .tx > em { color: var(--cal-richiesta-bordo); opacity: 1; }
+.cal-camera.qualsiasi { white-space: normal; font-size: 13px; line-height: 1.15; padding-right: 4px; color: var(--cal-richiesta-testo); }
+.cal-scheda.rq.scelta { filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
+
 /* ───────────────────────────────────────────────────────────────────────
    MENU DEL MAC «MAISON» (riferimento approvato da Ania il 29/09/2026:
    docs/design/menu-mac-riferimento.html, colonna M2). Solo la barra

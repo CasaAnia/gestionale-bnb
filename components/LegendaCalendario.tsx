@@ -14,7 +14,8 @@ export const ALTEZZA_LEGENDA = 470
 
 const quadretto = (v: VoceLegenda, lato: number) => ({
   width: lato, height: lato, borderRadius: 3, background: v.tratteggiata ? 'transparent' : v.colore,
-  border: v.tratteggiata ? '1.5px dashed #2D6A4F' : undefined, flex: 'none' as const,
+  // il tratteggio verde delle richieste dal sito, quello d'ottone delle Richieste (29/09/2026)
+  border: v.tratteggiata ? `1.5px dashed ${v.colore === 'white' ? '#2D6A4F' : v.colore}` : undefined, flex: 'none' as const,
   opacity: v.attenuata ? OPACITA_ARRIVATA : undefined,
 })
 

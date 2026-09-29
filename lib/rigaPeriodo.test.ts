@@ -64,7 +64,7 @@ test('RigaPeriodo dal telefono: periodo a sinistra in Cormorant 20 su una riga, 
 })
 
 test('Calendario, Arrivi e Richieste passano la riga del telefono a RigaPeriodo, con la pillola fra le frecce', () => {
-  for (const file of ['app/calendario/page.tsx', 'app/arrivi/page.tsx', 'components/richieste/CalendarioRichieste.tsx']) {
+  for (const file of ['app/calendario/page.tsx', 'app/arrivi/page.tsx', 'components/richieste/NastroRichieste.tsx']) {
     const src = leggi(file)
     assert.match(src, /<RigaPeriodo /, file)
     assert.match(src, /telefono=\{\{/, `${file}: manca la riga del telefono`)

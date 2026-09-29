@@ -459,34 +459,40 @@ test('le tre parole dell\u2019ordinamento, nell\u2019ordine chiesto', () => {
   for (const [v] of ORDINI_RICHIESTE) assert.equal(ordinaRichieste([a, b], v).length, 2)
 })
 
-test('sotto il calendario la fascia sta dopo l\u2019interruttore', () => {
+// ── IL CALENDARIO DELLE RICHIESTE «MAISON» (29/09/2026) ─────────────────
+// Lo stesso nastro del Calendario (components/richieste/NastroRichieste):
+// riga del periodo, sotto «VISTA · Reale | Presunta» allineata a destra,
+// il nastro coi pezzi condivisi, poi «Oggi», i mesi e «Legenda».
+test('il calendario delle Richieste è il nastro del Calendario, con la riga «Vista» sotto quella del periodo', () => {
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
-  const sotto = pagina.slice(pagina.indexOf('Sul telefono i comandi stanno sotto il calendario'), pagina.indexOf('{/* Lista */}'))
-  const dove = (x: string) => {
-    const i = sotto.indexOf(x)
-    assert.notEqual(i, -1, `manca ${x} sotto il calendario`)
-    return i
-  }
-  // riga 1: interruttore a sinistra, «+ Nuova richiesta» a destra
-  const riga1 = dove('<InterruttoreVista vista={vista} onChange={setVista} />')
-  const tasto = dove('<TastoNuovaRichiesta />')
-  assert.ok(tasto - riga1 < 200, 'interruttore e «+ Nuova richiesta» non sono sulla stessa riga')
-  assert.match(sotto, /justify-between/)
-  // stesso asse: l'interruttore e il tasto stanno al centro della loro riga
-  assert.match(sotto, /<div className="flex items-center justify-between gap-3 mt-3">/)
-  // riga 2: la fascia, con l'ordine e il filtro attaccati allo stato
-  const fascia = dove('<FasciaComandi')
-  assert.ok(tasto < fascia, 'la fascia non sta sotto la riga dell\u2019interruttore')
-  assert.match(sotto, /ordine=\{ordine\} onOrdine=\{setOrdine\}/)
-  assert.match(sotto, /ferme=\{ferme\.length\} soloDaGuardare=\{soloDaGuardare\}/)
+  const nastro = readFileSync(new URL('../components/richieste/NastroRichieste.tsx', import.meta.url), 'utf8')
+  assert.match(pagina, /<NastroRichieste /)
+  assert.equal(/CalendarioRichieste/.test(pagina), false, 'il calendario vecchio è ancora nella pagina')
+  // i pezzi condivisi, non copiati
+  for (const pezzo of ['RighelloNastro', 'FiliNastro', 'CorsiaNastro', 'BucoNastro', 'SchedaNastro', 'SchedaPrenotazione', 'SchedaTenuta', 'RigaPeriodo', 'RigaMesi', 'PannelloLegenda', 'FogliettoPrenotazione', 'InterruttorePillola'])
+    assert.match(nastro, new RegExp(`<${pezzo} `), `manca ${pezzo}`)
+  // l'ordine: periodo, vista, nastro, mesi, legenda
+  const dove = (x: string) => { const i = nastro.indexOf(x); assert.notEqual(i, -1, `manca ${x}`); return i }
+  assert.ok(dove('<RigaPeriodo ') < dove('data-riga-vista') && dove('data-riga-vista') < dove('className="cal-nastro"') && dove('className="cal-nastro"') < dove('<RigaMesi ') && dove('<RigaMesi ') < dove('aria-label="Legenda"'))
+  assert.match(nastro, /<span className="k">Vista<\/span>\s*<InterruttorePillola voci=\{VOCI_VISTA\} scelta=\{vista\} onScegli=\{onVista\}[^>]*maison \/>/)
+  // niente riga «🛏 extra» qui
+  assert.equal(/cal-extra|extraBedsMap/.test(nastro), false)
+  // la vista resta ricordata nel browser (lib/richiesteVista)
+  assert.match(pagina, /const \[vista, setVista\] = useVista\(\)/)
+  const css = readFileSync(new URL('../app/maison.css', import.meta.url), 'utf8')
+  assert.match(css, /\.ric-vista \{ display: flex; justify-content: flex-end;/)
+  assert.match(css, /\.ric-vista \.k \{ font-size: 10px; letter-spacing: \.16em; text-transform: uppercase; color: var\(--m-mut\); \}/)
+})
 
-  // le «nuove dal sito» non hanno più né etichettina né riga
-  assert.equal(/dati="dal-sito"|<Globe/.test(pagina), false, 'le «nuove dal sito» hanno ancora un\u2019etichettina')
-
-  // niente più pastiglie, righe di parole o bottoni tondi sparsi
-  assert.equal(/EtichettaAvviso|TastoAvviso|InterruttoreSquadrato|RigaOrdina|RigaDaGuardare/.test(pagina), false)
-  assert.equal(/rounded-full text-sm font-medium/.test(pagina), false)
-  assert.equal(/BOTTONE_PIENO|BOTTONE_PICCOLO|MISURA_PASTIGLIA/.test(pagina), false)
+test('in vista Reale le richieste non si vedono; in Presunta le schede tratteggiate al posto delle camere tenute', () => {
+  const nastro = readFileSync(new URL('../components/richieste/NastroRichieste.tsx', import.meta.url), 'utf8')
+  assert.match(nastro, /vista === 'presunta' \? schedeRichieste\(/)
+  assert.match(nastro, /const tenute = qualsiasi \|\| vista === 'presunta' \? \[\] : barrePerCamera\(barre, riga\.id\)/)
+  // tratteggio 1,5 px d'ottone, testo #6E5116, fondo #FBF6EA per le inviate, punteggiato per le sovrapposte
+  assert.match(nastro, /sito fondo=\{r\.inviata \? TINTA_RICHIESTA\.fondoInviata : TINTA_RICHIESTA\.fondo\} testo=\{TINTA_RICHIESTA\.testo\} filo=\{TINTA_RICHIESTA\.bordo\}/)
+  assert.match(nastro, /stileInterno=\{r\.sovrapposte \? \{ borderStyle: 'dotted' \} : undefined\}/)
+  // la legenda ha in più la voce delle richieste
+  assert.match(nastro, /Richiesta in attesa \/ proposta inviata \(tratteggio ottone\)/)
 })
 
 // ── IN CIMA ALLA PAGINA NON RESTA NIENTE ──────────────────────────────
@@ -528,18 +534,6 @@ test('in cima alla pagina non c\u2019\u00e8 pi\u00f9 n\u00e9 titolo n\u00e9 cont
 // Ania sa cosa sono le righe tratteggiate: la legenda era una riga di schermo
 // spesa per niente, proprio dove servono i comandi (dal telefono, 12/09/2026).
 // Lo STACCO però resta: senza, i comandi si appiccicano al calendario.
-test('sotto il calendario non c\u2019\u00e8 pi\u00f9 la spiegazione del tratteggio, ma lo stacco resta', () => {
-  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
-  assert.equal(/Tratteggiato =/.test(pagina), false, 'la legenda del tratteggio \u00e8 ancora l\u00ec')
-  assert.equal(/Solo confermate: queste non si toccano/.test(pagina), false)
-  assert.equal(/GRIGIO_NOTA/.test(pagina), false, 'il colore della legenda \u00e8 rimasto inutilizzato')
-  // lo spazio che occupava resta vuoto, fra il calendario e i comandi
-  assert.match(pagina, /data-stacco-calendario aria-hidden style=\{\{ height: 24 \}\}/)
-  const sotto = pagina.slice(pagina.indexOf('<RigaMesi'), pagina.indexOf('{/* Lista */}'))
-  assert.ok(sotto.indexOf('data-stacco-calendario') < sotto.indexOf('<InterruttoreVista'),
-    'lo stacco deve stare fra il calendario e i comandi')
-})
-
 // ── IL SELETTORE DELLA VISTA È QUELLO DEL CALENDARIO ───────────────────────
 // «Reale | Presunta» e «Mese | 2 settimane» sono lo stesso oggetto, disegnato
 // in un posto solo: components/InterruttorePillola (Ania, dal telefono,
@@ -570,10 +564,10 @@ test('il selettore Reale/Presunta è lo stesso «Mese | 2 settimane» del Calend
   assert.match(calendario, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
   assert.match(calendario, /<InterruttorePillola voci=\{VOCI_GRIGLIA\}/)
   assert.match(calendario, /VOCI_GRIGLIA = \[\['mese', 'Mese'\], \['quindici', '2 settimane'\]\]/)
-  // e anche il calendarietto dentro le Richieste, che era la terza copia
-  const calRichieste = readFileSync(new URL('../components/richieste/CalendarioRichieste.tsx', import.meta.url), 'utf8')
-  assert.match(calRichieste, /<InterruttorePillola voci=\{VOCI_CALENDARIO\}/)
-  assert.match(calRichieste, /VOCI_CALENDARIO = \[\['mese', 'Mese'\], \['quindici', '2 settimane'\]\]/)
+  // e anche il nastro delle Richieste, che era la terza copia
+  const calRichieste = readFileSync(new URL('../components/richieste/NastroRichieste.tsx', import.meta.url), 'utf8')
+  assert.match(calRichieste, /<InterruttorePillola voci=\{VOCI_GRIGLIA\}/)
+  assert.match(calRichieste, /VOCI_GRIGLIA = \[\['mese', 'Mese'\], \['quindici', '2 settimane'\]\]/)
   // nessuno dei tre si ridisegna per conto suo
   for (const [nome, testo] of [['il Calendario', calendario], ['il calendario delle Richieste', calRichieste]] as const) {
     assert.equal(/rounded-full border p-0\.5/.test(testo), false, `${nome} ridisegna la pillola per conto suo`)

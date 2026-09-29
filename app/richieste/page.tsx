@@ -7,17 +7,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
-import InterruttoreVista from '@/components/richieste/InterruttoreVista'
 import { TastoNuovaRichiesta } from '@/components/richieste/ComandiPagina'
 import FasciaComandi from '@/components/richieste/FasciaComandi'
-import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
+import NastroRichieste, { type PrenotazioneRichieste } from '@/components/richieste/NastroRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import { TastoPrincipale, ComandiRichiesta, IconeContatto, SPAZIO_COMANDI } from '@/components/richieste/AzioniRichiesta'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
 import NotaCliente from '@/components/richieste/NotaCliente'
 import CampoRicerca from '@/components/CampoRicerca'
-import RigaMesi from '@/components/RigaMesi'
-import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { matchNome, matchTelefono } from '@/lib/ricerca'
 import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
 import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
@@ -27,14 +24,13 @@ import { supabase } from '@/lib/supabase'
 import { fetchRichieste, rifiutaRichiesta, riapriRichiesta, ricaricaRichiesteAperte } from '@/lib/richiesteDati'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
-import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
+import { sovrapposizioni } from '@/lib/richiesteCalendario'
 import { altreStesseDate, gruppoStesseDate, etichettaAltre, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
 import { personePerNotte } from '@/lib/richiesteProposta'
 import { pezziRigaElenco, titoloRigaRichiesta, etichettaRigaRichiesta, pezzoCliente } from '@/lib/rigaRichiesta'
 import { periodoConGiorni } from '@/lib/dateItaliane'
 import { smartBack } from '@/lib/navHistory'
 import { nomeOspite } from '@/lib/guestName'
-import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, eAperta, inArchivio, rigaChiusa, riapribile, ordinaRichieste, nottiRichiesta, nomeCompleto,
@@ -199,9 +195,9 @@ function Richieste() {
   const apriId = useSearchParams().get('apri')
   const [tutte, setTutte] = useState<Richiesta[]>([])
   const [camere, setCamere] = useState<Room[]>([])
-  const [prenotazioni, setPrenotazioni] = useState<PrenotazioneBarra[]>([])
+  const [prenotazioni, setPrenotazioni] = useState<PrenotazioneRichieste[]>([])
+  const [pagamenti, setPagamenti] = useState<{ booking_id: string; amount: number | string }[]>([])
   const [clienti, setClienti] = useState<ClienteSchedato[]>([])
-  const [acconti, setAcconti] = useState<Record<string, number>>({})
   const [ordine, setOrdine] = useState<OrdineRichieste>('durata')
   // «Cerca nome o telefono…» (05/09/2026): filtra la lista; con un solo risultato lo evidenzia anche nel calendario
   const [query, setQuery] = useState('')
@@ -210,21 +206,6 @@ function Richieste() {
   // Filtro «stesse date»: l'id della richiesta toccata. È solo della pagina,
   // non si ricorda uscendo e rientrando (Ania, 12/09/2026).
   const [gruppoDi, setGruppoDi] = useState<string | null>(null)
-  const [mese, setMese] = useState(() => meseCorrente())
-  // Calendario desktop (blocco 2): «Mese» o «2 settimane», ricordato nel browser;
-  // default 2 settimane su desktop, mese sul telefono. All'apertura la
-  // finestra contiene sempre la colonna di oggi.
-  const CHIAVE_MODO = 'ca_richieste_calendario_modo'
-  const [modoScelto, setModoScelto] = useState<ModoCalendario | null>(null)
-  const [inizio, setInizio] = useState(() => inizioQuindicina(oggiIso()))
-  useEffect(() => {
-    // lettura della memoria del browser dopo il primo disegno (mai durante)
-    let v: string | null = null
-    try { v = window.localStorage.getItem(CHIAVE_MODO) } catch { v = null }
-    const scelto = v === 'mese' || v === 'quindici' ? v : null
-    const t = setTimeout(() => { if (scelto) setModoScelto(scelto) }, 0)
-    return () => clearTimeout(t)
-  }, [])
   const [loading, setLoading] = useState(true)
   const [errori, setErrori] = useState<string[]>([])
   // Parte 3 (05/09/2026): «Riprova» ricarica la pagina E il contatore della barra
@@ -237,16 +218,12 @@ function Richieste() {
   // (a 844 px il telefono girato conta già come «desktop»: la griglia del Mac riempie lo schermo)
   const orizzontale = useOrizzontaleTelefono()
   useSchermoIntero()
-  // Default «2 settimane» ovunque (dal 05/09/2026 anche sul telefono, che ha la stessa griglia del Mac)
-  const modoCalendario: ModoCalendario = modoScelto ?? 'quindici'
-  function cambiaModo(m: ModoCalendario) {
-    setModoScelto(m)
-    if (m === 'quindici') setInizio(inizioQuindicina(oggiIso()))
-    try { window.localStorage.setItem(CHIAVE_MODO, m) } catch { /* niente memoria: vale per questa apertura */ }
-  }
   // Richiesta selezionata dalla lista (evidenziata nel calendario) e pannello «chi c'è dentro»
   const [selezionata, setSelezionata] = useState<string | null>(null)
-  const [pannello, setPannello] = useState<{ gruppo: Richiesta[]; ancora: Ancora } | null>(null)
+  const [pannello, setPannello] = useState<{ gruppo: Richiesta[]; ancora: { x: number; y: number } } | null>(null)
+  // Dove portare il nastro (la richiesta trovata o scelta nell'elenco)
+  const [vaiA, setVaiA] = useState<{ iso: string; n: number } | null>(null)
+  const portaA = (iso: string) => setVaiA(v => ({ iso, n: (v?.n ?? 0) + 1 }))
   // Rifiuto: finestra di conferma, poi aggiornamento locale della riga
   const [daRifiutare, setDaRifiutare] = useState<Richiesta | null>(null)
   // Conferma → prenotazione (finestra «Creare la prenotazione?», poi la scheda)
@@ -277,16 +254,13 @@ function Richieste() {
     setSelezionata(s => (s === id ? null : s))
     setDaRifiutare(null)
   }
-  // Dal 05/09/2026 calendario e lista sono sempre entrambi visibili, anche sul telefono (e girato: «porta tutto», Ania)
-  const mostraCalendario = true
-  const mostraLista = true
 
   useEffect(() => {
     // Stesse letture del calendario principale (camere attive, prenotazioni
     // con ospite, acconti) più le richieste. Ogni errore finisce a schermo.
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(id, full_name, phone, rating)').in('status', ['confermata', 'completata']),
+      supabase.from('bookings').select('*, guests(*)').in('status', ['confermata', 'completata']),
       supabase.from('payments').select('booking_id, amount'),
       fetchRichieste(),
       // I clienti servono a riconoscere chi torna: valutazione, ricevuta e
@@ -301,10 +275,8 @@ function Richieste() {
       if (g.error) errs.push(`clienti: ${g.error.message}`)
       setClienti((g.data || []) as ClienteSchedato[])
       setCamere((r.data || []) as Room[])
-      setPrenotazioni((b.data || []) as unknown as PrenotazioneBarra[])
-      const sums: Record<string, number> = {}
-      for (const x of (pay.data || []) as { booking_id: string; amount: number | string }[]) sums[x.booking_id] = (sums[x.booking_id] || 0) + Number(x.amount)
-      setAcconti(sums)
+      setPrenotazioni((b.data || []) as unknown as PrenotazioneRichieste[])
+      setPagamenti((pay.data || []) as { booking_id: string; amount: number | string }[])
       setTutte(ric.data)
       setErrori(errs)
       setLoading(false)
@@ -349,16 +321,21 @@ function Richieste() {
     setQuery(v)
     const t = cercaTra(aperte, v)
     setSelezionata(v.trim() && t.length === 1 ? t[0].id : null)
+    // il nastro va sulla prima richiesta trovata (in ordine di arrivo)
+    const prima = [...t].sort((x, y) => x.arrivo.localeCompare(y.arrivo))[0]
+    if (v.trim() && prima) portaA(prima.arrivo)
   }
   const archivio = useMemo(
     () => tutte.filter(r => inArchivio(r, adesso)).sort((a, b) => (b.chiusa_at ?? b.created_at).localeCompare(a.chiusa_at ?? a.created_at)),
     [tutte, adesso],
   )
-  // Vista Reale: nessuna richiesta, in nessuna forma.
-  const richiesteCalendario = useMemo(
-    () => (vista !== 'presunta' ? [] : modoCalendario === 'quindici' ? richiesteNelPeriodo(tutte, giorniDaInizio(inizio)) : richiesteAperte(tutte, mese)),
-    [tutte, mese, vista, modoCalendario, inizio],
-  )
+  // Sul nastro restano piene le richieste trovate dalla ricerca, quella scelta
+  // nell'elenco o quelle del foglietto aperto; il resto si attenua (0,35)
+  const evidenziate = useMemo(() => {
+    if (pannello) return pannello.gruppo.map(r => r.id)
+    if (query.trim() && trovate.length > 0) return trovate.map(r => r.id)
+    return selezionata ? [selezionata] : null
+  }, [pannello, query, trovate, selezionata])
 
   // Chi è la cliente di ogni richiesta: quante volte è già stata qui, quanto
   // ha speso, se è ottima e se vuole la ricevuta (Ania, 12/09/2026). Il
@@ -383,14 +360,14 @@ function Richieste() {
   const conflittiDi = useMemo(() => {
     const m = new Map<string, string[]>()
     for (const r of aperte) {
-      const s = sovrapposizioni(r, prenotazioni, [], camere)
+      const s = sovrapposizioni(r, prenotazioni as unknown as Parameters<typeof sovrapposizioni>[1], [], camere)
       m.set(r.id, s.prenotazioni.map(b => `${nomeOspite(b)} (${formatIntervallo(b.check_in, b.check_out)})`))
     }
     return m
   }, [aperte, prenotazioni, camere])
 
   return (
-    <div className="flex flex-col">
+    <div className="maison cal flex flex-col" data-richieste-maison>
       {/* La testa è quella condivisa con Calendario e Arrivi
           (components/TestaPagina): la pagina comincia allo stesso punto delle
           altre. Dal telefono il titolo «Richieste» resta NASCOSTO (lo dice la
@@ -402,29 +379,25 @@ function Richieste() {
       <TestaPagina titolo="Richieste" titoloNascosto maison desktop={desktop && !orizzontale}
         scrittaMac={desktop && !orizzontale}
         indietro={<BackLink onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />}
-        comandi={desktop && !orizzontale ? (
-          <>
-            <InterruttoreVista vista={vista} onChange={setVista} />
-            <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[340px]" />
-            <TastoNuovaRichiesta />
-          </>
-        ) : (
-          <CampoRicerca value={query} onChange={cambiaRicerca}
-            className={orizzontale ? 'w-full max-w-[360px] ml-auto' : 'w-full'} />
-        )} />
-      <div className="px-4 pb-4">
-
+        comandi={<CampoRicerca maison value={query} onChange={cambiaRicerca} className={desktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[340px]') : 'w-full'} />} />
       {errori.length > 0 && (
-        <AvvisoAzione testo={`Non riesco a leggere alcuni dati: ${errori.join(' · ')}`} onRiprova={riprovaCaricamento} className="mb-4" />
+        <div className="px-4"><AvvisoAzione testo={`Non riesco a leggere alcuni dati: ${errori.join(' · ')}`} onRiprova={riprovaCaricamento} className="mb-4" /></div>
       )}
 
-      {/* Dal Mac (blocco 4, 04/09/2026, scelta di Ania sul mockup): calendario a
-          TUTTA larghezza sopra, lista delle richieste sotto in schede su due
-          colonne. Prima erano affiancati e il calendario del mese aveva 30
-          colonne minuscole coi nomi tagliati. Sul telefono invariato. */}
+      {/* Il calendario: lo stesso nastro del Calendario (components/richieste/NastroRichieste),
+          con la riga del periodo, «Vista · Reale | Presunta», i mesi e la legenda */}
+      {loading ? (
+        <div className="mz-caricamento">Caricamento…</div>
+      ) : (
+        <NastroRichieste camere={camere} prenotazioni={prenotazioni} pagamenti={pagamenti} richieste={tutte}
+          vista={vista} onVista={setVista} evidenziate={evidenziate} vaiA={vaiA} adesso={adesso}
+          desktop={desktop} orizzontale={orizzontale}
+          onRichieste={(gruppo, e) => setPannello({ gruppo, ancora: { x: e?.clientX ?? 0, y: e?.clientY ?? 0 } })} />
+      )}
+
+      <div className="px-4 pb-4">
       <div>
-        {/* Calendario (min-w-0: a 2 settimane scorre dentro il proprio riquadro) */}
-        <section hidden={!mostraCalendario} className="min-w-0">
+        <section className="min-w-0">
           {capogruppo && (
             <div data-barra-gruppo className="flex items-start justify-between gap-3 bg-white mb-3" style={{ border: '1px solid var(--color-card-border)', borderRadius: 12, padding: '10px 12px' }}>
               <div className="min-w-0">
@@ -434,32 +407,10 @@ function Richieste() {
               <button type="button" data-vedi-tutte onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">{VEDI_TUTTE}</button>
             </div>
           )}
-          {loading ? (
-            <div className="text-center py-10 text-stone">Caricamento…</div>
-          ) : (
-            <CalendarioRichieste
-              mese={mese} onMese={setMese} modo={modoCalendario} onModo={cambiaModo} inizio={inizio} onInizio={setInizio}
-              camere={camere} prenotazioni={prenotazioni} richieste={richiesteCalendario}
-              acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()} adesso={adesso}
-              compatto={orizzontale} evidenziata={selezionata} onApri={(gruppo, ancora) => setPannello({ gruppo, ancora })} />
-          )}
-          <RigaMesi colonna={larghezzaColonnaCamere(desktop ? 'desktop' : 'mobile', orizzontale)} mesi={mesiCliccabili(new Date())} attivo={modoCalendario === 'quindici' ? inizio.slice(0, 7) : mese}
-            onMese={m => (modoCalendario === 'quindici' ? setInizio(m.iso) : setMese(m.chiave))}
-            onOggi={() => (modoCalendario === 'quindici' ? setInizio(inizioQuindicina(oggiIso())) : setMese(meseCorrente()))} className="mt-3" />
-          {/* Qui sotto c'era la riga che spiegava cosa sono le barre
-              tratteggiate. Tolta il 12/09/2026 (Ania, dal telefono):
-              lo sa già, e sotto il calendario rubava la riga ai comandi. Lo
-              spazio però resta vuoto, altrimenti i comandi si appiccicano al
-              calendario: è il distacco fra le due cose, non un avanzo. */}
           <div data-stacco-calendario aria-hidden style={{ height: 24 }} />
-          {/* Sul telefono i comandi stanno sotto il calendario (Ania, dal
-              telefono, 12/09/2026): l'interruttore a sinistra e «+ Nuova
-              richiesta» a destra; sotto la FASCIA con l'ordinamento e il
-              filtro delle ferme — ARRIVO · DURATA · PERSONE · DA GUARDARE. */}
           {(!desktop || orizzontale) && (
             <>
               <div className="flex items-center justify-between gap-3 mt-3">
-                <InterruttoreVista vista={vista} onChange={setVista} />
                 <TastoNuovaRichiesta />
               </div>
               {!loading && (
@@ -471,7 +422,7 @@ function Richieste() {
         </section>
 
         {/* Lista */}
-        <section hidden={!mostraLista} className="mt-4 md:mt-7">
+        <section className="mt-4 md:mt-7">
           {/* Il titoletto della lista. Sul telefono ordinamento e filtro
               stanno nella fascia sotto il calendario; sul Mac la fascia sta
               qui, sopra l'elenco. */}

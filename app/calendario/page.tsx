@@ -1,25 +1,22 @@
 'use client'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { prezzoPrenotazione } from '@/lib/prezzoNotti'
 import { useRouter } from 'next/navigation'
-import { buildChangeGroups, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeDiverso, nomeConAltri } from '@/lib/guestName'
+import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
+import { SchedaPrenotazione, SchedaTenuta } from '@/components/calendario/SchedaPrenotazione'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { EXTRA_BED_MAX } from '@/lib/tariffe'
-import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
+import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import type { Booking, Guest, Room } from '@/lib/types'
 import { COLORE_LETTI_ESAURITI, statoLettiAggiuntivi } from '@/lib/calendarioLetti'
 import {
-  CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, geometriaScheda, statoScheda, tintaScheda, testoStato,
-  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, arrivoToccatoNelBuco, CAMBIO_CAMERA, FILO_SINISTRO, fondoConAcconti, trattiLetto,
+  CORSIA_H, SCHEDA_TOP, ARIA_SCHEDA, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco, FILO_SINISTRO,
 } from '@/lib/calendarioSchede'
-import { leggiArrivo } from '@/lib/arrivo'
-import { oraRoma } from '@/lib/opzioni'
 import BackLink from '@/components/BackLink'
 import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione'
-import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro, FiloLetto } from '@/components/calendario/Nastro'
+import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro } from '@/components/calendario/Nastro'
 import FoglioMaison from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese } from '@/lib/schedaPrenotazione'
@@ -33,9 +30,8 @@ import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { giornoDaParametro } from '@/lib/daControllare'
-import { vuoleRicevuta as clienteVuoleRicevuta } from '@/lib/valutazione'
 import { PannelloLegenda } from '@/components/LegendaCalendario'
-import { areaTocco, CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, TINTE_SCHEDA, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono } from '@/lib/calendarioMobile'
+import { CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono } from '@/lib/calendarioMobile'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import {
   barreTenute, barrePerCamera, lettiTenutiPerNotte, testoTenuta, comeDovevaPagare,
@@ -55,7 +51,7 @@ const CELL_W_DESKTOP = gs(84)
 // intestazione compatta. Sopra la griglia la barra «‹ 2 settimane › · Mese ·
 // Oggi · mesi cliccabili». Lo scorrimento continuo su tutto l'anno resta.
 // Sul telefono le misure sono quelle di sempre.
-// Misure IDENTICHE al calendario delle Richieste (components/richieste/CalendarioRichieste):
+// Misure IDENTICHE al calendario delle Richieste (components/richieste/NastroRichieste):
 // righe 44, intestazione dei giorni 40, colonna camere 96, testi 11–13 px.
 // Niente striscia dei mesi sopra i giorni: il periodo lo dice la riga di
 // navigazione («1 – 14 set 2026» oppure «Settembre 2026»), come nelle Richieste.
@@ -130,8 +126,10 @@ export default function Calendario() {
   const orizzontale = useOrizzontaleTelefono()
   useSchermoIntero()
 
-  // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relative transizioni
-  const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
+  // Catene di cambio camera (per group_id o per stesso ospite/date contigue): chi esce
+  // verso un'altra camera, chi arriva da un'altra, «poi Lena» / «da Ambra»
+  // (lib/calendarioNastro, gli stessi conti delle Richieste)
+  const legami = useMemo(() => legamiCatene(bookings, rooms), [bookings, rooms])
   // Cambio camera (29/09/2026): la scheda tagliata in obliquo col filo del suo stesso colore
   // lungo il taglio (lib/calendarioSchede.filoObliquo): le tinte delle catene di lib/roomChanges qui non servono più
 
@@ -143,22 +141,6 @@ export default function Calendario() {
       .sort((a, b) => a.check_in.localeCompare(b.check_in)),
     [bookings]
   )
-
-  // Per ogni prenotazione: esce verso un'altra camera (taglio a destra) e/o arriva da un'altra camera (taglio a sinistra)
-  const { outgoingIds, incomingIds } = useMemo(() => {
-    const outgoing = new Set<string>()
-    const incoming = new Set<string>()
-    changeGroups.edges.forEach(e => { outgoing.add(e.fromId); incoming.add(e.toId) })
-    return { outgoingIds: outgoing, incomingIds: incoming }
-  }, [changeGroups])
-
-  // Sulle schede della catena: «poi Lena» sul tratto che parte, «da Ambra» su quello che arriva
-  const { poiCamera, daCamera } = useMemo(() => {
-    const corta = (id: string) => (rooms.find(r => r.id === bookings.find(b => b.id === id)?.room_id)?.name ?? '').split(' ').slice(-1)[0]
-    const poi: Record<string, string> = {}, da: Record<string, string> = {}
-    changeGroups.edges.forEach(e => { poi[e.fromId] = corta(e.toId); da[e.toId] = corta(e.fromId) })
-    return { poiCamera: poi, daCamera: da }
-  }, [changeGroups, bookings, rooms])
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
@@ -262,33 +244,9 @@ export default function Calendario() {
   const [liberando, setLiberando] = useState(false)
   const [avvisoTenuta, setAvvisoTenuta] = useState<string | null>(null)
 
-  // Notti coperte dagli acconti per prenotazione (-1 = tutte). Nei soggiorni con
-  // cambio camera i soldi ricevuti "scorrono" lungo tutta la catena in ordine di
-  // data, qualunque sia il segmento su cui l'acconto è stato registrato.
-  const paidNightsByBooking = useMemo(() => {
-    const map: Record<string, number> = {}
-    const groups: Record<string, CalendarBooking[]> = {}
-    bookings.forEach(b => { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) })
-    Object.values(groups).forEach(segs => {
-      let money = segs.reduce((s, b) => s + (accontiByBooking[b.id] || 0), 0)
-      if (money <= 0) return
-      const totale = segs.reduce((s, b) => s + Number(b.total_amount), 0)
-      const ordinati = [...segs].sort((a, b) => a.check_in.localeCompare(b.check_in))
-      if (money >= totale) { ordinati.forEach(b => { map[b.id] = -1 }); return }
-      for (const b of ordinati) {
-        // Tariffa di ogni notte (lib/prezzoNotti): con persone che cambiano da
-        // una notte all'altra ogni notte ha il suo prezzo, non una media
-        const tariffe = prezzoPrenotazione(rooms.find(r => r.id === b.room_id) ?? b.rooms, b).notti.map(x => x.tariffa)
-        const notti = tariffe.length
-        if (notti === 0 || tariffe.some(t => t <= 0)) continue
-        let coperte = 0
-        while (coperte < notti && money >= tariffe[coperte]) { money -= tariffe[coperte]; coperte++ }
-        if (coperte > 0) map[b.id] = coperte
-        if (coperte < notti) break
-      }
-    })
-    return map
-  }, [bookings, accontiByBooking, rooms])
+  // Notti coperte dagli acconti per prenotazione (-1 = tutte), lungo tutta la
+  // catena del cambio camera (lib/calendarioNastro, gli stessi conti delle Richieste)
+  const paidNightsByBooking = useMemo(() => nottiPagate(bookings, accontiByBooking, rooms), [bookings, accontiByBooking, rooms])
 
   // Le richieste con una proposta in giro: tengono una camera, e il calendario
   // lo deve dire (Ania, 15/09/2026). Se il database è indietro di una colonna
@@ -829,97 +787,32 @@ export default function Calendario() {
                     )
                   })}
 
-                  {/* Le schede: quattro righe scritte sopra (date · icone e nome · ospiti e stato · arrivo) */}
+                  {/* Le schede: quattro righe scritte sopra (date · icone e nome · ospiti e stato · arrivo),
+                      components/calendario/SchedaPrenotazione (la stessa delle Richieste) */}
                   {prenotazioni.map(booking => {
-                    const startIdx = Math.max(0, dayIndex(booking.check_in))
-                    const endIdx = Math.min(daysTotal, dayIndex(booking.check_out))
-                    if (endIdx - startIdx <= 0) return null
-                    const isOttimo = booking.guests?.rating === 'ottimo'
-                    const isEsclusiva = booking.color === '#f97316'
-                    const vuoleRicevuta = clienteVuoleRicevuta(booking.guests)
-                    const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
-                    const chainKey = changeGroups.chainKeyOf[booking.id]
-                    const isMultiRoom = !!chainKey
-                    const hasIncoming = incomingIds.has(booking.id)
-                    const hasOutgoing = outgoingIds.has(booking.id)
-                    const isSelected = isMultiRoom && selectedGroupId === chainKey
+                    const chainKey = legami.changeGroups.chainKeyOf[booking.id]
+                    const isSelected = !!chainKey && selectedGroupId === chainKey
                     // Ricerca attiva: risultato selezionato col contorno verde, gli
                     // altri risultati pieni, tutto il resto attenuato ma leggibile.
                     // Catena toccata: la catena piena con l'ombra, il resto attenuato.
                     const isMatch = matchedIds.has(booking.id)
                     const isCurrent = searchAttiva && currentMatch?.id === booking.id
-                    const isDimmed = searchAttiva
-                      ? !isMatch
-                      : (selectedGroupId !== null && !isSelected)
-                    // Richiesta dal sito da confermare: scheda tratteggiata verde
-                    const isWebPending = booking.status === 'in_attesa' && booking.source === 'sito_web'
-                    const stato = statoScheda(booking, paidNightsByBooking[booking.id] === -1)
-                    const tintaBase = tintaScheda(stato, booking.color)
-                    // Acconti (come prima, Ania 29/09/2026): le notti già coperte dai soldi
-                    // ricevuti si colorano di verde da sinistra, il resto tiene il suo colore
-                    const coperte = paidNightsByBooking[booking.id] ?? 0
-                    const tinta = stato !== 'pagato' && stato !== 'dalSito' && coperte > 0
-                      ? { ...tintaBase, fondo: fondoConAcconti(TINTE_SCHEDA.pagato.fondo, tintaBase.fondo, (coperte - (startIdx - dayIndex(booking.check_in))) * CELL_W - ARIA_SCHEDA), filo: TINTE_SCHEDA.pagato.filo }
-                      : tintaBase
-                    const g = geometriaScheda(startIdx, endIdx, CELL_W)
-                    // Cambio camera: il tratto che parte tagliato in basso a destra, quello che arriva in basso a sinistra
-                    const cutLeft = hasIncoming && startIdx === dayIndex(booking.check_in)
-                    const cutRight = hasOutgoing && endIdx === dayIndex(booking.check_out)
-                    const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(g.width, SCHEDA_H, cutLeft, cutRight, 6, TAGLIO_CAMBIO) : undefined
-                    const tocco = areaTocco(rowTop + SCHEDA_TOP, SCHEDA_H)
-                    const righe = {
-                      date: rigaDate(booking.check_in, booking.check_out, isWebPending ? 'dalSito' : null),
-                      icone: iconeScheda({ esclusiva: isEsclusiva, ottimo: isOttimo, ricevuta: vuoleRicevuta, letto: !!hasExtraBed, cambio: isMultiRoom, dalSito: booking.source === 'sito_web' && !isWebPending }),
-                      nome: nomeConAltri(booking),
-                      sotto: rigaSotto({ ospiti: Number(booking.num_guests) || 1, stato: testoStato(stato), letti: lettiPoolPrenotazione(booking), poi: poiCamera[booking.id], da: daCamera[booking.id] }),
-                      arrivo: isWebPending ? null : hasIncoming ? CAMBIO_CAMERA : rigaArrivo(leggiArrivo(booking as unknown as Record<string, unknown>)),
-                    }
+                    const isDimmed = searchAttiva ? !isMatch : (selectedGroupId !== null && !isSelected)
                     return (
-                      <SchedaNastro key={booking.id} id={booking.id} dati={{ stato }}
-                        onClick={e => { e.stopPropagation(); tocca(booking, chainKey) }}
-                        classi={`${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : ''} ${isSelected ? 'catena' : ''} ${isCurrent ? 'trovata' : ''}`}
-                        top={tocco.top} height={tocco.height} left={NAME_W + g.left} width={g.width} zIndex={isCurrent ? 16 : isSelected ? 15 : 5}
-                        sito={isWebPending} cutLeft={cutLeft} letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
-                        lettoTratti={trattiLetto(nottiLettoExtra(booking), dayIndex, startIdx, endIdx, CELL_W)}
-                        fondo={tinta.fondo} testo={tinta.testo} filo={tinta.filo} clipPath={clipPath}
-                        cuneoDestra={cutRight ? tintaBase.filo : undefined} cuneoSinistra={cutLeft ? tinta.filo : undefined}
-                        testoLeft={NAME_W + ARIA_SCHEDA + 8} testoWidth={larghezzaTesto(startIdx, endIdx)}>
-                        <em>{righe.date}</em>
-                        <b>{righe.icone && <span className="ic">{righe.icone} </span>}{righe.nome}</b>
-                        <small>{righe.sotto}</small>
-                        {righe.arrivo && <small className="ar2">{righe.arrivo}</small>}
-                      </SchedaNastro>
+                      <SchedaPrenotazione key={booking.id} booking={booking} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
+                        indice={dayIndex} legami={legami} coperte={paidNightsByBooking[booking.id]}
+                        attenuata={isDimmed} cerca={searchAttiva} trovata={isCurrent} selezionata={isSelected}
+                        larghezzaTesto={larghezzaTesto} onTocca={tocca} />
                     )
                   })}
 
                   {/* ── CAMERE TENUTE DA UNA PROPOSTA (15/09/2026) ── schede in ottone,
                       «in opzione», fino a quando; smorzate quando la tenuta è scaduta */}
-                  {tenute.map(barra => {
-                    const startIdx = Math.max(0, dayIndex(barra.arrivo))
-                    const endIdx = Math.min(daysTotal, dayIndex(barra.partenza))
-                    if (endIdx - startIdx <= 0) return null
-                    const g = geometriaScheda(startIdx, endIdx, CELL_W)
-                    const tinta = TINTE_SCHEDA.tenuta
-                    const isDimmed = searchAttiva || selectedGroupId !== null
-                    return (
-                      <div key={`tenuta-${barra.richiestaId}-${barra.cameraId}-${barra.arrivo}`}
-                        data-tenuta={barra.anticipato ? 'anticipato' : 'arrivo'} data-tocco
-                        onClick={(e) => { e.stopPropagation(); setBarraAperta(barra) }}
-                        title={`${barra.ospite} · ${testoTenuta(barra, adesso)}`}
-                        className={`cal-scheda ${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : barra.scaduta ? 'scaduta' : ''}`}
-                        style={{ top: rowTop + SCHEDA_TOP, height: SCHEDA_H, left: NAME_W + g.left, width: g.width, zIndex: 5 }}>
-                        <div className="cal-scheda-in" data-letto={barra.lettoNotti.length > 0 ? 1 : undefined}
-                          style={{ background: tinta.fondo, color: tinta.testo, borderLeftColor: tinta.filo, borderRadius: 6 }}>
-                          <FiloLetto tratti={trattiLetto(barra.lettoNotti, dayIndex, startIdx, endIdx, CELL_W)} bordoSinistro={FILO_SINISTRO} />
-                          <span className="tx" style={{ left: NAME_W + ARIA_SCHEDA + 8, width: larghezzaTesto(startIdx, endIdx) }}>
-                            <em>{rigaDate(barra.arrivo, barra.partenza, 'opzione')}</em>
-                            <b>{barra.lettoNotti.length > 0 && <span className="ic">🛏 </span>}{barra.ospite}</b>
-                            <small>{rigaSotto({ ospiti: barra.persone, stato: barra.scaduta ? 'scaduta' : `scade alle ${oraRoma(barra.scadenza)}`, letti: barra.lettoNotti.length > 0 ? 1 : 0 })}</small>
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {tenute.map(barra => (
+                    <SchedaTenuta key={`tenuta-${barra.richiestaId}-${barra.cameraId}-${barra.arrivo}`} barra={barra} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
+                      indice={dayIndex} attenuata={searchAttiva || selectedGroupId !== null} cerca={searchAttiva} larghezzaTesto={larghezzaTesto}
+                      titolo={`${barra.ospite} · ${testoTenuta(barra, adesso)}`} onTocca={setBarraAperta} />
+                  ))}
                 </div>
               )
             })}
