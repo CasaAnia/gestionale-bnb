@@ -761,22 +761,13 @@ export default function Calendario() {
       <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : isDesktop ? 'mx-4' : ''} overflow-hidden`}>
       {!loading && (
         <>
-          {/* Dal Mac la riga del periodo comune (components/RigaPeriodo, 29/09/2026):
-              il periodo per esteso a sinistra, ‹ · Mese | 2 settimane · › a destra */}
+          {/* La riga del periodo comune (components/RigaPeriodo, 29/09/2026): dal Mac il
+              periodo per esteso a sinistra, ‹ · Mese | 2 settimane · › a destra; dal
+              telefono (novità 14a) il periodo in Cormorant 20 e ‹ · pillola · › attaccati */}
           <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
             etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0 mt-2"
-            pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />} />
-          {/* Riga di navigazione (veste «Maison», 29/09/2026): ‹ · periodo · Mese | 2 settimane · › — dal telefono */}
-          <div className="cal-nav shrink-0 lg:hidden" data-riga-navigazione>
-            <button type="button" className="ar" onClick={() => freccia(-1)} aria-label={etichettaFreccia(modo, -1)}>‹</button>
-            <span className="per">{etichettaVista}</span>
-            <span className="dx">
-              {/* Lo stesso interruttore delle Richieste: il disegno sta in
-                  components/InterruttorePillola (Ania, 12/09/2026), qui nella veste Maison */}
-              <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />
-              <button type="button" className="ar" onClick={() => freccia(1)} aria-label={etichettaFreccia(modo, 1)}>›</button>
-            </span>
-          </div>
+            pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />}
+            telefono={{ etichetta: etichettaVista, pillola: <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison /> }} />
         </>
       )}
 

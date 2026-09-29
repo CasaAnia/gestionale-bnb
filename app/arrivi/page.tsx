@@ -365,22 +365,16 @@ export default function Arrivi() {
 
       {/* Dal telefono il nastro va da bordo a bordo, come il Calendario */}
       <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : isDesktop ? 'mx-4' : ''} overflow-hidden`}>
-      {/* Dal Mac la riga del periodo comune (components/RigaPeriodo, 29/09/2026) */}
+      {/* La riga del periodo comune (components/RigaPeriodo, 29/09/2026): dal Mac per esteso,
+          dal telefono (novità 14a) il periodo in Cormorant 20 e ‹ · pillola · › attaccati */}
       {!loading && (
         <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
           etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0"
-          pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />} />
-      )}
-      {!loading && (
-        // Riga di navigazione (veste «Maison», come il Calendario): ‹ · periodo · Mese | 2 settimane · › — dal telefono
-        <div className="cal-nav shrink-0 lg:hidden" data-riga-navigazione>
-          <button type="button" className="ar" onClick={() => freccia(-1)} aria-label={etichettaFreccia(modo, -1)}>‹</button>
-          <span className="per">{modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth}</span>
-          <span className="dx">
-            <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />
-            <button type="button" className="ar" onClick={() => freccia(1)} aria-label={etichettaFreccia(modo, 1)}>›</button>
-          </span>
-        </div>
+          pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />}
+          telefono={{
+            etichetta: modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth,
+            pillola: <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />,
+          }} />
       )}
 
       {/* Dal Mac niente barra di scorrimento visibile sotto la griglia: si scorre con due dita, con le frecce e con i mesi */}

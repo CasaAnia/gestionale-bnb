@@ -671,12 +671,15 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-wr .tocca { margin-left: auto; font-size: 11px; color: var(--m-mut); }
 .cal-wr .mz-lnk { margin-left: auto; flex: none; }
 
-/* La riga di navigazione: ‹ · periodo in Cormorant · MESE | 2 SETTIMANE · › */
-.cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 10px 12px 8px; border-bottom: 1px solid var(--m-line); margin-top: 8px; }
-.cal-nav .ar { position: relative; width: 28px; text-align: center; font-size: 18px; line-height: 1; color: var(--m-ink); background: none; border: 0; padding: 0; flex: none; }
-.cal-nav .ar::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
-.cal-nav .per { font-family: var(--m-disp); font-size: 16px; font-weight: 500; color: var(--m-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.cal-nav .dx { display: flex; align-items: center; gap: 6px; flex: none; }
+/* La riga del periodo dal telefono (components/RigaPeriodo `telefono`, novità 14a del 29/09/2026):
+   il periodo a sinistra in Cormorant 20 px su una riga, a destra ‹ · MESE | 2 SETTIMANE · › a 8 px */
+.riga-periodo-tel { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 8px; border-bottom: 1px solid var(--cal-filo, #E8E3DA); margin-top: 8px; }
+.riga-periodo-tel .per { font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: 20px; font-weight: 500; line-height: 1.15; color: #241F1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.riga-periodo-tel .dx { display: flex; align-items: center; gap: 8px; flex: none; }
+.riga-periodo-tel .ar { position: relative; width: 20px; text-align: center; font-size: 18px; line-height: 1; color: #241F1A; background: none; border: 0; padding: 0; flex: none; }
+.riga-periodo-tel .ar::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+.riga-periodo-tel .ar:disabled { opacity: .3; cursor: default; }
+@media (min-width: 1024px) { .riga-periodo-tel { display: none; } }
 .cal-pill { display: inline-flex; border: 1px solid #C9BFA8; border-radius: 999px; overflow: hidden; }
 .cal-pill button { display: inline-flex; align-items: center; padding: 10px 0; margin: -10px 0; background: none; border: 0; }
 .cal-pill button span { display: block; padding: 5px 9px; font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--m-ink); white-space: nowrap; line-height: 1.2; }
@@ -909,8 +912,6 @@ body:has(.cal) { background: var(--home-bg); }
 .riga-periodo .per { min-width: 0; margin: 0; padding: 0; border: 0; background: none; text-align: left; font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: calc(30px / var(--zoom-pagina, 1)); font-weight: 400; line-height: 1; color: #241F1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .riga-periodo button.per { cursor: pointer; }
 .riga-periodo .dx { display: flex; align-items: center; gap: calc(10px / var(--zoom-pagina, 1)); flex: none; }
-/* dal Mac la riga di sempre di Calendario e Arrivi lascia il posto a questa */
-@media (min-width: 1024px) { .cal-nav { display: none; } }
 .riga-periodo .ar { position: relative; width: calc(28px / var(--zoom-pagina, 1)); text-align: center; font-size: calc(18px / var(--zoom-pagina, 1)); line-height: 1; color: #241F1A; background: none; border: 0; padding: 0; flex: none; }
 .riga-periodo .ar::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
 .riga-periodo .ar:disabled { opacity: .3; cursor: default; }

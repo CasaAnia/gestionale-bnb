@@ -1,16 +1,23 @@
 import type { ReactNode } from 'react'
 
 // ============================================================================
-// LA RIGA DEL PERIODO DAL MAC (Ania, 29/09/2026), una sola per tutte le
-// pagine con le frecce su un periodo (Calendario, Arrivi, Richieste,
-// Statistiche, Spese): a sinistra il periodo in Cormorant 30 px col mese per
-// esteso (lib/periodoEsteso), allineato al margine del contenuto; a destra,
-// uno dietro l'altro a 10 px, ‹ · la pillola «Mese | 2 settimane» (dove c'è)
-// · ›. Le frecce come sempre, senza cerchi. Solo dal Mac (hidden lg:flex):
-// dal telefono ogni pagina tiene la sua riga. Misure in app/maison.css
+// LA RIGA DEL PERIODO (Ania, 29/09/2026), una sola per tutte le pagine con
+// le frecce su un periodo (Calendario, Arrivi, Richieste, Statistiche, Spese).
+//
+// Dal Mac: a sinistra il periodo in Cormorant 30 px col mese per esteso
+// (lib/periodoEsteso), allineato al margine del contenuto; a destra, uno
+// dietro l'altro a 10 px, ‹ · la pillola «Mese | 2 settimane» (dove c'è) · ›.
+// Le frecce come sempre, senza cerchi. Misure in app/maison.css
 // (.riga-periodo), divise per lo zoom delle pagine vecchie (--zoom-pagina).
+//
+// Dal telefono (novità 14a delle Richieste «Maison», 29/09/2026), per le
+// pagine che passano `telefono` (Calendario, Arrivi, Richieste): il periodo a
+// sinistra in Cormorant 20 px col mese abbreviato («28 set – 11 ott 2026», su
+// una riga sola) e a destra «‹ · Mese | 2 settimane · ›» attaccati, 8 px fra
+// l'uno e l'altro (.riga-periodo-tel). Le altre pagine dal telefono tengono
+// la loro riga di sempre.
 // ============================================================================
-export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, etichettaSucc, succDisabilitato = false, pillola, onEtichetta, titoloEtichetta, className = '' }: {
+export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, etichettaSucc, succDisabilitato = false, pillola, onEtichetta, titoloEtichetta, telefono, className = '' }: {
   etichetta: string
   onPrec: () => void
   onSucc: () => void
@@ -22,18 +29,32 @@ export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, 
   /** tocco sul periodo (Statistiche: torna a oggi) */
   onEtichetta?: () => void
   titoloEtichetta?: string
+  /** la riga del telefono: il periodo col mese abbreviato e la sua pillola */
+  telefono?: { etichetta: string; pillola?: ReactNode }
   className?: string
 }) {
   return (
-    <div data-riga-periodo data-senza-sottolinea className={`riga-periodo hidden lg:flex ${className}`}>
-      {onEtichetta
-        ? <button type="button" className="per" onClick={onEtichetta} title={titoloEtichetta}>{etichetta}</button>
-        : <span className="per">{etichetta}</span>}
-      <span className="dx">
-        <button type="button" className="ar" onClick={onPrec} aria-label={etichettaPrec}>‹</button>
-        {pillola}
-        <button type="button" className="ar" onClick={onSucc} aria-label={etichettaSucc} disabled={succDisabilitato}>›</button>
-      </span>
-    </div>
+    <>
+      <div data-riga-periodo data-senza-sottolinea className={`riga-periodo hidden lg:flex ${className}`}>
+        {onEtichetta
+          ? <button type="button" className="per" onClick={onEtichetta} title={titoloEtichetta}>{etichetta}</button>
+          : <span className="per">{etichetta}</span>}
+        <span className="dx">
+          <button type="button" className="ar" onClick={onPrec} aria-label={etichettaPrec}>‹</button>
+          {pillola}
+          <button type="button" className="ar" onClick={onSucc} aria-label={etichettaSucc} disabled={succDisabilitato}>›</button>
+        </span>
+      </div>
+      {telefono && (
+        <div data-riga-periodo-telefono data-riga-navigazione data-senza-sottolinea className={`riga-periodo-tel lg:hidden ${className}`}>
+          <span className="per">{telefono.etichetta}</span>
+          <span className="dx">
+            <button type="button" className="ar" onClick={onPrec} aria-label={etichettaPrec}>‹</button>
+            {telefono.pillola}
+            <button type="button" className="ar" onClick={onSucc} aria-label={etichettaSucc} disabled={succDisabilitato}>›</button>
+          </span>
+        </div>
+      )}
+    </>
   )
 }

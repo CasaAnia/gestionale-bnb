@@ -114,7 +114,7 @@ const pagina = leggi('app/arrivi/page.tsx')
 
 test('frecce a una settimana a «2 settimane», al 1° del mese a «Mese»; 90 giorni (7 prima, 83 dopo)', () => {
   assert.match(pagina, /scrollBy\(\{ left: direzione \* PASSO_FRECCE_QUINDICI \* CELL_W/)
-  assert.match(pagina, /aria-label=\{etichettaFreccia\(modo, -1\)\}/)
+  assert.match(pagina, /etichettaPrec=\{etichettaFreccia\(modo, -1\)\}/)
   assert.match(pagina, /const DAYS_TOTAL = 90\nconst DAYS_BEFORE = 7/)
   assert.match(pagina, /const CHIAVE_MODO = 'ca_calendario_modo'/)
 })

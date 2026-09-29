@@ -29,17 +29,14 @@ test('RigaPeriodo: periodo a sinistra, ‹ · pillola · › a destra, solo dal 
   assert.match(css, /\.riga-periodo \{ align-items: center; justify-content: space-between;/)
   assert.match(css, /\.riga-periodo \.per \{[^}]*font-family: var\(--font-cormorant\)[^}]*font-size: calc\(30px \/ var\(--zoom-pagina, 1\)\); font-weight: 400; line-height: 1; color: #241F1A;/)
   assert.match(css, /\.riga-periodo \.dx \{ display: flex; align-items: center; gap: calc\(10px \/ var\(--zoom-pagina, 1\)\); flex: none; \}/)
-  // la riga del telefono di Calendario e Arrivi ha display nel CSS: dal Mac va spenta lì
-  assert.match(css, /@media \(min-width: 1024px\) \{ \.cal-nav \{ display: none; \} \}/)
+  // la riga del telefono ha display nel CSS: dal Mac va spenta lì
+  assert.match(css, /@media \(min-width: 1024px\) \{ \.riga-periodo-tel \{ display: none; \} \}/)
   // frecce senza cerchi
   assert.match(css, /\.riga-periodo \.ar \{[^}]*background: none; border: 0;/)
 })
 
-test('le pagine con le frecce su un periodo usano tutte RigaPeriodo; dal telefono la loro riga di sempre', () => {
+test('le pagine con le frecce su un periodo usano tutte RigaPeriodo; Statistiche e Spese dal telefono la loro riga di sempre', () => {
   const pagine: [string, RegExp][] = [
-    ['app/calendario/page.tsx', /<div className="cal-nav shrink-0 lg:hidden" data-riga-navigazione>/],
-    ['app/arrivi/page.tsx', /<div className="cal-nav shrink-0 lg:hidden" data-riga-navigazione>/],
-    ['components/richieste/CalendarioRichieste.tsx', /className="flex items-center justify-between px-2 py-2 border-b lg:hidden"/],
     ['app/statistiche/page.tsx', /className="flex items-center justify-between bg-white rounded-xl border border-\[#C9BFA8\] shadow-sm mb-4 lg:hidden"/],
     ['components/spese/AnalisiOperativa.tsx', /<div className="flex items-center gap-1 lg:hidden">/],
   ]
@@ -48,8 +45,30 @@ test('le pagine con le frecce su un periodo usano tutte RigaPeriodo; dal telefon
     assert.match(src, /<RigaPeriodo /, `${file}: manca RigaPeriodo`)
     assert.match(src, telefono, `${file}: la riga del telefono deve restare, nascosta dal Mac`)
   }
-  // la pillola «Mese | 2 settimane» sta fra le frecce dove c'è
+})
+
+// ── Novità 14a delle Richieste «Maison» (29/09/2026): la riga del periodo dal
+// telefono, UNA per Calendario, Arrivi e Richieste ─────────────────────────
+test('RigaPeriodo dal telefono: periodo a sinistra in Cormorant 20 su una riga, ‹ · pillola · › attaccati a 8 px', () => {
+  const riga = leggi('components/RigaPeriodo.tsx')
+  assert.match(riga, /className=\{`riga-periodo-tel lg:hidden \$\{className\}`\}/)
+  assert.match(riga, /<span className="per">\{telefono\.etichetta\}<\/span>\s*<span className="dx">\s*<button type="button" className="ar" onClick=\{onPrec\}[^>]*>‹<\/button>\s*\{telefono\.pillola\}\s*<button type="button" className="ar" onClick=\{onSucc\}[^>]*>›<\/button>/)
+  const css = leggi('app/maison.css')
+  assert.match(css, /\.riga-periodo-tel \{ display: flex; align-items: center; justify-content: space-between;/)
+  assert.match(css, /\.riga-periodo-tel \.per \{[^}]*font-size: 20px;[^}]*white-space: nowrap;/)
+  assert.match(css, /\.riga-periodo-tel \.dx \{ display: flex; align-items: center; gap: 8px; flex: none; \}/)
+  // frecce come oggi: senza cerchi
+  assert.match(css, /\.riga-periodo-tel \.ar \{[^}]*background: none; border: 0;/)
+  // la vecchia riga ‹ · periodo · pillola · › del telefono non c'è più
+  assert.doesNotMatch(css, /\.cal-nav \{/)
+})
+
+test('Calendario, Arrivi e Richieste passano la riga del telefono a RigaPeriodo, con la pillola fra le frecce', () => {
   for (const file of ['app/calendario/page.tsx', 'app/arrivi/page.tsx', 'components/richieste/CalendarioRichieste.tsx']) {
-    assert.match(leggi(file), /pillola=\{[^}]*<InterruttorePillola /, file)
+    const src = leggi(file)
+    assert.match(src, /<RigaPeriodo /, file)
+    assert.match(src, /telefono=\{\{/, `${file}: manca la riga del telefono`)
+    assert.match(src, /pillola=\{[^}]*<InterruttorePillola /, file)
+    assert.doesNotMatch(src, /className="cal-nav /, `${file}: la riga vecchia del telefono è tornata`)
   }
 })

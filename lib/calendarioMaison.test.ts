@@ -23,8 +23,8 @@ test('frecce: a «2 settimane» una settimana (7 giorni), a «Mese» il 1° del 
   // la pagina sposta di PASSO_FRECCE_QUINDICI, non più di GIORNI_QUINDICINA
   assert.match(pagina, /scorriDiGiorni\(direzione \* PASSO_FRECCE_QUINDICI\)/)
   assert.doesNotMatch(pagina, /scorriDiGiorni\(direzione \* GIORNI_QUINDICINA\)/)
-  assert.match(pagina, /aria-label=\{etichettaFreccia\(modo, -1\)\}/)
-  assert.match(pagina, /aria-label=\{etichettaFreccia\(modo, 1\)\}/)
+  assert.match(pagina, /etichettaPrec=\{etichettaFreccia\(modo, -1\)\}/)
+  assert.match(pagina, /etichettaSucc=\{etichettaFreccia\(modo, 1\)\}/)
 })
 
 test('larghezza del giorno sul telefono: 60 px a «2 settimane», 40 a «Mese»', () => {
@@ -40,7 +40,7 @@ test('la riga di navigazione: l’interruttore di sempre nella veste Maison, per
   assert.match(pillola, /className=\{`cal-pill \$\{className\}`\}/)
   const css = leggi('app/maison.css')
   assert.match(css, /\.cal-pill button\.on span \{ background: var\(--m-ink\); color: #F6F2EA; \}/)
-  assert.match(css, /\.cal-nav \.per \{ font-family: var\(--m-disp\); font-size: 16px;/)
+  assert.match(css, /\.riga-periodo-tel \.per \{ font-family: var\(--font-cormorant\)[^}]*font-size: 20px;/)
 })
 
 // ── Le schede (pezzo 4) ─────────────────────────────────────────────────────
