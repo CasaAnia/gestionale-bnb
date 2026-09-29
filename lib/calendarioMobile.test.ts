@@ -51,7 +51,7 @@ test('layout della pagina: «Legenda» sotto «Oggi» con etichetta, anche dal M
   assert.equal(occorrenze(pagina, 'VociLegenda'), 0)
   assert.equal(occorrenze(pagina, 'legendaInRiga'), 0)
   assert.equal(occorrenze(legenda, 'VociLegenda'), 0)
-  assert.ok(occorrenze(pagina, '{!loading && (\n        <div className={`shrink-0 flex ${orizzontale ? \'px-2\' : isDesktop ? \'px-4\' : \'\'}`}>\n          <div className="cal-lg"') === 1)
+  assert.ok(occorrenze(pagina, '{!loading && (\n        <div className={`shrink-0 flex ${orizzontale ? \'px-2\' : isDesktop ? \'px-4\' : \'\'}`}>\n          <div className="cal-lg cal-lg-staccata"') === 1)
   assert.ok(occorrenze(legenda, 'larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}') === 1)   // dal Mac centrato a 620 px
   // la scheda (con data-tocco) è il pezzo condiviso con gli Arrivi (29/09/2026)
   assert.ok(occorrenze(pagina, '<SchedaNastro') >= 1)

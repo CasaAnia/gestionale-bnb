@@ -31,3 +31,7 @@ export function meseEsteso(chiave: string): string {
   const nome = MESI_LUNGHI[m - 1]
   return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} ${a}`
 }
+
+/** «28 dic 2026 – 10 gen 2027»: il periodo scrive due anni (la riga del
+ *  periodo del telefono lo scrive più piccolo, 20 px, perché stia su una riga) */
+export const periodoAScavalloDAnno = (etichetta: string) => (etichetta.match(/\b\d{4}\b/g) ?? []).length > 1

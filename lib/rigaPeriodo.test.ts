@@ -49,13 +49,13 @@ test('le pagine con le frecce su un periodo usano tutte RigaPeriodo; Statistiche
 
 // ── Novità 14a delle Richieste «Maison» (29/09/2026): la riga del periodo dal
 // telefono, UNA per Calendario, Arrivi e Richieste ─────────────────────────
-test('RigaPeriodo dal telefono: periodo a sinistra in Cormorant 20 su una riga, ‹ · pillola · › attaccati a 8 px', () => {
+test('RigaPeriodo dal telefono: periodo a sinistra in Cormorant 24 su una riga (ritocchi A2, prima 20), ‹ · pillola · › attaccati a 8 px', () => {
   const riga = leggi('components/RigaPeriodo.tsx')
   assert.match(riga, /className=\{`riga-periodo-tel lg:hidden \$\{className\}`\}/)
-  assert.match(riga, /<span className="per">\{telefono\.etichetta\}<\/span>\s*<span className="dx">\s*<button type="button" className="ar" onClick=\{onPrec\}[^>]*>‹<\/button>\s*\{telefono\.pillola\}\s*<button type="button" className="ar" onClick=\{onSucc\}[^>]*>›<\/button>/)
+  assert.match(riga, /<span className=\{`per \$\{periodoAScavalloDAnno\(telefono\.etichetta\) \? 'due-anni' : ''\}`\}>\{telefono\.etichetta\}<\/span>\s*<span className="dx">\s*<button type="button" className="ar" onClick=\{onPrec\}[^>]*>‹<\/button>\s*\{telefono\.pillola\}\s*<button type="button" className="ar" onClick=\{onSucc\}[^>]*>›<\/button>/)
   const css = leggi('app/maison.css')
   assert.match(css, /\.riga-periodo-tel \{ display: flex; align-items: center; justify-content: space-between;/)
-  assert.match(css, /\.riga-periodo-tel \.per \{[^}]*font-size: 20px;[^}]*white-space: nowrap;/)
+  assert.match(css, /\.riga-periodo-tel \.per \{[^}]*font-size: 24px;[^}]*white-space: nowrap;/)
   assert.match(css, /\.riga-periodo-tel \.dx \{ display: flex; align-items: center; gap: 8px; flex: none; \}/)
   // frecce come oggi: senza cerchi
   assert.match(css, /\.riga-periodo-tel \.ar \{[^}]*background: none; border: 0;/)
@@ -71,4 +71,31 @@ test('Calendario, Arrivi e Richieste passano la riga del telefono a RigaPeriodo,
     assert.match(src, /pillola=\{[^}]*<InterruttorePillola /, file)
     assert.doesNotMatch(src, /className="cal-nav /, `${file}: la riga vecchia del telefono è tornata`)
   }
+})
+
+// ── Ritocchi «Maison» del 29/09/2026, punto A2 ─────────────────────────────
+test('A2: la pillola del telefono è piccola (9,5 px, 4 × 8) e dice «2 sett.»; dal Mac «2 settimane»', async () => {
+  const css = leggi('app/maison.css')
+  assert.match(css, /\.riga-periodo-tel \.cal-pill button span \{ font-size: 9\.5px; padding: 4px 8px; \}/)
+  const { VOCI_GRIGLIA_TELEFONO } = await import('./calendarioMobile.ts')
+  assert.deepEqual(VOCI_GRIGLIA_TELEFONO.map(v => v[1]), ['Mese', '2 sett.'])
+  for (const file of ['app/calendario/page.tsx', 'app/arrivi/page.tsx', 'components/richieste/NastroRichieste.tsx']) {
+    const src = leggi(file)
+    // la pillola del telefono usa le voci corte, quella del Mac le voci di sempre
+    assert.match(src, /telefono=\{\{[\s\S]*?<InterruttorePillola voci=\{VOCI_GRIGLIA_TELEFONO\}/, file)
+    assert.match(src, /pillola=\{<InterruttorePillola voci=\{VOCI_GRIGLIA\} [^>]*-mac"/, file)
+    assert.match(src, /\['quindici', '2 settimane'\]/, `${file}: dal Mac resta «2 settimane»`)
+  }
+})
+
+test('A2: il periodo sta in Cormorant 24 px su una riga; a cavallo d’anno 20 px; frecce ‹ · pillola · › come prima', async () => {
+  const { periodoAScavalloDAnno } = await import('./periodoEsteso.ts')
+  assert.equal(periodoAScavalloDAnno('28 set – 11 ott 2026'), false)
+  assert.equal(periodoAScavalloDAnno('30 nov – 13 dic 2026'), false)
+  assert.equal(periodoAScavalloDAnno('Settembre 2026'), false)
+  assert.equal(periodoAScavalloDAnno('28 dic 2026 – 10 gen 2027'), true)
+  const css = leggi('app/maison.css')
+  assert.match(css, /\.riga-periodo-tel \.per\.due-anni \{ font-size: 20px; \}/)
+  // dal Mac invariato: 30 px e il mese per esteso
+  assert.match(css, /\.riga-periodo \.per \{[^}]*font-size: calc\(30px \/ var\(--zoom-pagina, 1\)\)/)
 })

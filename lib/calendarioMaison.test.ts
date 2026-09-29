@@ -41,7 +41,7 @@ test('la riga di navigazione: l’interruttore di sempre nella veste Maison, per
   assert.match(pillola, /className=\{`cal-pill \$\{className\}`\}/)
   const css = leggi('app/maison.css')
   assert.match(css, /\.cal-pill button\.on span \{ background: var\(--m-ink\); color: #F6F2EA; \}/)
-  assert.match(css, /\.riga-periodo-tel \.per \{ font-family: var\(--font-cormorant\)[^}]*font-size: 20px;/)
+  assert.match(css, /\.riga-periodo-tel \.per \{ font-family: var\(--font-cormorant\)[^}]*font-size: 24px;/) // 24 dai ritocchi del 29/09/2026 (A2)
 })
 
 // ── Le schede (pezzo 4) ─────────────────────────────────────────────────────
@@ -303,7 +303,7 @@ test('«Oggi» e «Legenda» sotto la colonna delle camere; la camera tenuta e l
   const riga = leggi('components/RigaMesi.tsx')
   assert.match(pagina, /<RigaMesi maison colonna=\{NAME_W\}/)
   assert.match(riga, /<div className="og" style=\{\{ width: colonna, minWidth: colonna \}\}>/)
-  assert.match(pagina, /<div className="cal-lg" style=\{\{ width: NAME_W, minWidth: NAME_W \}\}>/)
+  assert.match(pagina, /<div className="cal-lg cal-lg-staccata" style=\{\{ width: NAME_W, minWidth: NAME_W \}\}>/)
   assert.doesNotMatch(pagina, />\?<\/button>/)                                  // niente più «?»
   assert.match(pagina, /dati="tenuta-calendario"/)
   assert.match(pagina, /· camera tenuta<\/div>/)

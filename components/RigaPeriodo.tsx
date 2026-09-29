@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { periodoAScavalloDAnno } from '@/lib/periodoEsteso'
 
 // ============================================================================
 // LA RIGA DEL PERIODO (Ania, 29/09/2026), una sola per tutte le pagine con
@@ -16,7 +17,15 @@ import type { ReactNode } from 'react'
 // una riga sola) e a destra «‹ · Mese | 2 settimane · ›» attaccati, 8 px fra
 // l'uno e l'altro (.riga-periodo-tel). Le altre pagine dal telefono tengono
 // la loro riga di sempre.
+//
+// Ritocchi del 29/09/2026 (A2): la pillola del telefono più piccola («Mese |
+// 2 sett.», 9,5 px, 4 × 8) e il periodo più grande, Cormorant 24 px: è la
+// misura più grande a cui «28 set – 11 ott 2026» (e ogni periodo dentro lo
+// stesso anno) sta su una riga a 390 px (misurata: da 24 in giù, sta già a
+// 24). A cavallo d'anno («28 dic 2026 – 10 gen 2027») a 24 non sta: lì 20 px,
+// la più grande che ci sta.
 // ============================================================================
+
 export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, etichettaSucc, succDisabilitato = false, pillola, onEtichetta, titoloEtichetta, telefono, className = '' }: {
   etichetta: string
   onPrec: () => void
@@ -47,7 +56,7 @@ export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, 
       </div>
       {telefono && (
         <div data-riga-periodo-telefono data-riga-navigazione data-senza-sottolinea className={`riga-periodo-tel lg:hidden ${className}`}>
-          <span className="per">{telefono.etichetta}</span>
+          <span className={`per ${periodoAScavalloDAnno(telefono.etichetta) ? 'due-anni' : ''}`}>{telefono.etichetta}</span>
           <span className="dx">
             <button type="button" className="ar" onClick={onPrec} aria-label={etichettaPrec}>‹</button>
             {telefono.pillola}

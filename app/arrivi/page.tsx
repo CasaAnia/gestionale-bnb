@@ -54,6 +54,7 @@ import {
 } from '@/lib/arriviSchede'
 import {
   areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, OPACITA_ARRIVATA, VOCI_LEGENDA_ARRIVI, ICONE_LEGENDA_ARRIVI,
+  VOCI_GRIGLIA_TELEFONO, BUCHI_LIBERI_VISIBILI,
 } from '@/lib/calendarioMobile'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -373,7 +374,7 @@ export default function Arrivi() {
           pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />}
           telefono={{
             etichetta: modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth,
-            pillola: <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />,
+            pillola: <InterruttorePillola voci={VOCI_GRIGLIA_TELEFONO} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />,
           }} />
       )}
 
@@ -411,7 +412,9 @@ export default function Arrivi() {
                     }} />
 
                   {/* I buchi liberi: riquadro tratteggiato, le date e il «+»; il tocco apre la nuova prenotazione con camera e data */}
-                  {buchi.map(h => {
+                  {/* PROVA del 29/09/2026 (A3): con BUCHI_LIBERI_VISIBILI a false i riquadri
+                      non si disegnano e la corsia resta vuota; il tocco lo prende la corsia */}
+                  {BUCHI_LIBERI_VISIBILI && buchi.map(h => {
                     const da = Math.max(0, dayIndex(h.da)), a = Math.min(DAYS_TOTAL, dayIndex(h.a))
                     if (a - da <= 0) return null
                     const g = geometriaScheda(da, a, CELL_W)
@@ -513,13 +516,13 @@ export default function Arrivi() {
       {!loading && (
         <RigaMesi maison colonna={NAME_W} mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
           onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(indiceOggi())} nota={sottotitoloArrivi(DAYS_TOTAL - DAYS_BEFORE)}
-          className={`shrink-0 ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
+          className={`shrink-0 cal-rm-staccata ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
       )}
       {/* «LEGENDA» sotto «Oggi» (novità del 29/09/2026): apre la legenda nel foglio dal basso,
           anche dal Mac al posto della legenda in riga (Ania, 29/09/2026) */}
       {!loading && (
         <div className={`shrink-0 flex ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`}>
-          <div className="cal-lg" style={{ width: NAME_W, minWidth: NAME_W }}>
+          <div className="cal-lg cal-lg-staccata" style={{ width: NAME_W, minWidth: NAME_W }}>
             <button type="button" className="mz-lnk" aria-label="Legenda" onClick={() => setLegendaAperta(true)}>Legenda</button>
           </div>
         </div>

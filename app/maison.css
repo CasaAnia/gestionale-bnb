@@ -674,12 +674,16 @@ body:has(.cal) { background: var(--home-bg); }
 /* La riga del periodo dal telefono (components/RigaPeriodo `telefono`, novità 14a del 29/09/2026):
    il periodo a sinistra in Cormorant 20 px su una riga, a destra ‹ · MESE | 2 SETTIMANE · › a 8 px */
 .riga-periodo-tel { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 8px; border-bottom: 1px solid var(--cal-filo, #E8E3DA); margin-top: 8px; }
-.riga-periodo-tel .per { font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: 20px; font-weight: 500; line-height: 1.15; color: #241F1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.riga-periodo-tel .per { font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 500; line-height: 1.15; color: #241F1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .riga-periodo-tel .dx { display: flex; align-items: center; gap: 8px; flex: none; }
 .riga-periodo-tel .ar { position: relative; width: 20px; text-align: center; font-size: 18px; line-height: 1; color: #241F1A; background: none; border: 0; padding: 0; flex: none; }
 .riga-periodo-tel .ar::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
 .riga-periodo-tel .ar:disabled { opacity: .3; cursor: default; }
 @media (min-width: 1024px) { .riga-periodo-tel { display: none; } }
+/* Ritocchi del 29/09/2026 (A2): la pillola del telefono più piccola, testo 9,5 px e
+   4 × 8 di spazio, «2 SETT.»; così il periodo a sinistra sta più grande su una riga */
+.riga-periodo-tel .cal-pill button span { font-size: 9.5px; padding: 4px 8px; }
+.riga-periodo-tel .per.due-anni { font-size: 20px; }
 .cal-pill { display: inline-flex; border: 1px solid #C9BFA8; border-radius: 999px; overflow: hidden; }
 .cal-pill button { display: inline-flex; align-items: center; padding: 10px 0; margin: -10px 0; background: none; border: 0; }
 .cal-pill button span { display: block; padding: 5px 9px; font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--m-ink); white-space: nowrap; line-height: 1.2; }
@@ -777,6 +781,15 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-rm .ms i { font-family: var(--m-disp); font-style: normal; font-size: 11px; color: var(--m-acc); padding: 6px 4px 0; letter-spacing: .06em; }
 .cal-lg { display: flex; justify-content: center; margin-top: 10px; padding-bottom: 12px; }
 .cal-lg .mz-lnk { font-size: 10.5px; letter-spacing: .14em; }
+/* Ritocchi del 29/09/2026 (A1), Calendario e Arrivi dal telefono: 18 px d'aria fra
+   il nastro («🛏 extra» o l'ultima corsia) e «Oggi · mesi»; «Legenda» 14 px sotto
+   «Oggi» (12 + i 2 px sotto il cerchio); «Oggi» si tocca in almeno 44 × 44 px.
+   Dal Mac invariato. */
+@media (max-width: 1023px) {
+  .cal-rm.cal-rm-staccata { margin-top: 18px; }
+  .cal-rm.cal-rm-staccata .og button::before { left: 50%; right: auto; width: max(100%, 44px); transform: translate(-50%, -50%); }
+  .cal-lg.cal-lg-staccata { margin-top: 12px; }
+}
 
 /* La legenda: nel foglio dal basso (telefono), centrato a 620 px (Mac) */
 .cal-leg-k { font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }

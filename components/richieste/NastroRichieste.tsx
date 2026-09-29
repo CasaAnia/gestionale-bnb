@@ -38,7 +38,7 @@ import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI, RIGA_QUALSIASI } from '@/lib/richiesteCalendario'
 import { CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, FILO_SINISTRO, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco } from '@/lib/calendarioSchede'
-import { areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_LEGENDA, ICONE_LEGENDA } from '@/lib/calendarioMobile'
+import { areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_LEGENDA, ICONE_LEGENDA, VOCI_GRIGLIA_TELEFONO } from '@/lib/calendarioMobile'
 import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { barreTenute, barrePerCamera, testoTenuta, type RichiestaTenuta, type BarraTenuta } from '@/lib/calendarioOpzioni'
 import { schedeRichieste, righeSchedaRichieste, TINTA_RICHIESTA, type RichiestaNastro, type SchedaRichieste } from '@/lib/richiesteNastro'
@@ -279,7 +279,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
         <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
           etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0"
           pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-calendario-mac" maison />}
-          telefono={{ etichetta: periodoTelefono, pillola: <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-calendario" maison /> }} />
+          telefono={{ etichetta: periodoTelefono, pillola: <InterruttorePillola voci={VOCI_GRIGLIA_TELEFONO} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-calendario" maison /> }} />
         {/* «VISTA · Reale | Presunta», allineata a destra, col filo sotto */}
         <div className="ric-vista shrink-0" data-riga-vista>
           <span className="k">Vista</span>

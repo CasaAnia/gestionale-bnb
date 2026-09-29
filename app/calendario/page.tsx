@@ -31,7 +31,7 @@ import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } 
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { giornoDaParametro } from '@/lib/daControllare'
 import { PannelloLegenda } from '@/components/LegendaCalendario'
-import { CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono } from '@/lib/calendarioMobile'
+import { CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_GRIGLIA_TELEFONO, BUCHI_LIBERI_VISIBILI } from '@/lib/calendarioMobile'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import {
   barreTenute, barrePerCamera, lettiTenutiPerNotte, testoTenuta, comeDovevaPagare,
@@ -725,7 +725,7 @@ export default function Calendario() {
           <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
             etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0 mt-2"
             pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />}
-            telefono={{ etichetta: etichettaVista, pillola: <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison /> }} />
+            telefono={{ etichetta: etichettaVista, pillola: <InterruttorePillola voci={VOCI_GRIGLIA_TELEFONO} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison /> }} />
         </>
       )}
 
@@ -769,7 +769,9 @@ export default function Calendario() {
 
                   {/* I buchi liberi: riquadro tratteggiato, «3 → 4 ott» e il «+»; il
                       tocco apre la nuova prenotazione con camera e arrivo già scritti */}
-                  {buchi.map(h => {
+                  {/* PROVA del 29/09/2026 (A3): con BUCHI_LIBERI_VISIBILI a false i riquadri
+                      non si disegnano e la corsia resta vuota; il tocco lo prende la corsia */}
+                  {BUCHI_LIBERI_VISIBILI && buchi.map(h => {
                     const da = Math.max(0, dayIndex(h.da)), a = Math.min(daysTotal, dayIndex(h.a))
                     if (a - da <= 0) return null
                     const g = geometriaScheda(da, a, CELL_W)
@@ -854,14 +856,14 @@ export default function Calendario() {
       </div>
       {/* Sotto il calendario: «Oggi» e i 12 mesi cliccabili (riga condivisa con Arrivi e Richieste), telefono e Mac */}
       {!loading && (
-        <RigaMesi maison colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
+        <RigaMesi maison colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 cal-rm-staccata ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`} />
       )}
       {/* «LEGENDA» maiuscoletto sottolineato, centrata sotto «Oggi» nella stessa
           colonna (29/09/2026, al posto del «?»): apre la legenda nel foglio dal basso.
           Anche dal Mac, al posto della legenda in riga (Ania, 29/09/2026) */}
       {!loading && (
         <div className={`shrink-0 flex ${orizzontale ? 'px-2' : isDesktop ? 'px-4' : ''}`}>
-          <div className="cal-lg" style={{ width: NAME_W, minWidth: NAME_W }}>
+          <div className="cal-lg cal-lg-staccata" style={{ width: NAME_W, minWidth: NAME_W }}>
             <button type="button" className="mz-lnk" aria-label="Legenda" onClick={() => setLegendaAperta(true)}>Legenda</button>
           </div>
         </div>

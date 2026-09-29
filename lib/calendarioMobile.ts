@@ -41,6 +41,16 @@ export const ROSA_LETTO = '#F8D9D6'
 export const VERDE_OGGI = '#2D6A4F'
 /** I buchi liberi */
 export const BUCO = { bordo: '#D5CCBB', testo: '#A89E8C', piu: '#C9BFA8' } as const
+/** PROVA del 29/09/2026 (ritocchi «Maison», punto A3): i riquadri tratteggiati
+ *  dei buchi liberi («2 → 5 ott · +») nel Calendario e negli Arrivi. Con
+ *  `false` la corsia vuota resta vuota e il tocco su un giorno libero apre lo
+ *  stesso la nuova prenotazione con camera e giorno; per tornare ai riquadri
+ *  basta rimettere `true`. */
+export const BUCHI_LIBERI_VISIBILI: boolean = false
+/** La pillola della riga del periodo sul telefono (punto A2): «2 sett.» al
+ *  posto di «2 settimane», perché il periodo a sinistra stia più grande. Dal
+ *  Mac resta «2 settimane». */
+export const VOCI_GRIGLIA_TELEFONO = [['mese', 'Mese'], ['quindici', '2 sett.']] as const
 /** L'ottone scuro della riga dell'arrivo */
 export const OTTONE_SCURO = '#7a5f2c'
 
