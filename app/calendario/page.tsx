@@ -485,11 +485,12 @@ export default function Calendario() {
     setMenuAperto(false)
     if (!v.trim()) {
       setWrAperto(false)
+      // Con ✕ il calendario torna SEMPRE a oggi (Ania, 29/09/2026)
       if (daysBefore !== DAYS_BEFORE || daysTotal !== DAYS_TOTAL) {
         setDaysBefore(DAYS_BEFORE)
         setDaysTotal(DAYS_TOTAL)
-        vaiAOggi()
       }
+      vaiAOggi()
     }
   }
 

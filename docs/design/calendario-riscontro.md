@@ -43,7 +43,7 @@ build puliti.
 ## 2. Ricerca
 - R1–R9 fatte.
 - R10 fatta (contorno verde 2 px sul risultato corrente, gli altri risultati pieni come oggi, il resto a 0,35, buchi normali).
-- R11 fatta, **come oggi**: svuotando il campo il calendario torna a oggi solo se la ricerca aveva allargato l'intervallo; se il risultato era già dentro resta dov'è (in produzione, cercando «macauda» e svuotando, è rimasto su giugno). Non l'ho cambiato perché l'incarico chiede lo stesso comportamento: se Ania lo vuole sempre su oggi è una riga.
+- R11 fatta. Prima il calendario tornava a oggi solo se la ricerca aveva allargato l'intervallo (in produzione, cercando «macauda» e svuotando, restava su giugno). Ania ha scelto: con ✕ torna SEMPRE a oggi (29/09/2026, dopo il riscontro).
 - R12 fatta.
 
 ## 3. Richieste dal sito

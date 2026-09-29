@@ -292,3 +292,7 @@ test('«Oggi» e «Legenda» sotto la colonna delle camere; la camera tenuta e l
   assert.match(css, /\.cal-rm \.ms button\.on \{ background: var\(--m-ink\); color: #F6F2EA; \}/)
   assert.match(css, /\.cal-rm \.og button \{[^}]*border: 1px solid var\(--m-ink\); border-radius: 999px;[^}]*text-transform: uppercase;/)
 })
+
+test('svuotando la ricerca il calendario torna sempre a oggi (Ania, 29/09/2026)', () => {
+  assert.match(pagina, /setDaysTotal\(DAYS_TOTAL\)\n      \}\n      vaiAOggi\(\)/)
+})
