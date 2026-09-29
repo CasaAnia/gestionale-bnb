@@ -15,6 +15,7 @@ import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/n
 import { TITOLO_CON_LEI, SALVA_CON_LEI, AVVISO_CHI_E_2_SENZA_0056, personeDaPrenotazione, campiConLeiCompleti, senzaChiE2, stessePersone, type RigaConLei } from '@/lib/conLeiScheda'
 import { aggiornaInUnColpo } from '@/lib/righeDati'
 import { colonnaMancante } from '@/lib/colonnaMancante'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export default function FoglioConLei({ booking, righe, onChiudi, onIncerto, onSalvato }: {
   booking: RigaConLei
@@ -59,7 +60,7 @@ export default function FoglioConLei({ booking, righe, onChiudi, onIncerto, onSa
   }
 
   return (
-    <Foglio titolo={TITOLO_CON_LEI} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_CON_LEI} altezza={ALTEZZE_FOGLI.chiDorme} onChiudi={onChiudi}>
       <ConLei persone={persone} onPersone={p => { setPersone(p); setErrore(null) }}
         avviso={persone.length > PERSONE_CON_LEI_MAX ? TROPPE_PERSONE : null} senzaTitolo etichetteOttone />
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}

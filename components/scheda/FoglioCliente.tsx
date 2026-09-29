@@ -23,6 +23,7 @@ import { colonnaRicevutaPresente } from '@/lib/valutazione'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { moduloDaCliente, campiDaModulo, TITOLO_DATI_CLIENTE, AVVISO_TUTTI_I_SOGGIORNI, type ClienteSalvato, type ModuloCliente } from '@/lib/datiCliente'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const ERRORE_MOTIVO_SENZA_0046 = 'Il motivo interno non può ancora essere registrato (serve la proposta 0046). Nessuna modifica alla cliente è stata salvata: il testo resta qui.'
 
@@ -67,7 +68,7 @@ export default function FoglioCliente({ cliente, onChiudi, onSalvato }: {
   }
 
   return (
-    <Foglio titolo={TITOLO_DATI_CLIENTE} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_DATI_CLIENTE} altezza={ALTEZZE_FOGLI.cliente} onChiudi={onChiudi}>
       <p data-vale-per-tutti style={{ fontSize: 12.5, color: 'var(--color-stone)', marginBottom: 14 }}>{AVVISO_TUTTI_I_SOGGIORNI}</p>
       <NuovoCliente dati={dati} onDati={setDati} strutture={strutture.lista} struttureDisponibili={clienteConProvenienza(cliente) && strutture.disponibile}
         titolo={null} avanti={null} etichetteOttone />

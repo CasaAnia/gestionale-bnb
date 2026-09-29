@@ -198,7 +198,7 @@ test('sotto la striscia «Cambia date · Cambio camera · Aggiungi camera», e �
   assert.equal(/supabase/.test(togli), false)
   assert.match(pagina, /<FoglioTogliCamera titolo=\{lineaDaTogliere\.titolo\} ids=\{lineaDaTogliere\.segmenti\.map\(s => s\.id\)\}/)
   assert.match(pagina, /const dove = schedaDopo\(booking\.id, ids, altre\)/)
-  assert.match(pagina, /if \(dove\) \{ router\.replace\(`\/scheda\/\$\{dove\}`\); return \}/)
+  assert.match(pagina, /if \(dove\) \{ setTogliAperto\(null\); router\.replace\(`\/scheda\/\$\{dove\}`\); return \}/)
   assert.match(leggi('lib/togliCamera.ts'), /status: 'annullata', cancelled_at: adesso, cancelled_reason: MOTIVO_TOGLI_CAMERA/)
 })
 

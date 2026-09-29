@@ -14,7 +14,7 @@ import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { nomeDaSalvare } from '@/lib/guestName'
 
 export const AGGIUNGI_PERSONA = '+ Aggiungi una persona'
-export const TITOLO_FOGLIETTO = 'Chi dorme con lei'
+export const TITOLO_FOGLIETTO = 'Chi dorme in camera'
 export const ALTRO = 'altro…'
 
 export function RigaPersona({ persona, onTogli }: { persona: PersonaConLei; onTogli: () => void }) {

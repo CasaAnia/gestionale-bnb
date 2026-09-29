@@ -7,11 +7,12 @@
 // la provenienza è della persona, non della prenotazione.
 // ============================================================================
 import { useEffect, useState } from 'react'
-import Foglio from './Foglio'
+import Foglio, { PiedeFoglio } from './Foglio'
 import CampoProvenienza, { type ValoreProvenienza } from '@/components/CampoProvenienza'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { campiProvenienza, type CampiProvenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente } from '@/lib/provenienzaDati'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export default function FoglioProvenienza({ guestId, iniziale, onChiudi, onSalvata }: {
   guestId: string
@@ -43,13 +44,10 @@ export default function FoglioProvenienza({ guestId, iniziale, onChiudi, onSalva
   }
 
   return (
-    <Foglio titolo="Da dove arriva la cliente?" onChiudi={onChiudi}>
+    <Foglio titolo="Da dove arriva la cliente?" altezza={ALTEZZE_FOGLI.provenienza} onChiudi={onChiudi}>
       <CampoProvenienza valore={valore} onChange={setValore} strutture={strutture.lista} disponibile={strutture.disponibile} compatto />
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}
-      <div className="flex gap-2 mt-4">
-        <button type="button" onClick={salva} disabled={salvando} className="ed-pillola flex-1" style={{ minHeight: 42 }}>{salvando ? 'Salvo…' : 'Salva sul cliente'}</button>
-        <button type="button" onClick={onChiudi} className="ed-pillola-tenue" style={{ minHeight: 42 }}>Annulla</button>
-      </div>
+      <PiedeFoglio azione="Salva sul cliente" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="provenienza" />
     </Foglio>
   )
 }

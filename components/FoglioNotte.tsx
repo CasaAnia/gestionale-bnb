@@ -16,7 +16,8 @@
 // arrivano dal contesto, le regole da lib/strisciaNotti.
 // ============================================================================
 import { useState } from 'react'
-import Foglio from '@/components/scheda/Foglio'
+import Foglio, { PiedeFoglio } from '@/components/scheda/Foglio'
+import { useMaison } from '@/components/nuova/PezziNuova'
 import {
   camereDellaNotte, avvisoCapienza, lettoDisponibileNotte, prezzoLettoNotte, titoloNotte,
   motivoLettoObbligatorio, lettoObbligatorio,
@@ -24,6 +25,7 @@ import {
   type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
 import { tintaCamera } from '@/components/StrisciaNottiCamere'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 const OTTONE = '#A9884E'
 export const MATTONE = '#8C3B2E'
@@ -79,6 +81,7 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
   const [daQui, setDaQui] = useState(false)
   // il letto acceso da sé salendo di persone: tornando giù si spegne da sé
   const [lettoAuto, setLettoAuto] = useState(false)
+  const maison = useMaison()
   const notte = bozza.find(n => n.iso === iso)
   if (!notte) return null
   const libere = camereDellaNotte(iso, contesto)
@@ -91,7 +94,7 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
   const conto = contoDopo ? contoDopo(bozza, daQui) : null
 
   return (
-    <Foglio titolo={titoloNotte(iso)} grande onChiudi={onChiudi}>
+    <Foglio titolo={titoloNotte(iso)} grande altezza={ALTEZZE_FOGLI.notte} onChiudi={onChiudi}>
       {sottotitolo && <p data-sottotitolo-notte style={{ marginTop: -6, marginBottom: 10, fontSize: 12.5, fontWeight: 600, color: OTTONE }}>{sottotitolo}</p>}
       {/* ── Le camere libere questa notte ─────────────────────────────── */}
       <p style={titoletto}>{TITOLO_CAMERE}</p>
@@ -172,11 +175,13 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
       {conto && <p data-conto-dopo style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: conto.guaio ? MATTONE : OTTONE }}>{conto.testo}</p>}
 
       {/* ── Fatto e Annulla ───────────────────────────────────────────── */}
+      {/* nella scheda «Maison» (28/09/2026) il piede comune dei fogli, in fondo */}
+      {maison ? <PiedeFoglio azione="Fatto" onAzione={() => onFatto(bozza, daQui)} onAnnulla={onChiudi} dati="fatto" /> :
       <div className="flex items-center justify-between mt-5 mb-1" style={{ gap: 12 }}>
         <button type="button" data-annulla onClick={onChiudi} style={{ fontSize: 14, minHeight: ALTEZZA_PASTIGLIA, padding: '0 6px', color: 'var(--color-stone)' }}>Annulla</button>
         <button type="button" data-fatto onClick={() => onFatto(bozza, daQui)}
           style={{ minHeight: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 22px', fontSize: 14, fontWeight: 600, background: 'var(--color-green-mid)', color: 'var(--color-cream)' }}>Fatto</button>
-      </div>
+      </div>}
     </Foglio>
   )
 }

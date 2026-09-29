@@ -17,6 +17,7 @@
 // ============================================================================
 import { useState } from 'react'
 import Foglio, { PiedeFoglio } from './Foglio'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, stileCampo, MATTONE, OTTONE } from '@/components/nuova/PezziNuova'
 import { supabase } from '@/lib/supabase'
@@ -97,7 +98,7 @@ export default function FoglioAnnulla({ booking, attive, nomeCliente, cliente, a
 
   if (proposta) {
     return (
-      <Foglio titolo={TITOLO_ANNULLA} onChiudi={onChiudi}>
+      <Foglio titolo={TITOLO_ANNULLA} altezza={ALTEZZE_FOGLI.annulla} onChiudi={onChiudi}>
         <p data-annullata style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>✓ {PRENOTAZIONE_ANNULLATA}</p>
         <p data-proposta-problematica style={{ marginTop: 14, fontSize: 14.5, color: 'var(--color-green-dark)' }}>{proposta}</p>
         <p style={{ marginTop: 4, fontSize: 12.5, color: 'var(--color-stone)' }}>Resta scritto solo per noi, con la data di oggi: non entra in nessun messaggio.</p>
@@ -108,7 +109,7 @@ export default function FoglioAnnulla({ booking, attive, nomeCliente, cliente, a
   }
 
   return (
-    <Foglio titolo={TITOLO_ANNULLA} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_ANNULLA} altezza={ALTEZZE_FOGLI.annulla} onChiudi={onChiudi}>
       <Etichetta testo={DOMANDA_CHI} primo ottone />
       <FilaPastiglie>
         {CHI_ANNULLA.map(c => (

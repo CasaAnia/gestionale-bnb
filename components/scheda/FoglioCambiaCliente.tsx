@@ -29,6 +29,7 @@ import {
   type ClienteBreve, type PrenotazionePerCambio,
 } from '@/lib/cambiaCliente'
 import { cercaClientiPerCambio, soggiorniConclusiDeiClienti, creaClienteNuovo, scriviCambioCliente, documentiDelCliente, spostaDocumenti } from '@/lib/cambiaClienteDati'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const TITOLO_CAMBIA_CLIENTE = 'Cambia cliente'
 export const AZIONE_CAMBIA = 'Cambia'
@@ -124,7 +125,7 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
   }
 
   return (
-    <Foglio titolo={TITOLO_CAMBIA_CLIENTE} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_CAMBIA_CLIENTE} altezza={ALTEZZE_FOGLI.cambiaCliente} onChiudi={onChiudi}>
       {!scelto && !nuovo && (
         <div data-cerca-cliente>
           <CampoRicerca value={ricerca} onChange={scriviRicerca} placeholder="Cerca per nome o telefono…" />

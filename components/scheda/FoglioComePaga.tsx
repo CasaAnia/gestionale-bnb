@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { campiComePaga, chiedeImporto, chiedeScadenza, type ComePaga as ComePagaModo, type CampiComePaga } from '@/lib/comePaga'
 import { salvaComePaga } from '@/lib/comePagaDati'
 import { oraCompleta } from '@/lib/ora'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const ERRORE_SCADENZA = 'Della caparra servono data e ora, oppure nessuna delle due.'
 export const ERRORE_ORA = 'L’ora si scrive con quattro cifre, per esempio 1800 diventa 18:00.'
@@ -70,7 +71,7 @@ export default function FoglioComePaga({ idRighe, idPrima, modo, importo, data, 
   }
 
   return (
-    <Foglio titolo={TITOLO_COME_PAGA} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_COME_PAGA} altezza={ALTEZZE_FOGLI.comePaga} onChiudi={onChiudi}>
       <ComePaga modo={scelta} onModo={m => { setScelta(m); if (!chiedeImporto(m)) setImporto(null) }}
         totaleCent={totaleCent} importo={importoForm} onImporto={setImporto}
         data={dataForm} ora={oraForm} onData={setData} onOra={setOra} ottone />

@@ -248,7 +248,7 @@ test('21/09/2026 — il tentativo incerto sopravvive al CAMBIO DI IDENTITÀ dell
 
 test('«Come paga»: il componente già fatto coi sei modi, e «Salva» nel piede comune', () => {
   const comePaga = leggi('components/scheda/FoglioComePaga.tsx')
-  assert.match(comePaga, /<Foglio titolo=\{TITOLO_COME_PAGA\} onChiudi=\{onChiudi\}>/)
+  assert.match(comePaga, /<Foglio titolo=\{TITOLO_COME_PAGA\} altezza=\{ALTEZZE_FOGLI\.comePaga\} onChiudi=\{onChiudi\}>/)
   assert.match(comePaga, /<ComePaga modo=\{scelta\}[\s\S]{0,300}ottone \/>/)
   assert.match(comePaga, /<PiedeFoglio azione="Salva"/)
   assert.equal(/ed-pillola/.test(comePaga), false, 'i tasti vecchi sono ancora nel foglio')
@@ -478,7 +478,7 @@ test('lo sconto si scrive riga per riga con la regola della scheda attuale, e se
 
 test('dopo lo sconto il conto si aggiorna riga per riga e la scheda rilegge; con errore niente falso «salvato»', () => {
   const dopo = pagina.slice(pagina.indexOf('<FoglioSconto'), pagina.indexOf('<FoglioSconto') + 1200)
-  assert.match(dopo, /if \(!cambiato\) return/)
+  assert.match(dopo, /if \(!cambiato\) \{ setFoglioSconto\(false\); return \}/)
   assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
   assert.match(dopo, /setBooking\(b => \(b \? aggiorna\(b\) : b\)\)/)
   assert.match(dopo, /SCONTO_SALVATO : SCONTO_TOLTO/)
@@ -683,4 +683,37 @@ test('21/09/2026 — «Verifica pagamento» e nota; risposta persa con la scritt
   assert.match(pagamento, /COSA_SALVATA\.pagamento\(nome, !!esito\.giaRegistrato\), quando: new Date\(\), esito: \{ \.\.\.esito, importo: dati\.importo, metodo: dati\.metodo, ritrovato: !!esito\.giaRegistrato \}/)
   assert.match(pagamentiDati, /giaPresente = r\.gia_presente === true/)
   assert.match(pagamentiDati, /giaRegistrato: esito\.giaApplicato \|\| giaPresente/)
+})
+
+// ── La veste «Maison» dei fogli della scheda (28/09/2026, punto 11) ─────────
+test('i fogli della scheda: FoglioMaison col nome come titolo e il foglio sotto, altezza FISSA per ciascuno, piede in fondo, conferma B', () => {
+  const altezze = leggi('lib/altezzeFogli.ts')
+  const fogli: [string, string][] = [
+    ['components/scheda/FoglioDate.tsx', 'date'], ['components/scheda/FoglioCambioCamera.tsx', 'cambioCamera'],
+    ['components/scheda/FoglioTogliCamera.tsx', 'togliCamera'], ['components/scheda/FoglioSconto.tsx', 'sconto'],
+    ['components/scheda/FoglioComePaga.tsx', 'comePaga'], ['components/scheda/FoglioTogliPagamento.tsx', 'togliPagamento'],
+    ['components/scheda/FoglioNota.tsx', 'nota'], ['components/scheda/FoglioAnnulla.tsx', 'annulla'],
+    ['components/scheda/FoglioMancatoArrivo.tsx', 'mancatoArrivo'], ['components/scheda/FoglioPrezzoSoggiorno.tsx', 'prezzoSoggiorno'],
+    ['components/scheda/FoglioCliente.tsx', 'cliente'], ['components/scheda/FoglioCambiaCliente.tsx', 'cambiaCliente'],
+    ['components/scheda/FoglioProvenienza.tsx', 'provenienza'], ['components/scheda/FoglioConLei.tsx', 'chiDorme'],
+    ['components/FoglioNotte.tsx', 'notte'],
+  ]
+  for (const [file, chiave] of fogli) {
+    // un numero solo, scritto una volta: non dipende da quello che si sceglie nel foglio
+    assert.match(leggi(file), new RegExp(`altezza=\\{ALTEZZE_FOGLI\\.${chiave}\\}`), `${file} non ha la sua altezza fissa`)
+    assert.match(altezze, new RegExp(`\\n  ${chiave}: \\d{3},`), `manca l’altezza di ${chiave}`)
+  }
+  // il foglio base: nella veste Maison è FoglioMaison, col nome in cima e il foglio in ottone sotto
+  assert.match(foglio, /if \(maison\) return <FoglioSchedaMaison titolo=\{titolo\} altezza=\{altezza \?\? ALTEZZA_FOGLIO_PREDEFINITA\}/)
+  assert.match(foglio, /<FoglioMaison titolo=\{nome \|\| titolo\} sottotitolo=\{nome \? titolo : undefined\} altezza=\{altezza\}/)
+  // l'altezza non si calcola dal contenuto: è quella scritta (FoglioMaison la usa così, mai oltre il 92%)
+  assert.match(leggi('components/maison/FoglioMaison.tsx'), /style=\{\{ height: `min\(\$\{altezza\}px, 92dvh\)` \}\}/)
+  // il piede sta in fondo al foglio, fuori dal contenuto che scorre
+  assert.match(foglio, /createPortal\(\s*<div className="mz-foot" data-piede-foglio>/)
+  // la conferma B: la pagina tiene il foglio aperto il tempo di «Salvato», poi lo chiude
+  assert.match(pagina, /const chiudiConConferma = \(chiudi: \(\) => void\) => setSalvatoFoglio\(\{ quando: new Date\(\), dopo: \(\) => \{ setSalvatoFoglio\(null\); chiudi\(\) \} \}\)/)
+  for (const chiudi of ['setFoglioNota(false)', 'setFoglioConLei(false)', 'setFoglioSconto(false)', 'setFoglioCambiaCliente(false)', 'setFoglioCliente(false)', 'setFoglioComePaga(false)', 'setFoglioProvenienza(false)']) {
+    assert.ok(pagina.includes(`chiudiConConferma(() => ${chiudi})`), `${chiudi} chiude senza la conferma`)
+  }
+  assert.match(pagina, /<ContestoFogli\.Provider value=\{\{ nome: /)
 })

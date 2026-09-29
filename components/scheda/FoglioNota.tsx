@@ -15,6 +15,7 @@ import {
   moduloDaPrenotazione, campiNota, idsDaScrivere, nienteDaCambiare, type ModuloNota, type RigaNota,
 } from '@/lib/notaScheda'
 import { aggiornaInUnColpo } from '@/lib/righeDati'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 const OTTONE = '#A9884E'
 
@@ -53,7 +54,7 @@ export default function FoglioNota({ booking, righe, onChiudi, onIncerto, onSalv
   }
 
   return (
-    <Foglio titolo={TITOLO_NOTA} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_NOTA} altezza={ALTEZZE_FOGLI.nota} onChiudi={onChiudi}>
       <RigaCampo etichetta={ETICHETTA_NOTA_PRENOTAZIONE} ottone>
         <textarea rows={2} data-campo="nota" value={modulo.nota} onChange={e => cambia({ nota: e.target.value })} style={{ ...stileCampo, resize: 'none' }} />
       </RigaCampo>

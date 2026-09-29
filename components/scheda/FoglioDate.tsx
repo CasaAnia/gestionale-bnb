@@ -13,6 +13,7 @@ import CampoData from '@/components/nuova/CampoData'
 import { MATTONE, OTTONE } from '@/components/nuova/PezziNuova'
 import { TITOLO_DATE, ERRORE_DATE, dateLinea, nottiConDate } from '@/lib/lineeSoggiorno'
 import type { ContestoNotti, NotteStriscia } from '@/lib/strisciaNotti'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const FATTO_DATE = 'Salva'   // (Ania, 17/09/2026: «Salva», non «Fatto»)
 
@@ -34,7 +35,7 @@ export default function FoglioDate({ notti, contesto, sottotitolo, contoDopo, on
   const conto = dateBuone ? contoDopo(bozza) : { testo: ERRORE_DATE, guaio: true }
 
   return (
-    <Foglio titolo={TITOLO_DATE} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_DATE} altezza={ALTEZZE_FOGLI.date} onChiudi={onChiudi}>
       {sottotitolo && <p data-sottotitolo-date style={{ marginTop: -6, marginBottom: 10, fontSize: 12.5, fontWeight: 600, color: OTTONE }}>{sottotitolo}</p>}
       <CampoData etichetta="Arrivo" valore={arrivo} onValore={setArrivo} dati="arrivo" ottone />
       <CampoData etichetta="Partenza" valore={partenza} onValore={setPartenza} min={arrivo || undefined} dati="partenza" ottone />

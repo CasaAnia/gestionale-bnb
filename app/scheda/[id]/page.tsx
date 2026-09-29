@@ -77,6 +77,7 @@ import { SCONTO_SALVATO, SCONTO_TOLTO } from '@/lib/scontoScheda'
 import { PAGAMENTO_TOLTO } from '@/lib/pagamentoFoglio'
 import { PRENOTAZIONE_ANNULLATA } from '@/lib/annullamento'
 import ConfermaVolante from '@/components/ConfermaVolante'
+import { ContestoFogli } from '@/components/scheda/Foglio'
 import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
@@ -203,6 +204,13 @@ export default function SchedaPage() {
   const [linguetta, scegliLinguetta] = useLinguetta()
   // «A chi scrivi» nei Messaggi: chi ha prenotato, o chi dorme al suo posto
   const [destinatario, setDestinatario] = useState<Destinatario['chiave']>('intestataria')
+  // la conferma B dei fogli (spunta, «Salvato», chiusura da sola): il foglio
+  // resta aperto il tempo della conferma, poi si chiude da sé
+  const [salvatoFoglio, setSalvatoFoglio] = useState<{ quando: Date; dopo: () => void } | null>(null)
+  const chiudiConConferma = (chiudi: () => void) => setSalvatoFoglio({ quando: new Date(), dopo: () => { setSalvatoFoglio(null); chiudi() } })
+  // «togli» pagamento e camera: tolti, spariscono dai dati; il foglio li tiene per la conferma
+  const [pagamentoTolto, setPagamentoTolto] = useState<PagamentoScheda | null>(null)
+  const [lineaTolta, setLineaTolta] = useState<LineaSoggiorno<Prenotazione> | null>(null)
   const [arriviAperti, setArriviAperti] = useState(false)
   // la striscia delle notti: le camere di casa, la notte aperta e il salvataggio
   const [camere, setCamere] = useState<CameraStriscia[]>([])
@@ -614,6 +622,7 @@ export default function SchedaPage() {
 
   return (
     <VesteMaison>
+    <ContestoFogli.Provider value={{ nome: dorme ? nomeOspite(booking) : nomeConAltri(booking), salvato: salvatoFoglio }}>
     {/* Dal telefono il bianco della Home (prova C) e la veste E; dal Mac crema, 620 px centrati */}
     <div className="maison sch -mt-12 lg:mt-0 md:max-w-[620px] md:mx-auto" data-senza-sottolinea data-scheda-maison>
       {barra}
@@ -826,39 +835,41 @@ export default function SchedaPage() {
       )}
       {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} durata={conferma.durata} conOk={conferma.conOk} onChiudi={() => setConferma(null)} />}
       {pagamentoDaTogliere && conto && (() => {
-        const p = (pagamenti as unknown as PagamentoScheda[]).find(x => x.id === pagamentoDaTogliere)
+        const p = (pagamenti as unknown as PagamentoScheda[]).find(x => x.id === pagamentoDaTogliere) ?? (pagamentoTolto?.id === pagamentoDaTogliere ? pagamentoTolto : null)
         return p ? (
           <FoglioTogliPagamento pagamento={p} righe={righe} totaleCent={conto.totaleCent} ricevutiCent={conto.ricevutiCent}
             onChiudi={() => setPagamentoDaTogliere(null)}
             onTolto={esito => {
               // prima i pagamenti rimasti e il bollino, poi la rilettura in
               // silenzio (cronologia, «Da controllare», la testa)
+              setPagamentoTolto(p)
               setPagamenti(esito.pagamenti as unknown as PagamentoStat[])
               if (!esito.pagato) {
                 setRighe(rs => rs.map(r => ({ ...r, pagato: false })))
                 setBooking(b => (b ? { ...b, pagato: false } : b))
               }
-              setPagamentoDaTogliere(null)
+              chiudiConConferma(() => { setPagamentoDaTogliere(null); setPagamentoTolto(null) })
               setAvviso(esito.avviso ?? PAGAMENTO_TOLTO)
               rileggi()
             }} />
         ) : null
       })()}
-      {togliAperto && lineaDaTogliere && (
+      {togliAperto && (lineaDaTogliere ?? lineaTolta) && (() => { const lineaDaTogliere = (linee.find(l => l.chiave === togliAperto) ?? lineaTolta)!; return (
         <FoglioTogliCamera titolo={lineaDaTogliere.titolo} ids={lineaDaTogliere.segmenti.map(s => s.id)}
           onChiudi={() => setTogliAperto(null)} onIncerto={invalida}
           onTolta={(ids, campi) => {
-            setTogliAperto(null)
             // se la riga aperta era fra quelle tolte, la scheda passa a un'altra camera
             const altre = linee.filter(l => l.chiave !== lineaDaTogliere.chiave).flatMap(l => l.segmenti.map(s => ({ id: s.id, check_in: s.check_in })))
             const dove = schedaDopo(booking.id, ids, altre)
-            if (dove) { router.replace(`/scheda/${dove}`); return }
+            if (dove) { setTogliAperto(null); router.replace(`/scheda/${dove}`); return }
+            setLineaTolta(lineaDaTogliere)
+            chiudiConConferma(() => { setTogliAperto(null); setLineaTolta(null) })
             const aggiorna = (r: Prenotazione): Prenotazione => (ids.includes(r.id) ? { ...r, ...campi } : r)
             setRighe(rs => rs.map(aggiorna))
             setAvviso(CAMERA_TOLTA)
             rileggi()
           }} />
-      )}
+      ) })()}
       {cambioAperto && lineaCambio && (
         <FoglioCambioCamera notti={lineaCambio.notti} contesto={contestoLinea(lineaCambio, linee, contesto)}
           sottotitolo={linee.length > 1 ? lineaCambio.titolo : undefined}
@@ -885,8 +896,8 @@ export default function SchedaPage() {
         <FoglioNota booking={booking} righe={righe}
           onChiudi={() => setFoglioNota(false)} onIncerto={invalida}
           onSalvato={(campi, ids, cambiato) => {
-            setFoglioNota(false)
-            if (!cambiato) return
+            if (!cambiato) { setFoglioNota(false); return }
+            chiudiConConferma(() => setFoglioNota(false))
             const aggiorna = (r: Prenotazione): Prenotazione => (ids.includes(r.id) ? { ...r, ...campi } : r)
             setRighe(rs => rs.map(aggiorna))
             setBooking(b => (b ? aggiorna(b) : b))
@@ -898,8 +909,8 @@ export default function SchedaPage() {
         <FoglioConLei booking={booking} righe={righe}
           onChiudi={() => setFoglioConLei(false)} onIncerto={invalida}
           onSalvato={(campi, ids, msg, cambiato) => {
-            setFoglioConLei(false)
-            if (!cambiato) return
+            if (!cambiato) { setFoglioConLei(false); return }
+            chiudiConConferma(() => setFoglioConLei(false))
             const aggiorna = (r: Prenotazione): Prenotazione => (ids.includes(r.id) ? { ...r, ...campi } : r)
             setRighe(rs => rs.map(aggiorna))
             setBooking(b => (b ? aggiorna(b) : b))
@@ -913,8 +924,8 @@ export default function SchedaPage() {
           onSalvato={(anteprima, cambiato) => {
             // prima i campi appena scritti su ogni camera attiva, poi la
             // rilettura in silenzio (cronologia, «Da controllare»)
-            setFoglioSconto(false)
-            if (!cambiato) return
+            if (!cambiato) { setFoglioSconto(false); return }
+            chiudiConConferma(() => setFoglioSconto(false))
             const per = new Map(anteprima.righe.map(r => [r.id, r.campi]))
             const aggiorna = (r: Prenotazione): Prenotazione => (per.has(r.id) ? { ...r, ...per.get(r.id) } : r)
             setRighe(rs => rs.map(aggiorna))
@@ -957,7 +968,7 @@ export default function SchedaPage() {
             const aggiorna = (r: Prenotazione): Prenotazione => ({ ...r, guest_id: cliente.id, guest_name: null, guests: cliente })
             setBooking(b => (b ? aggiorna(b) : b))
             setRighe(rs => rs.map(aggiorna))
-            setFoglioCambiaCliente(false)
+            chiudiConConferma(() => setFoglioCambiaCliente(false))
             setAvviso(msg)
             rileggi()
           }} />
@@ -972,7 +983,7 @@ export default function SchedaPage() {
             setBooking(b => (b ? aggiorna(b) : b))
             setRighe(rs => rs.map(aggiorna))
             setAltreCliente(as => as.map(a => aggiorna(a as unknown as { guests?: Prenotazione['guests'] }) as unknown as SoggiornoStorico))
-            setFoglioCliente(false)
+            chiudiConConferma(() => setFoglioCliente(false))
             setAvviso(msg)   // anche null: un avviso vecchio non resta appeso dopo un salvataggio riuscito
             rileggi()
           }} />
@@ -996,7 +1007,7 @@ export default function SchedaPage() {
                 ? { caparra_centesimi: campi.caparra_centesimi, caparra_entro: campi.caparra_entro }
                 : { caparra_centesimi: null, caparra_entro: null }),
             } as Prenotazione)))
-            setFoglioComePaga(false)
+            chiudiConConferma(() => setFoglioComePaga(false))
             setAvviso(avviso)
             rileggi()   // la cronologia e lo stato del conto dal server
           }} />
@@ -1007,10 +1018,11 @@ export default function SchedaPage() {
           onChiudi={() => setFoglioProvenienza(false)}
           onSalvata={(campi: CampiProvenienza) => {
             setBooking(b => (b ? { ...b, guests: { ...(b.guests ?? {}), ...campi } } : b))
-            setFoglioProvenienza(false)
+            chiudiConConferma(() => setFoglioProvenienza(false))
           }} />
       )}
     </div>
+    </ContestoFogli.Provider>
     </VesteMaison>
   )
 }

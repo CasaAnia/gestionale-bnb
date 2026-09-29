@@ -20,6 +20,7 @@ import {
   type PagamentoDaTogliere,
 } from '@/lib/pagamentoFoglio'
 import { togliPagamento, type EsitoTolto, type RigaPagabile } from '@/lib/pagamentiDati'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const BOLLINO_VIA = 'La prenotazione non risulterà più pagata.'
 
@@ -54,7 +55,7 @@ export default function FoglioTogliPagamento({ pagamento, righe, totaleCent, ric
   }
 
   return (
-    <Foglio titolo={TITOLO_TOGLI_PAGAMENTO} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_TOGLI_PAGAMENTO} altezza={ALTEZZE_FOGLI.togliPagamento} onChiudi={onChiudi}>
       <p style={{ fontSize: 14, color: 'var(--color-green-dark)' }}>{DOMANDA_TOGLI}</p>
       <div data-pagamento-da-togliere style={{ marginTop: 12, padding: '10px 0', borderTop: '1px solid var(--color-card-border)', borderBottom: '1px solid var(--color-card-border)' }}>
         <p data-importo-da-togliere className="leading-none" style={{ fontFamily: GEORGIA_FOGLIO, fontSize: 28, color: 'var(--color-green-dark)' }}>{cosa.importo}</p>

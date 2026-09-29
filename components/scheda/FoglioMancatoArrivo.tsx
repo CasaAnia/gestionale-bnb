@@ -1,5 +1,6 @@
 'use client'
 import { useEffect,useRef,useState } from 'react'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 import Foglio from './Foglio'
 import { stileCampo } from '@/components/nuova/PezziNuova'
 import { contoMancatoArrivo,fotoMancatoArrivo,mancatoArrivo,type RigaMancatoArrivo } from '@/lib/mancatoArrivo'
@@ -30,7 +31,7 @@ export default function FoglioMancatoArrivo({booking,righe,pagamenti,oggi,onChiu
       if(r.errore)setErrore(r.errore);else{onSalvato();onChiudi()}
     }finally{blocco.current=false;setOccupato(false)}
   }
-  return <Foglio titolo={gia?'Pagamento · mancato arrivo':'Mancato arrivo'} onChiudi={occupato?()=>{}:onChiudi}>
+  return <Foglio titolo={gia?'Pagamento · mancato arrivo':'Mancato arrivo'} altezza={ALTEZZE_FOGLI.mancatoArrivo} onChiudi={occupato?()=>{}:onChiudi}>
     <p className="mt-4 text-sm text-stone">Prezzo originale: {euroScheda(conto.originale)}</p>
     <p className="mt-2 font-serif text-2xl">Dovuto per mancato arrivo: {euroScheda(conto.dovuto)} <span className="text-sm">(50%)</span></p>
     <p className="mt-2 text-sm">Già ricevuto: {euroScheda(conto.ricevuto)} · Da incassare: {euroScheda(Math.max(0,conto.residuo))}</p>

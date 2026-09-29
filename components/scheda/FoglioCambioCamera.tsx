@@ -11,6 +11,7 @@ import Foglio, { PiedeFoglio } from './Foglio'
 import { Etichetta, FilaPastiglie, Pastiglia, MATTONE, OTTONE } from '@/components/nuova/PezziNuova'
 import { TITOLO_CAMBIO_CAMERA, DA_QUALE_NOTTE, IN_QUALE_CAMERA, NESSUNA_CAMERA_LIBERA_DA_LI, nottiDaCuiCambiare, camereDaLi, cambiaCameraDaLi } from '@/lib/lineeSoggiorno'
 import { etichettaNotteBreve, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const FATTO_CAMBIO = 'Salva'   // (Ania, 17/09/2026: «Salva», non «Fatto»)
 
@@ -33,7 +34,7 @@ export default function FoglioCambioCamera({ notti, contesto, sottotitolo, conto
   const conto = bozza ? contoDopo(bozza) : null
 
   return (
-    <Foglio titolo={TITOLO_CAMBIO_CAMERA} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_CAMBIO_CAMERA} altezza={ALTEZZE_FOGLI.cambioCamera} onChiudi={onChiudi}>
       {sottotitolo && <p data-sottotitolo-cambio style={{ marginTop: -6, marginBottom: 10, fontSize: 12.5, fontWeight: 600, color: OTTONE }}>{sottotitolo}</p>}
       <Etichetta testo={DA_QUALE_NOTTE} ottone primo />
       <FilaPastiglie>

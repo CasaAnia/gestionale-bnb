@@ -14,9 +14,32 @@
 // sotto, così nessun foglio si ridisegna i suoi due tasti. Chiudendo con
 // «Annulla» non cambia niente: il piede chiama solo `onAnnulla`.
 // ============================================================================
-import type { ReactNode } from 'react'
+// ----------------------------------------------------------------------------
+// Dal 28/09/2026 (scheda «Maison», riferimento approvato da Ania) i fogli della
+// scheda si aprono nella veste FoglioMaison: dentro <VesteMaison> questo
+// componente disegna il foglio avorio con la maniglia, il NOME in Cormorant
+// come titolo e sotto, in maiuscoletto ottone, il nome del foglio (quello che
+// prima era il titolo); un'ALTEZZA FISSA per ogni foglio (lib/altezzeFogli:
+// quella del suo contenuto più lungo, mai misure che cambiano scegliendo);
+// il piede in fondo (PiedeFoglio: «Annulla» tenue e il tasto pieno, angoli
+// vivi) e, dopo un salvataggio, la conferma B (spunta, «Salvato», chiusura da
+// sola), che la pagina accende con ContestoFogli. Fuori da VesteMaison resta
+// tutto com'era. Testi, campi, regole e messaggi dei fogli non cambiano.
+// ----------------------------------------------------------------------------
+import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useDesktop } from '@/lib/richiesteVista'
+import { useMaison } from '@/components/nuova/PezziNuova'
+import FoglioMaison from '@/components/maison/FoglioMaison'
+import { ALTEZZA_FOGLIO_PREDEFINITA } from '@/lib/altezzeFogli'
+
+/** Quello che la scheda dice ai suoi fogli: il nome (il titolo del foglio) e,
+ *  dopo un salvataggio riuscito, la conferma da mostrare prima di chiudere. */
+export type FogliScheda = { nome: string; salvato: { quando: Date; dopo: () => void } | null }
+export const ContestoFogli = createContext<FogliScheda | null>(null)
+/** Il posto in fondo al foglio Maison dove il piede si disegna (sempre al suo posto) */
+const PostoPiede = createContext<HTMLElement | null | undefined>(undefined)
 
 export const GEORGIA_FOGLIO = "Georgia, 'Times New Roman', serif"
 export const MATTONE_FOGLIO = '#8C3B2E'
@@ -30,8 +53,10 @@ export const TESTO_ANNULLA = 'Annulla'
  *  Con `misuraTitolo` il titolo a sinistra ha quella misura in Georgia (il
  *  foglio «Aggiungi pagamento» approvato il 20/09/2026 lo vuole in 23):
  *  senza, resta il 20 di tutti gli altri fogli. */
-export default function Foglio({ titolo, grande = false, centrato = false, misuraTitolo, ampio = false, onChiudi, children }: { titolo: string; grande?: boolean; centrato?: boolean; misuraTitolo?: number; ampio?: boolean; onChiudi: () => void; children: ReactNode }) {
+export default function Foglio({ titolo, grande = false, centrato = false, misuraTitolo, ampio = false, altezza, onChiudi, children }: { titolo: string; grande?: boolean; centrato?: boolean; misuraTitolo?: number; ampio?: boolean; altezza?: number; onChiudi: () => void; children: ReactNode }) {
   const desktop = useDesktop()
+  const maison = useMaison()
+  if (maison) return <FoglioSchedaMaison titolo={titolo} altezza={altezza ?? ALTEZZA_FOGLIO_PREDEFINITA} onChiudi={onChiudi}>{children}</FoglioSchedaMaison>
   return (
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label={titolo}>
       <div className="velo-in absolute inset-0 ed-velo" onClick={onChiudi} />
@@ -76,6 +101,20 @@ export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando 
   disabilitato?: boolean
   dati?: string
 }) {
+  const posto = useContext(PostoPiede)
+  // Veste «Maison»: «Annulla» tenue e l'azione piena (mattone per annullare
+  // e togliere), sempre in fondo al foglio, anche quando il contenuto scorre
+  if (posto !== undefined) {
+    if (!posto) return null
+    return createPortal(
+      <div className="mz-foot" data-piede-foglio>
+        <span />
+        <span className="acts">
+          <button type="button" className="mz-lnk q" data-annulla-foglio onClick={onAnnulla} disabled={salvando}>{testoAnnulla}</button>
+          <button type="button" className={`mz-cta ${mattone ? 'mat' : ''}`} data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>
+        </span>
+      </div>, posto)
+  }
   return (
     <div data-piede-foglio className="text-center" style={{ marginTop: 22, marginBottom: 2 }}>
       <button type="button" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}
@@ -88,5 +127,23 @@ export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando 
           style={{ minHeight: 44, padding: '0 14px', fontSize: 13, color: 'var(--color-stone)' }}>{testoAnnulla}</button>
       </p>
     </div>
+  )
+}
+
+/** Il foglio della scheda nella veste «Maison» (vedi in cima). */
+function FoglioSchedaMaison({ titolo, altezza, onChiudi, children }: { titolo: string; altezza: number; onChiudi: () => void; children: ReactNode }) {
+  const scheda = useContext(ContestoFogli)
+  const [posto, setPosto] = useState<HTMLElement | null>(null)
+  const nome = scheda?.nome?.trim() || ''
+  const salvato = scheda?.salvato ?? null
+  return (
+    <PostoPiede.Provider value={posto}>
+      <FoglioMaison titolo={nome || titolo} sottotitolo={nome ? titolo : undefined} altezza={altezza} onChiudi={onChiudi}
+        dati="scheda" salvato={salvato ? { cosa: nome ? `${titolo} · ${nome}` : titolo, quando: salvato.quando } : null}
+        onFineSalvato={salvato?.dopo}
+        piede={<div ref={setPosto} data-posto-piede />}>
+        {children}
+      </FoglioMaison>
+    </PostoPiede.Provider>
   )
 }

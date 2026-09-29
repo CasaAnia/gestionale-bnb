@@ -11,6 +11,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import { OTTONE } from '@/components/nuova/PezziNuova'
 import { TITOLO_TOGLI_CAMERA, TOGLI_LA_CAMERA, NOTA_PAGAMENTI, domandaTogliCamera, campiTogliCamera } from '@/lib/togliCamera'
 import { aggiornaInUnColpo } from '@/lib/righeDati'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export default function FoglioTogliCamera({ titolo, ids, onChiudi, onIncerto, onTolta }: {
   /** «Allegra · 29 → 30 nov» */
@@ -43,7 +44,7 @@ export default function FoglioTogliCamera({ titolo, ids, onChiudi, onIncerto, on
   }
 
   return (
-    <Foglio titolo={TITOLO_TOGLI_CAMERA} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_TOGLI_CAMERA} altezza={ALTEZZE_FOGLI.togliCamera} onChiudi={onChiudi}>
       <p data-domanda-togli-camera style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-green-dark)' }}>{domandaTogliCamera(titolo)}</p>
       <p style={{ marginTop: 8, fontSize: 12.5, color: OTTONE }}>{NOTA_PAGAMENTI}</p>
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}

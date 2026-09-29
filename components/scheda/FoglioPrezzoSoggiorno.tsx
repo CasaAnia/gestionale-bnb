@@ -31,6 +31,7 @@ import {
   type RigaSoggiorno, type SceltaFoglio, type PrezzoDeciso,
 } from '@/lib/soggiornoSconto'
 import type { TrattoPiano } from '@/lib/strisciaNotti'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const FONDO_PRIMA = '#F5EFE2'
 export const TESTO_PRIMA = '#7A5C1E'
@@ -88,7 +89,7 @@ export default function FoglioPrezzoSoggiorno({ segmenti, tutti, tratti, ricevut
   }
 
   return (
-    <Foglio titolo={titoloConferma(prima.notti, dopo.notti)} centrato onChiudi={onTorna}>
+    <Foglio titolo={titoloConferma(prima.notti, dopo.notti)} centrato altezza={ALTEZZE_FOGLI.prezzoSoggiorno} onChiudi={onTorna}>
       <p data-sottotitolo-prezzo className="text-center" style={{ marginTop: -8, fontSize: 12.5, color: 'var(--color-stone)' }}>{sottotitoloConferma(prima.notti, tratti)}</p>
       <p data-prima-del-cambio className="text-center" style={{ marginTop: 14, padding: '9px 12px', borderRadius: 10, background: FONDO_PRIMA, fontSize: 12.5, color: TESTO_PRIMA }}>{riepilogoPrima(prima)}</p>
 

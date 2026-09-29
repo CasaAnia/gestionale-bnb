@@ -254,6 +254,7 @@ body:has(.mz-home) { background: var(--home-bg); }
 .mz-foot .acts { display: flex; gap: 18px; align-items: center; margin-left: auto; flex: none; }
 .mz-cta { font-family: var(--m-ui); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: #F6F2EA; background: var(--m-ink); padding: 9px 16px; border: 0; border-radius: 0; min-height: 36px; font-weight: 500; white-space: nowrap; text-decoration: none !important; }
 .mz-cta:disabled { opacity: .45; }
+.mz-cta.mat { background: var(--m-mat); }
 .mz-grande { font-family: var(--m-disp); font-size: 34px; font-weight: 300; line-height: 1; }
 .mz-grande.mat { color: var(--m-mat); }
 
@@ -463,7 +464,7 @@ body:has(.sch) { background: var(--home-bg); }
 .sch-pastiglia { margin: 8px var(--home-gutter) 0; padding: 6px 0; border-bottom: 1px solid var(--m-acc); text-align: center; font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--m-acc); font-weight: 500; cursor: pointer; }
 .sch-pastiglia.mat { color: var(--m-mat); border-color: var(--m-mat); cursor: default; }
 .sch-k { font-family: var(--home-ui-font); font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--m-mut); font-weight: 400; line-height: 1.4; }
-.sch-k.mat, .sch .mat { color: var(--m-mat); }
+.sch-k.mat, .sch .mat:not(.mz-cta) { color: var(--m-mat); }
 .sch-big { font-family: var(--m-disp); font-weight: 500; line-height: 1.05; color: var(--m-ink); }
 
 /* La testata «T2» e le note «N1» */
@@ -588,3 +589,24 @@ body:has(.sch) { background: var(--home-bg); }
 .sch-prec .nm { font-size: 17px; }
 .sch-prec > b { font-size: 16px; }
 .sch-fondo { display: flex; justify-content: center; padding: 22px var(--home-gutter) 6px; }
+
+/* I fogli della scheda nella veste «Maison» (28/09/2026): dentro ci sono i
+   moduli di sempre, con i colori scritti come variabili del gestionale. Qui
+   le variabili prendono i colori Maison, così campi, righe e pastiglie non
+   restano verdi; i campi hanno solo il filo sotto, il valore in Cormorant. */
+.mz[data-foglio-maison="scheda"] {
+  --color-green-dark: #241F1A; --color-green-mid: #241F1A; --color-stone: #8A8072;
+  --color-card-border: #E1D9CB; --color-border-soft: #DDD3C2; --color-sage: #EFE9DD; --color-cream: #F6F2EA; --color-brass: #A8894F;
+}
+.mz[data-foglio-maison="scheda"] .np-riga input:not([type="date"]):not([type="checkbox"]):not([type="radio"]), .mz[data-foglio-maison="scheda"] .np-riga textarea, .mz[data-foglio-maison="scheda"] .np-riga select {
+  display: block; width: 100% !important; border: 0 !important; border-bottom: 1px solid #C9BFA8 !important; border-radius: 0 !important;
+  background: transparent !important; padding: 5px 0 !important; margin: 0 !important; min-height: 30px;
+  font-family: var(--m-disp) !important; font-size: 16px !important; font-weight: 400 !important; color: var(--m-ink) !important; outline: none;
+}
+.mz[data-foglio-maison="scheda"] .np-riga textarea { font-family: var(--m-ui) !important; font-size: 13.5px !important; }
+.mz[data-foglio-maison="scheda"] .np-riga input:focus, .mz[data-foglio-maison="scheda"] .np-riga textarea:focus { border-bottom-color: var(--m-acc) !important; }
+.mz[data-foglio-maison="scheda"] .np-lab { font-family: var(--m-ui); }
+.mz[data-foglio-maison="scheda"] .np-chip { font-family: var(--m-ui); }
+/* il tasto pieno va a capo invece di uscire dal foglio («Annulla la prenotazione») */
+.mz[data-foglio-maison="scheda"] .mz-foot .acts { min-width: 0; flex: 0 1 auto; }
+.mz[data-foglio-maison="scheda"] .mz-cta { white-space: normal; text-align: center; max-width: 220px; }

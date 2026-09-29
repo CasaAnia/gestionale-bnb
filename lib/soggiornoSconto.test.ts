@@ -426,7 +426,7 @@ const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), '
 test('il foglio: la veste chiesta da Ania — titolo Georgia 24 centrato, sotto 12,5 stone, riquadro #F5EFE2 con #7A5C1E, i titoletti in ottone, il conto nelle righe di sempre', () => {
   const foglio = leggi('components/scheda/FoglioPrezzoSoggiorno.tsx')
   const veste = leggi('components/scheda/Foglio.tsx')
-  assert.match(foglio, /<Foglio titolo=\{titoloConferma\(prima\.notti, dopo\.notti\)\} centrato onChiudi=\{onTorna\}>/)
+  assert.match(foglio, /<Foglio titolo=\{titoloConferma\(prima\.notti, dopo\.notti\)\} centrato altezza=\{ALTEZZE_FOGLI\.prezzoSoggiorno\} onChiudi=\{onTorna\}>/)
   assert.match(veste, /data-titolo-centrato className="text-green-dark text-center"[\s\S]{0,120}fontSize: 24, lineHeight: '28px'/)
   assert.match(foglio, /data-sottotitolo-prezzo className="text-center" style=\{\{ marginTop: -8, fontSize: 12\.5, color: 'var\(--color-stone\)' \}\}>\{sottotitoloConferma/)
   assert.match(foglio, /export const FONDO_PRIMA = '#F5EFE2'/)

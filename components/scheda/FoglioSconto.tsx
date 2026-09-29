@@ -20,6 +20,7 @@ import {
 } from '@/lib/scontoScheda'
 import { salvaSconto } from '@/lib/scontoDati'
 import type { ScontoNuova } from '@/lib/nuovaPrenotazione'
+import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export default function FoglioSconto({ righe, ricevutiCent, onChiudi, onIncerto, onSalvato }: {
   /** tutte le camere della prenotazione, annullate comprese */
@@ -60,7 +61,7 @@ export default function FoglioSconto({ righe, ricevutiCent, onChiudi, onIncerto,
   }
 
   return (
-    <Foglio titolo={TITOLO_SCONTO} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_SCONTO} altezza={ALTEZZE_FOGLI.sconto} onChiudi={onChiudi}>
       <FilaPastiglie>
         {TIPI_SCONTO.map(t => (
           <Pastiglia key={t.chiave} dati={`sconto-${t.chiave}`} acceso={tipo === t.chiave} onClick={() => { setTipo(t.chiave); setErrore(null) }}>{t.testo}</Pastiglia>
