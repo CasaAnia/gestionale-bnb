@@ -68,7 +68,9 @@ declare
   v_nome   text;
   v_mesi   text[] := array['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 begin
-  if new.status = 'annullata' then
+  -- contano solo confermate e completate, come il gestionale e la 0027
+  -- (scelta del 29/09/2026: le «in attesa» non tengono il letto)
+  if new.status not in ('confermata', 'completata') then
     return new;
   end if;
 
@@ -108,7 +110,7 @@ begin
       from public.bookings b
       join public.rooms r on r.id = b.room_id
      where b.id <> new.id
-       and b.status <> 'annullata'
+       and b.status in ('confermata', 'completata')
        and (coalesce(b.extra_bed, false)
             or (b.extra_bed_dates is not null
                 and pg_catalog.jsonb_typeof(b.extra_bed_dates) = 'array'
