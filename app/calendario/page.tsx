@@ -3,18 +3,20 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { prezzoPrenotazione } from '@/lib/prezzoNotti'
 import { useRouter } from 'next/navigation'
-import { buildChangeGroups, coloriCatene, percorsoBarraArrotondata } from '@/lib/roomChanges'
+import { buildChangeGroups, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
-import { nomeDiverso, nomeConAltri, nomeConAltriCorto } from '@/lib/guestName'
+import { nomeDiverso, nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { EXTRA_BED_MAX } from '@/lib/tariffe'
 import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import type { Booking, Guest, Room } from '@/lib/types'
+import { COLORE_LETTI_ESAURITI, statoLettiAggiuntivi } from '@/lib/calendarioLetti'
 import {
-  COLORE_LETTI_ESAURITI,
-  coloreLettiPerGiorno,
-  statoLettiAggiuntivi,
-} from '@/lib/calendarioLetti'
+  CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, geometriaScheda, statoScheda, tintaScheda, testoStato,
+  rigaDate, iconeScheda, rigaSotto, rigaArrivo, buchiLiberi, rigaBuco, filoObliquo, CAMBIO_CAMERA, FILO_SINISTRO,
+} from '@/lib/calendarioSchede'
+import { leggiArrivo } from '@/lib/arrivo'
+import { oraRoma } from '@/lib/opzioni'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
 import CampoRicerca from '@/components/CampoRicerca'
@@ -25,20 +27,17 @@ import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } 
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { formatIntervallo as formatIntervalloBreve } from '@/lib/richieste'
 import { giornoDaParametro } from '@/lib/daControllare'
-import { vuoleRicevuta as clienteVuoleRicevuta, BADGE_RICEVUTA } from '@/lib/valutazione'
+import { vuoleRicevuta as clienteVuoleRicevuta } from '@/lib/valutazione'
 import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
-import { areaTocco, CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, COLOR_PRENOTAZIONE, COLOR_BONIFICO, COLOR_PAGATO, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono } from '@/lib/calendarioMobile'
+import { areaTocco, CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, TINTE_SCHEDA, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono } from '@/lib/calendarioMobile'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import {
-  barreTenute, barrePerCamera, lettiTenutiPerNotte, testoTenuta, comeDovevaPagare, segniDellaBarra,
+  barreTenute, barrePerCamera, lettiTenutiPerNotte, testoTenuta, comeDovevaPagare,
   type BarraTenuta, type RichiestaTenuta,
 } from '@/lib/calendarioOpzioni'
 import { campiLibera, indirizzoPrenotazioneNuova, testoConferma, quandoInParole, type MotivoLibera } from '@/lib/opzioneLibera'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
-
-// L'ottone della casa: il colore delle camere tenute da una proposta
-const OTTONE = '#A9884E'
 
 // Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
 const GRID_SCALE = 1.2
@@ -54,9 +53,11 @@ const CELL_W_DESKTOP = gs(84)
 // righe 44, intestazione dei giorni 40, colonna camere 96, testi 11–13 px.
 // Niente striscia dei mesi sopra i giorni: il periodo lo dice la riga di
 // navigazione («1 – 14 set 2026» oppure «Settembre 2026»), come nelle Richieste.
-const ROW_H_DESKTOP = 44
-const HEADER_MONTH_H_DESKTOP = 0
-const HEADER_DAY_H_DESKTOP = 40
+// Dal 29/09/2026 (calendario «Maison», riferimento approvato da Ania): corsie
+// da 92 px con le SCHEDE da 72 (lib/calendarioSchede), telefono e Mac; il
+// righello dei giorni è una riga sola «lun 28».
+const RULER_H_MOBILE = 22
+const RULER_H_DESKTOP = 26
 const NAME_W_MOBILE = 66   // telefono (05/09/2026): come le Richieste, uguale in Calendario/Arrivi/Richieste (richiesta di Ania)
 const NAME_W_DESKTOP = 84   // solo il nome della camera, senza numero
 const MESI_CLICCABILI = 12       // riga sottile dei mesi: da quello corrente in avanti
@@ -70,9 +71,7 @@ const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const sa
 const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
-// Colori delle barre per stato di pagamento (attenuati)
-// Colori delle barre: blu prenotazione, viola bonifico in attesa, verde pagato — da lib/calendarioMobile (stessa fonte della legenda)
-const HEADER_BG = '#ffffff'
+// Colori delle schede: blu prenotazione, viola bonifico in attesa, verde pagato… — da lib/calendarioMobile (stessa fonte della legenda)
 
 type CalendarBooking = Omit<Booking, 'guests' | 'rooms'> & {
   guests?: Guest | null
@@ -123,8 +122,8 @@ export default function Calendario() {
 
   // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relative transizioni
   const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
-  // Cambio camera come in Arrivi (Ania, 06/09/2026): niente freccine, pezzetto tagliato colorato e arrotondato
-  const coloreCatena = useMemo(() => coloriCatene(bookings), [bookings])
+  // Cambio camera (29/09/2026): la scheda tagliata in obliquo col filo del suo stesso colore
+  // lungo il taglio (lib/calendarioSchede.filoObliquo): le tinte delle catene di lib/roomChanges qui non servono più
 
   // Richieste arrivate dal sito, ancora da confermare: hanno un avviso sticky
   // in alto e la barra tratteggiata sulle loro date.
@@ -142,6 +141,14 @@ export default function Calendario() {
     changeGroups.edges.forEach(e => { outgoing.add(e.fromId); incoming.add(e.toId) })
     return { outgoingIds: outgoing, incomingIds: incoming }
   }, [changeGroups])
+
+  // Sulle schede della catena: «poi Lena» sul tratto che parte, «da Ambra» su quello che arriva
+  const { poiCamera, daCamera } = useMemo(() => {
+    const corta = (id: string) => (rooms.find(r => r.id === bookings.find(b => b.id === id)?.room_id)?.name ?? '').split(' ').slice(-1)[0]
+    const poi: Record<string, string> = {}, da: Record<string, string> = {}
+    changeGroups.edges.forEach(e => { poi[e.fromId] = corta(e.toId); da[e.toId] = corta(e.fromId) })
+    return { poiCamera: poi, daCamera: da }
+  }, [changeGroups, bookings, rooms])
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
@@ -172,6 +179,8 @@ export default function Calendario() {
   const [visibleMonth, setVisibleMonth] = useState(() => fmtMonth(new Date()))
   // Indice del primo giorno in vista (per l'etichetta «1 – 14 set 2026» e le frecce a mesi)
   const [primoVisibile, setPrimoVisibile] = useState(DAYS_BEFORE)
+  // Il primo giorno INTERO in vista (per tenere il testo delle schede lunghe dentro la parte che si vede)
+  const [colonnaSinistra, setColonnaSinistra] = useState(DAYS_BEFORE)
   // Modo della griglia dal Mac (mese / 2 settimane), letto dal browser dopo il primo disegno
   const [modo, setModo] = useState<ModoGriglia>('quindici')
   useEffect(() => {
@@ -218,10 +227,8 @@ export default function Calendario() {
   const CELL_W = larghezzaGriglia > 0
     ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
     : (isDesktop ? CELL_W_DESKTOP : 60)
-  const ROW_H = ROW_H_DESKTOP
-  const HEADER_MONTH_H = HEADER_MONTH_H_DESKTOP
-  const HEADER_DAY_H = HEADER_DAY_H_DESKTOP
-  const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
+  const ROW_H = CORSIA_H
+  const RULER_H = isDesktop && !orizzontale ? RULER_H_DESKTOP : RULER_H_MOBILE
   const EXTRA_ROW_H = 30
 
   const today = new Date()
@@ -529,6 +536,25 @@ export default function Calendario() {
     // Per l'etichetta «1 – 14 set» conta il primo giorno visibile per più di metà
     const primo = Math.min(days.length - 1, Math.max(0, Math.round(sl / CELL_W)))
     setPrimoVisibile(prev => (prev === primo ? prev : primo))
+    const intero = Math.max(0, Math.ceil(sl / CELL_W - 0.01))
+    setColonnaSinistra(prev => (prev === intero ? prev : intero))
+  }
+
+  // Tocco su una scheda. Catena di cambio camera: primo tocco evidenzia la
+  // catena, secondo tocco apre la scheda. Con la ricerca attiva vince la
+  // ricerca: il tocco apre direttamente la scheda.
+  function tocca(booking: CalendarBooking, chainKey: string | undefined) {
+    if (chainKey && !searchAttiva) {
+      if (selectedGroupId === chainKey) {
+        ricordaPosizione()
+        router.push(`/scheda/${booking.id}`)
+      } else {
+        setSelectedGroupId(chainKey)
+      }
+    } else {
+      ricordaPosizione()
+      router.push(`/scheda/${booking.id}`)
+    }
   }
 
   function bookingsForRoom(roomId: string) {
@@ -558,35 +584,18 @@ export default function Calendario() {
     for (const day of extraDays) extraBedsMap.set(day, (extraBedsMap.get(day) || 0) + contrib)
   }
 
-  function getDayColor(booking: CalendarBooking, dateStr: string): string {
-    const extraDays = getExtraBedDays(booking)
-    const hasExtra = extraDays.has(dateStr)
-    const bedColor = coloreLettiPerGiorno(extraBedsMap, dateStr)
-
-    if (booking.pagato) {
-      if (!hasExtra) return COLOR_PAGATO
-      return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${COLOR_PAGATO} 8px, ${COLOR_PAGATO} 16px)`
-    }
-    // Acconti: le notti interamente coperte dai soldi ricevuti diventano blu
-    // (da sinistra, lungo tutta la catena); a saldo raggiunto è tutta blu.
-    const coperte = paidNightsByBooking[booking.id]
-    if (coperte !== undefined) {
-      const giorno = Math.round((strToDate(dateStr).getTime() - strToDate(booking.check_in).getTime()) / 86400000)
-      if (coperte === -1 || giorno < coperte) {
-        if (!hasExtra) return COLOR_PAGATO
-        return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${COLOR_PAGATO} 8px, ${COLOR_PAGATO} 16px)`
-      }
-    }
-    if (booking.bonifico) {
-      if (!hasExtra) return COLOR_BONIFICO
-      return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${COLOR_BONIFICO} 8px, ${COLOR_BONIFICO} 16px)`
-    }
-    if (hasExtra) return bedColor
-    return booking.color || COLOR_PRENOTAZIONE
-  }
-
   const totalW = NAME_W + daysTotal * CELL_W
-  const totalH = HEADER_H + rooms.length * ROW_H + EXTRA_ROW_H
+  // La parte di scheda che si vede: il testo non è mai più largo di così,
+  // così resta leggibile anche sulle schede lunghe che cominciano fuori vista
+  const corsiaVisibile = Math.max(0, larghezzaGriglia - NAME_W - ARIA_SCHEDA * 2)
+  // Quanto di una scheda (o di un buco) dal giorno `da` al giorno `a` si vede da
+  // `colonnaSinistra` in poi: il testo, fermo a sinistra, non è mai più largo
+  const parteInVista = (da: number, a: number) => {
+    const w = geometriaScheda(Math.max(da, colonnaSinistra) < a ? Math.max(da, colonnaSinistra) : da, a, CELL_W).width
+    return corsiaVisibile > 0 ? Math.min(w, corsiaVisibile) : w
+  }
+  const larghezzaTesto = (da: number, a: number) => Math.max(0, parteInVista(da, a) - 16 - FILO_SINISTRO)
+  const totalH = RULER_H + rooms.length * ROW_H + EXTRA_ROW_H
 
   // Calcola mesi per header
   const monthGroups: { label: string; startIdx: number; count: number }[] = []
@@ -749,128 +758,99 @@ export default function Calendario() {
       {/* Dal Mac niente barra di scorrimento visibile sotto la griglia (sembrava un'ombra
           diversa dalle Richieste): si scorre con due dita, con le frecce e con i mesi */}
       {loading ? (
-        <div className="text-center py-10 text-gray-400">Caricamento...</div>
+        <div className="mz-caricamento">Caricamento…</div>
       ) : (
         <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
+          <div className="cal-nastro" style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
-            {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
-            <div style={{ position: 'sticky', top: 0, zIndex: 31, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
-              {HEADER_MONTH_H > 0 && monthGroups.map((mg, i) => i === 0 ? null : (
-                <div key={i} style={{
-                  position: 'absolute',
-                  left: NAME_W + mg.startIdx * CELL_W + 6,
-                  height: HEADER_MONTH_H,
-                  display: 'flex', alignItems: 'center',
-                  fontSize: isDesktop ? gs(10) : gs(9), fontWeight: 600, letterSpacing: '1.5px',
-                  color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                }}>
-                  {mg.label.split(' ')[0]}
-                </div>
-              ))}
-              <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
-              </div>
-            </div>
-
-            {/* ── HEADER GIORNI ── */}
-            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #D6CFBD' }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #ECE8DD' }} />
+            {/* ── IL RIGHELLO DEI GIORNI: «lun 28», domeniche in terra, oggi in verde; fermo in alto ── */}
+            <div className="cal-righello" style={{ height: RULER_H }}>
+              <div className="cal-angolo" style={{ width: NAME_W, minWidth: NAME_W }} />
               {days.map((d, i) => {
                 const isToday = toStr(d) === todayStr
                 const isSun = d.getDay() === 0
+                const sett = d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 3)
                 return (
-                  <div key={i} style={{
-                    width: CELL_W, minWidth: CELL_W, textAlign: 'center',
-                    paddingTop: 4,
-                    background: isToday ? '#F3ECD8' : 'transparent',
-                    borderLeft: '1px solid #ECE8DD',
-                  }}>
-                    <div style={{ fontSize: modo === 'quindici' ? 10 : 8, fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2, lineHeight: 1 }}>
-                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, modo === 'quindici' ? 3 : 2)}
-                    </div>
-                    <div style={{
-                      fontSize: 12, fontWeight: 700,
-                      color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
-                      background: isToday ? '#2D6A4F' : 'transparent',
-                      borderRadius: '50%',
-                      width: 20, height: 20,
-                      lineHeight: '20px',
-                      margin: '0 auto',
-                    }}>
-                      {d.getDate()}
-                    </div>
-                  </div>
+                  <span key={i} className={`${isSun ? 'dom' : ''} ${isToday ? 'oggi' : ''}`} style={{ width: CELL_W, minWidth: CELL_W }}>
+                    {CELL_W >= 34 ? `${sett} ${d.getDate()}` : d.getDate()}
+                  </span>
                 )
               })}
             </div>
 
-            {/* ── SEPARATORI DI MESE: linea ottone al 1° del mese, sotto le barre ── */}
+            {/* ── FILI DEI MESI: ottone 2 px al 1° del mese, su tutte le righe ── */}
             {monthGroups.map((mg, i) => i === 0 ? null : (
-              <div key={`sep-${i}`} style={{
-                position: 'absolute',
+              <div key={`sep-${i}`} className="cal-filo-mese" aria-hidden style={{
                 left: NAME_W + mg.startIdx * CELL_W - 1,
-                top: HEADER_H,
-                width: 2,
-                height: totalH - HEADER_H,
-                background: '#A9884E',
-                opacity: 0.55,
-                zIndex: 4,
-                pointerEvents: 'none',
+                top: RULER_H,
+                height: totalH - RULER_H,
               }} />
             ))}
 
-            {/* ── RIGHE CAMERE ── */}
+            {/* ── IL FILO DI OGGI: verde, a tutta altezza sulla colonna di oggi ── */}
+            {dayIndex(todayStr) >= 0 && dayIndex(todayStr) < daysTotal && (
+              <div className="cal-filo-oggi" aria-hidden data-filo-oggi style={{ left: NAME_W + dayIndex(todayStr) * CELL_W, top: RULER_H, height: totalH - RULER_H }} />
+            )}
+
+            {/* ── LE CORSIE DELLE CAMERE ── */}
             {rooms.map((room, ri) => {
-              const rowTop = HEADER_H + ri * ROW_H
-              const isEven = ri % 2 === 0
+              const rowTop = RULER_H + ri * ROW_H
+              const shortName = room.name.split(' ').slice(-1)[0]
+              const prenotazioni = bookingsForRoom(room.id)
+              const tenute = barrePerCamera(barre, room.id)
+              // I buchi liberi: fra una scheda e l'altra, prima della prima e dopo l'ultima
+              const buchi = buchiLiberi([
+                ...prenotazioni.map(b => ({ da: b.check_in, a: b.check_out })),
+                ...tenute.map(t => ({ da: t.arrivo, a: t.partenza })),
+              ], toStr(startDate), toStr(endDate))
+              const occupato = (iso: string) => prenotazioni.some(b => b.check_in <= iso && iso < b.check_out) || tenute.some(t => t.arrivo <= iso && iso < t.partenza)
               return (
                 <div key={room.id}>
-                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: '1px solid #ECE8DD' }}>
-                    {/* Nome camera */}
-                    {(() => {
-                      const shortName = room.name.split(' ').slice(-1)[0]
-                      return (
-                    <div title={ROOM_DESC_BY_NAME[shortName] || ''} style={{
-                      width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
-                      background: 'white', borderRight: '2px solid #D6CFBD',
-                      display: 'flex', alignItems: 'center', gap: 6, padding: colonnaLarga ? '0 8px' : '0 6px',
+                  <div className="cal-corsia" style={{ top: rowTop, width: totalW, height: ROW_H }}
+                    onClick={e => {
+                      // Un giorno libero toccato fuori dai buchi disegnati: nuova prenotazione da lì
+                      const x = e.clientX - e.currentTarget.getBoundingClientRect().left - NAME_W
+                      const idx = Math.floor(x / CELL_W)
+                      const dateStr = days[idx] ? toStr(days[idx]) : ''
+                      if (!dateStr || occupato(dateStr)) return
+                      router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)
                     }}>
-                      {/* niente numero 01–04: solo il nome della camera, ovunque (05/09/2026) */}
-                      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 13 : 12, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {shortName}
-                        </span>
-                        {/* Sul Mac la descrizione sta nel tooltip: la griglia resta leggera */}
-                      </span>
+                    {/* Nome camera: niente numero 01–04, solo il nome (05/09/2026) */}
+                    <div className="cal-camera" title={ROOM_DESC_BY_NAME[shortName] || ''} style={{ width: NAME_W, minWidth: NAME_W }} onClick={e => e.stopPropagation()}>
+                      {shortName}
                     </div>
-                      )
-                    })()}
-                    {/* Celle giorni */}
-                    {days.map((d, i) => {
-                      const isToday = toStr(d) === todayStr
-                      const isSun = d.getDay() === 0
-                      const dateStr = toStr(d)
-                      return (
-                        <div key={i}
-                          onClick={() => router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)}
-                          style={{
-                            width: CELL_W, minWidth: CELL_W, height: '100%',
-                            background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
-                            borderLeft: '1px solid #ECE8DD',
-                            cursor: 'pointer',
-                          }} />
-                      )
-                    })}
                   </div>
 
-                  {/* Barre prenotazioni */}
-                  {bookingsForRoom(room.id).flatMap(booking => {
+                  {/* I buchi liberi: riquadro tratteggiato, «3 → 4 ott» e il «+»; il
+                      tocco apre la nuova prenotazione con camera e arrivo già scritti */}
+                  {buchi.map(h => {
+                    const da = Math.max(0, dayIndex(h.da)), a = Math.min(daysTotal, dayIndex(h.a))
+                    if (a - da <= 0) return null
+                    const g = geometriaScheda(da, a, CELL_W)
+                    return (
+                      <button type="button" key={`buco-${h.da}`} className="cal-buco" data-buco={`${h.da}_${h.a}`}
+                        aria-label={`Nuova prenotazione in ${shortName} dal ${h.da}`}
+                        style={{ left: NAME_W + g.left, top: rowTop + SCHEDA_TOP, width: g.width, height: SCHEDA_H }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          // L'arrivo è l'inizio del buco; se l'inizio è fuori vista (a sinistra), il primo giorno del buco in vista
+                          const primo = Math.floor((scrollRef.current?.scrollLeft ?? 0) / CELL_W)
+                          const dateStr = toStr(days[Math.min(a - 1, Math.max(da, primo))])
+                          router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)
+                        }}>
+                        <span className="in" style={{ left: NAME_W + ARIA_SCHEDA, width: parteInVista(da, a) }}>
+                          <em>{rigaBuco(h)}</em>
+                          <span className="pl" aria-hidden>+</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+
+                  {/* Le schede: quattro righe scritte sopra (date · icone e nome · ospiti e stato · arrivo) */}
+                  {prenotazioni.map(booking => {
                     const startIdx = Math.max(0, dayIndex(booking.check_in))
                     const endIdx = Math.min(daysTotal, dayIndex(booking.check_out))
-                    if (endIdx - startIdx <= 0) return []
-                    // il nome sulla barra: se dorme un'altra persona i due nomi stanno
-                    // attaccati e accorciati — «Luca T. / Massimo T.» (Ania, 21/09/2026)
-                    const guestName = nomeConAltriCorto(booking)
+                    if (endIdx - startIdx <= 0) return null
                     const isOttimo = booking.guests?.rating === 'ottimo'
                     const isEsclusiva = booking.color === '#f97316'
                     const vuoleRicevuta = clienteVuoleRicevuta(booking.guests)
@@ -880,187 +860,81 @@ export default function Calendario() {
                     const hasIncoming = incomingIds.has(booking.id)
                     const hasOutgoing = outgoingIds.has(booking.id)
                     const isSelected = isMultiRoom && selectedGroupId === chainKey
-                    // Ricerca attiva: risultato selezionato a colore pieno con
-                    // ombra, gli altri risultati pieni, tutto il resto attenuato
-                    // ma leggibile. I colori di stato non cambiano mai.
+                    // Ricerca attiva: risultato selezionato col contorno verde, gli
+                    // altri risultati pieni, tutto il resto attenuato ma leggibile.
+                    // Catena toccata: la catena piena con l'ombra, il resto attenuato.
                     const isMatch = matchedIds.has(booking.id)
                     const isCurrent = searchAttiva && currentMatch?.id === booking.id
                     const isDimmed = searchAttiva
                       ? !isMatch
                       : (selectedGroupId !== null && !isSelected)
-                    // Richiesta dal sito da confermare: barra bianca tratteggiata
+                    // Richiesta dal sito da confermare: scheda tratteggiata verde
                     const isWebPending = booking.status === 'in_attesa' && booking.source === 'sito_web'
-                    const insetV = 6
-                    const insetH = 2
-
-                    const segments: { start: number; end: number; color: string }[] = []
-                    let curColor = '', segStart = startIdx
-                    for (let i = startIdx; i < endIdx; i++) {
-                      const c = getDayColor(booking, toStr(addDays(startDate, i)))
-                      if (c !== curColor) {
-                        if (curColor) segments.push({ start: segStart, end: i, color: curColor })
-                        curColor = c; segStart = i
-                      }
+                    const stato = statoScheda(booking, paidNightsByBooking[booking.id] === -1)
+                    const tinta = tintaScheda(stato, booking.color)
+                    const g = geometriaScheda(startIdx, endIdx, CELL_W)
+                    // Cambio camera: il tratto che parte tagliato in basso a destra, quello che arriva in basso a sinistra
+                    const cutLeft = hasIncoming && startIdx === dayIndex(booking.check_in)
+                    const cutRight = hasOutgoing && endIdx === dayIndex(booking.check_out)
+                    const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(g.width, SCHEDA_H, cutLeft, cutRight, 6, TAGLIO_CAMBIO) : undefined
+                    const tocco = areaTocco(rowTop + SCHEDA_TOP, SCHEDA_H)
+                    const righe = {
+                      date: rigaDate(booking.check_in, booking.check_out, isWebPending ? 'dalSito' : null),
+                      icone: iconeScheda({ esclusiva: isEsclusiva, ottimo: isOttimo, ricevuta: vuoleRicevuta, letto: !!hasExtraBed, cambio: isMultiRoom, dalSito: booking.source === 'sito_web' && !isWebPending }),
+                      nome: nomeConAltri(booking),
+                      sotto: rigaSotto({ ospiti: Number(booking.num_guests) || 1, stato: testoStato(stato), letti: lettiPoolPrenotazione(booking), poi: poiCamera[booking.id], da: daCamera[booking.id] }),
+                      arrivo: isWebPending ? null : hasIncoming ? CAMBIO_CAMERA : rigaArrivo(leggiArrivo(booking as unknown as Record<string, unknown>)),
                     }
-                    if (curColor) segments.push({ start: segStart, end: endIdx, color: curColor })
-
-                    return segments.map((seg, si) => {
-                      const isFirst = si === 0
-                      const isLast = si === segments.length - 1
-                      const cutLeft = isFirst && hasIncoming
-                      const cutRight = isLast && hasOutgoing
-                      const segW = (seg.end - seg.start) * CELL_W - (isFirst ? insetH : 0) - (isLast ? insetH : 0)
-                      const segH = ROW_H - insetV * 2
-                      const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(segW, segH, cutLeft, cutRight) : undefined
-                      const tinta = coloreCatena[booking.id]
-                      // Lato sinistro tagliato: SOLO i simboli (⭐ 🧾 🛏 🌐) spostati a destra, il nome resta al suo posto (Ania, 06/09/2026)
-                      const rientro = cutLeft ? 14 : 0
-                      const leftRounded = isFirst && !cutLeft
-                      const rightRounded = isLast && !cutRight
-                      // Sul telefono la barra (32 px) è difficile da toccare: un'area
-                      // invisibile alta 44 px (lib/calendarioMobile.areaTocco) sopra la
-                      // barra, stessa larghezza, stesso tocco (07/09/2026)
-                      const tocco = !isDesktop ? areaTocco(rowTop + insetV, segH) : null
-                      const apri = (e: React.MouseEvent) => {
-                            if (isMultiRoom && !searchAttiva) {
-                              e.stopPropagation()
-                              if (selectedGroupId === chainKey) {
-                                ricordaPosizione()
-                                router.push(`/scheda/${booking.id}`)
-                              } else {
-                                setSelectedGroupId(chainKey)
-                              }
-                            } else {
-                              ricordaPosizione()
-                              router.push(`/scheda/${booking.id}`)
-                            }
-                      }
-                      return (
-                        <div key={`${booking.id}-${si}`} style={{ display: 'contents' }}>
-                        {tocco && (
-                          <div data-tocco aria-hidden onClick={apri}
-                            style={{ position: 'absolute', top: tocco.top, height: tocco.height, left: NAME_W + seg.start * CELL_W + (isFirst ? insetH : 0), width: segW, zIndex: isCurrent ? 17 : isSelected ? 16 : 6, cursor: 'pointer', background: 'transparent' }} />
-                        )}
-                        <div
-                          onClick={(e) => {
-                            // Con la ricerca attiva vince la ricerca: il tocco
-                            // apre direttamente la scheda, senza il passaggio
-                            // di evidenziazione della catena
-                            if (isMultiRoom && !searchAttiva) {
-                              e.stopPropagation()
-                              // Primo tocco: evidenzia la catena. Secondo tocco sul segmento evidenziato: apre il dettaglio.
-                              if (selectedGroupId === chainKey) {
-                                ricordaPosizione()
-                                router.push(`/scheda/${booking.id}`)
-                              } else {
-                                setSelectedGroupId(chainKey)
-                              }
-                            } else {
-                              ricordaPosizione()
-                              router.push(`/scheda/${booking.id}`)
-                            }
-                          }}
+                    return (
+                      <div key={booking.id} data-tocco data-scheda={booking.id} data-stato={stato}
+                        onClick={e => { e.stopPropagation(); tocca(booking, chainKey) }}
+                        className={`cal-scheda ${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : ''} ${isSelected ? 'catena' : ''} ${isCurrent ? 'trovata' : ''}`}
+                        style={{ top: tocco.top, height: tocco.height, left: NAME_W + g.left, width: g.width, zIndex: isCurrent ? 16 : isSelected ? 15 : 5 }}>
+                        <div className={`cal-scheda-in ${isWebPending ? 'sito' : ''} ${cutLeft ? 'cl' : ''}`} data-letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
                           style={{
-                            position: 'absolute',
-                            top: rowTop + insetV,
-                            left: NAME_W + seg.start * CELL_W + (isFirst ? insetH : 0),
-                            width: segW,
-                            height: segH,
-                            background: isWebPending ? '#FFFFFF' : seg.color,
-                            border: isWebPending ? '2px dashed #2D6A4F' : undefined,
-                            borderRadius: `${leftRounded ? 6 : 0}px ${rightRounded ? 6 : 0}px ${rightRounded ? 6 : 0}px ${leftRounded ? 6 : 0}px`,
-                            clipPath,
-                            cursor: 'pointer',
-                            display: isFirst ? 'flex' : 'block',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            overflow: 'hidden',
-                            zIndex: isCurrent ? 16 : isSelected ? 15 : 5,
-                            opacity: isDimmed ? 0.3 : 1,
-                            boxShadow: isCurrent
-                              ? '0 3px 10px rgba(31,61,47,0.45)'
-                              : isSelected ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 3px rgba(0,0,0,0.2)',
-                            transition: 'opacity 0.15s, box-shadow 0.15s',
+                            background: tinta.fondo, color: tinta.testo,
+                            borderLeftColor: isWebPending ? tinta.filo : cutLeft ? 'transparent' : tinta.filo,
+                            ...(isWebPending ? { borderColor: tinta.filo } : {}),
+                            clipPath, borderRadius: clipPath ? 0 : 6,
                           }}>
-                          {tinta && cutRight && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(17px 0, 100% 0, 100% 100%, 5px 100%)', opacity: 1, pointerEvents: 'none' }} />}
-                          {tinta && cutLeft && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 5px 0, 17px 100%, 12px 100%)', opacity: 1, pointerEvents: 'none' }} />}
-                          {isFirst && (
-                            <>
-                              {/* Pallino di provenienza: il cliente è arrivato dal sito.
-                                  Resta anche dopo la conferma (il colore della barra
-                                  continua a dire solo lo STATO) e si vede pure sulle
-                                  barre da 1 notte, dove la scritta non ci sta.
-                                  Sulla richiesta ancora da confermare parla già la
-                                  scritta «dal sito»: lì il pallino non si mostra */}
-                              {booking.source === 'sito_web' && !isWebPending && (
-                                <span style={{ position: 'absolute', top: 1.5, left: 1.5 + rientro, width: 12, height: 12, borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: 7, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
-                              )}
-                              {/* col doppio nome un carattere in meno, così i due nomi ci stanno (Ania, 21/09/2026) */}
-                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: (isDesktop ? (modo === 'quindici' ? 12 : 11) : 10) - (guestName.includes(' / ') ? 1 : 0), fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                                {guestName}{vuoleRicevuta ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
-                              </span>
-                              {/* Le iconcine stanno SOTTO il nome, piccole (Ania, 05/09/2026): così si
-                                  vedono anche quando il nome è lungo e finisce coi puntini */}
-                              {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
-                                <span style={{ display: 'block', fontSize: 9, lineHeight: 1.2, paddingLeft: 6 + rientro, opacity: 0.95, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                                  {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏' : ''}
-                                </span>
-                              )}
-                              {/* La scritta resta solo sulla richiesta da confermare
-                                  (barra bianca): sulle confermate parla il pallino */}
-                              {isWebPending && (
-                                <span style={{ color: '#2D6A4F', fontSize: 9, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
-                                  🌐 dal sito
-                                </span>
-                              )}
-                            </>
-                          )}
+                          {cutRight && <span aria-hidden data-filo-obliquo="uscita" className="cal-cuneo" style={{ background: tinta.filo, clipPath: filoObliquo('destra', g.width, SCHEDA_H) }} />}
+                          {cutLeft && <span aria-hidden data-filo-obliquo="arrivo" className="cal-cuneo" style={{ background: tinta.filo, clipPath: filoObliquo('sinistra', g.width, SCHEDA_H) }} />}
+                          {/* il testo resta in vista anche quando la scheda comincia fuori, a sinistra */}
+                          <span className="tx" style={{ left: NAME_W + ARIA_SCHEDA + 8, width: larghezzaTesto(startIdx, endIdx) }}>
+                            <em>{righe.date}</em>
+                            <b>{righe.icone && <span className="ic">{righe.icone} </span>}{righe.nome}</b>
+                            <small>{righe.sotto}</small>
+                            {righe.arrivo && <small className="ar2">{righe.arrivo}</small>}
+                          </span>
                         </div>
-                        </div>
-                      )
-                    })
+                      </div>
+                    )
                   })}
 
-                  {/* ── CAMERE TENUTE DA UNA PROPOSTA (15/09/2026) ──
-                      Bianca tratteggiata = paga all'arrivo, risposta in poche
-                      ore. A righine = paga in anticipo, può volerci un giorno.
-                      Smorzata = la tenuta è già scaduta: la camera si può dare. */}
-                  {barrePerCamera(barre, room.id).map(barra => {
+                  {/* ── CAMERE TENUTE DA UNA PROPOSTA (15/09/2026) ── schede in ottone,
+                      «in opzione», fino a quando; smorzate quando la tenuta è scaduta */}
+                  {tenute.map(barra => {
                     const startIdx = Math.max(0, dayIndex(barra.arrivo))
                     const endIdx = Math.min(daysTotal, dayIndex(barra.partenza))
                     if (endIdx - startIdx <= 0) return null
-                    const insetV = 6, insetH = 2
-                    const larghezza = (endIdx - startIdx) * CELL_W - insetH * 2
-                    const altezza = ROW_H - insetV * 2
-                    const righine = 'repeating-linear-gradient(45deg, rgba(169,136,78,0.22) 0 5px, rgba(255,255,255,0.95) 5px 10px)'
+                    const g = geometriaScheda(startIdx, endIdx, CELL_W)
+                    const tinta = TINTE_SCHEDA.tenuta
+                    const isDimmed = searchAttiva || selectedGroupId !== null
                     return (
                       <div key={`tenuta-${barra.richiestaId}-${barra.cameraId}-${barra.arrivo}`}
-                        data-tenuta={barra.anticipato ? 'anticipato' : 'arrivo'}
+                        data-tenuta={barra.anticipato ? 'anticipato' : 'arrivo'} data-tocco
                         onClick={(e) => { e.stopPropagation(); setBarraAperta(barra) }}
                         title={`${barra.ospite} · ${testoTenuta(barra, adesso)}`}
-                        style={{
-                          position: 'absolute',
-                          top: rowTop + insetV,
-                          left: NAME_W + startIdx * CELL_W + insetH,
-                          width: larghezza,
-                          height: altezza,
-                          background: barra.anticipato ? righine : '#FFFDF7',
-                          border: `2px dashed ${OTTONE}`,
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center',
-                          overflow: 'hidden',
-                          opacity: barra.scaduta ? 0.55 : 1,
-                          zIndex: 5,
-                        }}>
-                        <span style={{ color: '#7a5f2c', fontSize: isDesktop ? 11 : 10, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                          {barra.ospite}
-                        </span>
-                        <span style={{ color: '#7a5f2c', fontSize: 9, fontWeight: 700, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.2 }}>
-                          {segniDellaBarra(barra)}
-                        </span>
+                        className={`cal-scheda ${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : barra.scaduta ? 'scaduta' : ''}`}
+                        style={{ top: rowTop + SCHEDA_TOP, height: SCHEDA_H, left: NAME_W + g.left, width: g.width, zIndex: 5 }}>
+                        <div className="cal-scheda-in" data-letto={barra.lettoNotti.length > 0 ? 1 : undefined}
+                          style={{ background: tinta.fondo, color: tinta.testo, borderLeftColor: tinta.filo, borderRadius: 6 }}>
+                          <span className="tx" style={{ left: NAME_W + ARIA_SCHEDA + 8, width: larghezzaTesto(startIdx, endIdx) }}>
+                            <em>{rigaDate(barra.arrivo, barra.partenza, 'opzione')}</em>
+                            <b>{barra.lettoNotti.length > 0 && <span className="ic">🛏 </span>}{barra.ospite}</b>
+                            <small>{rigaSotto({ ospiti: barra.persone, stato: barra.scaduta ? 'scaduta' : `scade alle ${oraRoma(barra.scadenza)}`, letti: barra.lettoNotti.length > 0 ? 1 : 0 })}</small>
+                          </span>
+                        </div>
                       </div>
                     )
                   })}
@@ -1068,15 +942,13 @@ export default function Calendario() {
               )
             })}
 
-            {/* ── RIGA LETTI AGGIUNTIVI ── */}
+            {/* ── RIGA LETTI AGGIUNTIVI «🛏 EXTRA»: è lei a dire quando i due letti della casa sono finiti ── */}
             {(() => {
-              const rowTop = HEADER_H + rooms.length * ROW_H
+              const rowTop = RULER_H + rooms.length * ROW_H
               return (
-                <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: EXTRA_ROW_H, display: 'flex', borderTop: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD' }}>
-                  <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10, background: 'white', borderRight: '2px solid #D6CFBD', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#7A4B22', background: '#F1E0CE', borderRadius: 4, padding: '1px 5px' }}>
-                      🛏 extra
-                    </span>
+                <div className="cal-extra" style={{ top: rowTop, width: totalW, height: EXTRA_ROW_H }}>
+                  <div className="cal-camera extra" style={{ width: NAME_W, minWidth: NAME_W }}>
+                    <span className="xl">🛏 extra</span>
                   </div>
                   {days.map((d, i) => {
                     const dateStr = toStr(d)
@@ -1088,17 +960,11 @@ export default function Calendario() {
                     // riquadro tratteggiato (Ania, 15/09/2026).
                     const tenuti = lettiTenuti.get(dateStr) || 0
                     return (
-                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, background: isFull ? COLORE_LETTI_ESAURITI : isToday ? '#F3ECD8' : 'white', borderLeft: isToday && !isFull ? '2px solid #F3ECD8' : '1px solid #ECE8DD' }}>
-                        {count > 0 && (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: isFull ? 'white' : '#7A4B22' }}>
-                            {count}/{EXTRA_BED_MAX}
-                          </span>
-                        )}
+                      <div key={i} className={`cal-extra-g ${isFull ? 'pieno' : isToday ? 'oggi' : ''}`}
+                        style={{ width: CELL_W, minWidth: CELL_W, background: isFull ? COLORE_LETTI_ESAURITI : undefined }}>
+                        {count > 0 && <b>{count}/{EXTRA_BED_MAX}</b>}
                         {tenuti > 0 && (
-                          <span data-letti-tenuti title={`${tenuti} ${tenuti === 1 ? 'letto tenuto' : 'letti tenuti'} da una proposta`}
-                            style={{ fontSize: 10, fontWeight: 700, color: '#7a5f2c', background: '#FFFDF7', border: `1.5px dashed ${OTTONE}`, borderRadius: 5, padding: '0 4px', lineHeight: 1.5 }}>
-                            {tenuti}
-                          </span>
+                          <i data-letti-tenuti title={`${tenuti} ${tenuti === 1 ? 'letto tenuto' : 'letti tenuti'} da una proposta`}>{tenuti}</i>
                         )}
                       </div>
                     )

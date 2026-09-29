@@ -1,7 +1,7 @@
 import { EXTRA_BED_MAX } from './tariffe.ts'
 
 export const COLORE_LETTO_PARZIALE = '#C58A67'
-export const COLORE_LETTI_ESAURITI = '#1f2937'
+export const COLORE_LETTI_ESAURITI = '#D0261B'   // rosso acceso dal 29/09/2026 (riga «🛏 extra» a 2/2)
 
 export type StatoLettiAggiuntivi = 'liberi' | 'parziali' | 'esauriti'
 
@@ -12,7 +12,7 @@ export function statoLettiAggiuntivi(occupati: number): StatoLettiAggiuntivi {
 }
 
 // Il colore dipende dal TOTALE occupato in quella notte, non dagli "altri"
-// letti. Così una quadrupla in Lena (2 letti su 2) è subito nera.
+// letti. Così una quadrupla in Lena (2 letti su 2) riempie subito la riga (rossa dal 29/09/2026).
 export function coloreLettiAggiuntivi(occupati: number): string {
   return statoLettiAggiuntivi(occupati) === 'esauriti'
     ? COLORE_LETTI_ESAURITI

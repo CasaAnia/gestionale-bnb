@@ -11,7 +11,7 @@ import {
 
 const paginaCalendario = readFileSync(new URL('../app/calendario/page.tsx', import.meta.url), 'utf8')
 
-test('un letto occupato resta terracotta, due letti su due diventano neri', () => {
+test('un letto occupato resta terracotta, due letti su due diventano rossi (29/09/2026)', () => {
   assert.equal(statoLettiAggiuntivi(0), 'liberi')
   assert.equal(statoLettiAggiuntivi(1), 'parziali')
   assert.equal(statoLettiAggiuntivi(2), 'esauriti')
@@ -20,7 +20,7 @@ test('un letto occupato resta terracotta, due letti su due diventano neri', () =
   assert.equal(coloreLettiAggiuntivi(2), COLORE_LETTI_ESAURITI)
 })
 
-test('il calendario guarda il totale della notte: una quadrupla da sola è nera', () => {
+test('il calendario guarda il totale della notte: una quadrupla da sola riempie la riga', () => {
   const occupazione = new Map([
     ['2026-09-01', 1],
     ['2026-09-02', 2],
@@ -31,7 +31,9 @@ test('il calendario guarda il totale della notte: una quadrupla da sola è nera'
 })
 
 test('la pagina usa il totale del pool senza sottrarre la prenotazione corrente', () => {
-  assert.match(paginaCalendario, /coloreLettiPerGiorno\(extraBedsMap, dateStr\)/)
+  // Dal 29/09/2026 il colore della scheda non dipende più dai letti: il conto
+  // del pool sta nella riga «🛏 extra», letto per notte sul totale
+  assert.match(paginaCalendario, /const count = extraBedsMap\.get\(dateStr\) \|\| 0/)
   assert.doesNotMatch(paginaCalendario, /const others =/)
   assert.match(paginaCalendario, /background: isFull \? COLORE_LETTI_ESAURITI/)
 })

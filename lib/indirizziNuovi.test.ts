@@ -65,7 +65,7 @@ test('i punti di partenza, uno per uno, portano alla scheda nuova', () => {
   assert.match(leggi('components/maison/SoldiHome.tsx'), /href=\{`\/scheda\/\$\{v\.id\}`\}/)                        // Home, «Da incassare» (veste «Maison», 28/09/2026)
   assert.match(leggi('lib/daControllare.ts'), /case 'prenotazione': return `\/scheda\/\$\{d\.prenotazioneId\}`/)   // Home, «Da controllare»
   assert.match(leggi('lib/daControllare.ts'), /case 'saldo': return `\/scheda\/\$\{d\.prenotazioneId\}\?azione=pagato`/)
-  assert.equal((leggi('app/calendario/page.tsx').match(/router\.push\(`\/scheda\/\$\{(b|booking)\.id\}`\)/g) || []).length, 5)   // Calendario
+  assert.equal((leggi('app/calendario/page.tsx').match(/router\.push\(`\/scheda\/\$\{(b|booking)\.id\}`\)/g) || []).length, 3)   // Calendario: «Apri» delle richieste e il tocco sulla scheda
   assert.match(leggi('app/arrivi/page.tsx'), /router\.push\(`\/scheda\/\$\{popup\.id\}`\)/)                 // Arrivi
   assert.match(leggi('app/prenotazioni/page.tsx'), /router\.push\(`\/scheda\/\$\{b\.id\}`\)/)               // elenco Prenotazioni
   assert.match(leggi('app/richieste/page.tsx'), /router\.push\(`\/scheda\/\$\{id\}\?da=richiesta/)          // richiesta confermata
