@@ -1,3 +1,19 @@
+## Scheda prenotazione «Maison» a linguette — PUBBLICATA — 29/09/2026
+
+Riferimento approvato da Ania il 28/09/2026: `docs/design/scheda-riferimento.html`; checklist e riscontro accanto (`scheda-checklist.md`, `scheda-riscontro.md`), tre schermate a 390 px. Commit 0b465dc → 5d4da40 più riscontro. La scheda ha cinque linguette (Oggi · Soggiorno · Conto · Messaggi · Cliente) e mostra una parte alla volta; accanto al nome la cornetta e la nuvoletta WhatsApp; «Messaggio libero» e «Scrivi» non ci sono più; «Con lei» si chiama «Chi dorme in camera»; tutti i fogli hanno la veste Maison ad altezza fissa e la spunta «Salvato». Regola fissa n. 8 aggiornata: la sequenza con ⇄ sta nella linguetta Soggiorno. 🔴 La riga «dorme …» e la scelta «A chi scrivi» compaiono solo dopo la proposta 0061 (la stessa della Nuova prenotazione). Da decidere con Ania: se scrivendo a chi dorme il saluto dei messaggi deve cambiare nome; il destinatario nella cronologia richiede una migrazione. Anteprima senza rete: `ANTEPRIMA_SCHEDA_MAISON=1` (voce `gestionale-bnb-scheda-maison-finta`, porta 3217).
+
+**Prove dal telefono in 10 minuti**
+1. Apri una prenotazione dalla Home: in cima «‹ PRENOTAZIONI» e lo stato in ottone; sotto il nome grande con la cornetta e la nuvoletta. Tocca la cornetta: parte la chiamata; la nuvoletta apre la chat WhatsApp vuota.
+2. Sotto il nome «Già ospite N volte · da … · speso» e, se ci sono, le note in mattone con «QUESTA VOLTA».
+3. Linguetta Oggi: «In breve» (arrivo, camera, conto, documento), «Da fare oggi» con un comando per voce, «Prossimi giorni». Tocca «Pagamento»: si apre il foglio del pagamento; «Annulla».
+4. Linguetta Soggiorno: l'orario grande con «Modifica arrivo», il luogo e la navetta; «Arrivi precedenti» apre e «Chiudi arrivi precedenti» richiude. Tocca una notte della striscia: si apre il foglio della notte; «Annulla».
+5. Sotto «Camere · N cambi» una riga per camera, con ⇄ e «… va pronta prima del cambio».
+6. Linguetta Conto: tre cifre, «Resta da incassare» grande in mattone (o «Saldato 0 €» in verde), la frase di come paga; «Sconto» apre il foglio col tuo nome in cima e «SCONTO» sotto; «Annulla».
+7. Linguetta Messaggi: «WhatsApp Ania | Business», il riquadro «Conferma prenotazione» e, in due colonne, tutti i messaggi; in fondo la Cronologia.
+8. Linguetta Cliente: i dati a due colonne, «Nota e colore» → cambia la nota → «Salva»: compare la spunta «Salvato» e il foglio si chiude da solo.
+9. Caso «la figlia prenota per la mamma» (dopo la 0061): nella Nuova prenotazione la figlia è la cliente, spunta «Non è lei a dormire qui», scrivi la mamma con «Chi è: Mamma» e il suo telefono, salva. Nella scheda sotto il nome compare «dorme [mamma] · mamma» in mattone con le sue due icone; in Messaggi «A chi scrivi» ha due pastiglie: con «… · dorme» i messaggi vanno al numero della mamma; in Cliente la mamma ha «MAMMA · DORME LEI, NON CHI HA PRENOTATO».
+10. Chiudi e riapri la stessa prenotazione con un link che finisce in #conto: si apre direttamente la linguetta Conto.
+
 ## Nuova prenotazione «Maison» — PUBBLICATA — 28/09/2026
 
 Riferimento approvato: `docs/design/nuova-prenotazione-riferimento.html`; checklist e riscontro accanto (`nuova-prenotazione-checklist.md`, `-riscontro.md`). Commit 0bef7d8 → 65f158f. Novità: tariffa sempre di listino (niente campo), letto a prezzo fisso (`LETTO_AGGIUNTIVO_A_NOTTE`: Amelia 5, Ambra e Allegra 10, Lena in 3 compreso, in 4 10), conto per camera con subtotali, «Chi dorme in camera» con la spunta «Non è lei a dormire qui». 🔴 Da applicare a mano la proposta `supabase/proposte/0061_chi_dorme_in_camera.BOZZA.sql`: finché manca, la spunta non compare. Tinte camere e «già ospite N volte» restano quelle di oggi (scelta di Ania).
