@@ -598,18 +598,18 @@ export default function Calendario() {
   })
 
   return (
-    <div className="flex flex-col">
+    <div className="maison cal flex flex-col" data-senza-sottolinea data-calendario-maison>
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
       {/* La testa è quella condivisa da Calendario, Arrivi e Richieste:
           components/TestaPagina (spazio in alto uguale per tutt'e tre) */}
       <TestaPagina titolo="Calendario" desktop={isDesktop} indietro={<BackLink href="/" />}
-        comandi={<CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />}>
+        comandi={<CampoRicerca maison value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />}>
         {/* Nessun risultato: messaggio semplice, calendario normale */}
         {cercando && matches.length === 0 && (
-          <div className="mt-2 text-[13.5px] font-bold" style={{ color: '#8c6a52' }}>Nessuna prenotazione trovata</div>
+          <div className="cal-nessuno">Nessuna prenotazione trovata</div>
         )}
 
-        {/* Risultati della ricerca */}
+        {/* Risultati della ricerca (veste «Maison», 29/09/2026: stesso comportamento di prima) */}
         {searchAttiva && (() => {
           if (!currentMatch) return null
           const m = currentMatch
@@ -617,74 +617,57 @@ export default function Calendario() {
           const roomShort = (id: string) => (rooms.find(r => r.id === id)?.name || '').split(' ').slice(-1)[0]
           const tel4 = (x: CalendarBooking) => (x.guests?.phone || '').replace(/\D/g, '').slice(-4)
           const voce = (x: CalendarBooking) => `${lblDate(x.check_in, x.check_out)} · ${roomShort(x.room_id)}`
+          const voceNavigatore = (x: CalendarBooking) => `${lblDate(x.check_in, x.check_out).replace('–', ' – ')} · ${roomShort(x.room_id)}`
           return (
-            <div className="mt-2">
+            <div className="cal-res" data-risultati-ricerca>
               {matches.length === 1 ? (
                 // Un solo risultato: UNA riga compatta
-                <div className="text-[13px] font-bold text-green-dark truncate">
+                <div className="uno">
                   🔎 {nomeConAltri(m)} · {voce(m)}
                 </div>
               ) : (
                 <>
                   {/* Riga 1: quante prenotazioni, ben chiaro (tocco = elenco a comparsa) */}
-                  <button onClick={() => setMenuAperto(o => !o)} className="flex items-center gap-1.5 text-[13px] text-green-dark max-w-full">
+                  <button type="button" onClick={() => setMenuAperto(o => !o)} className="cnt" aria-expanded={menuAperto}>
                     <span aria-hidden>🔎</span>
-                    <span className="truncate">
+                    <span>
                       <b>{matches.length} prenotazioni trovate</b> · {stessoCliente ? nomeConAltri(matches[0]) : `${clientiDiversi} clienti diversi`}
                     </span>
-                    <span className="text-green-mid text-[11px]" aria-hidden>▾</span>
+                    <span className="dn" aria-hidden>{menuAperto ? '▴' : '▾'}</span>
                   </button>
 
-                  {/* Mobile: navigatore ‹ [1 di N · data · camera] › */}
-                  <div className="flex items-center gap-2 mt-1 lg:hidden">
-                    <button
+                  {/* Telefono: navigatore ‹ [2 di 3 · data · camera] › */}
+                  <div className="cal-navg lg:hidden">
+                    <button type="button" className="ar"
                       onClick={() => vaiA((matchIdx - 1 + matches.length) % matches.length)}
-                      aria-label="Risultato precedente"
-                      className="shrink-0 w-11 h-11 rounded-full border border-[#C9BFA8] text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
-                      ‹
+                      aria-label="Risultato precedente">‹</button>
+                    <button type="button" className="cur" onClick={() => setScrollTarget(m.check_in)}>
+                      <small>{matchIdx + 1} di {matches.length}</small>
+                      <b>{voceNavigatore(m)}</b>
+                      {!stessoCliente && <i>{nomeConAltri(m)} · …{tel4(m)}</i>}
                     </button>
-                    <button
-                      onClick={() => setScrollTarget(m.check_in)}
-                      className="flex-1 min-w-0 rounded-full bg-green-mid text-white px-2 py-1 text-center transition-transform duration-100 active:scale-[0.98]">
-                      <span className="block text-[11px] font-extrabold tracking-[1.5px] uppercase opacity-90">{matchIdx + 1} di {matches.length}</span>
-                      <span className="block text-[13.5px] font-extrabold truncate">{voce(m)}</span>
-                      {!stessoCliente && (
-                        <span className="block text-[10.5px] font-semibold opacity-85 truncate">{nomeConAltri(m)} · …{tel4(m)}</span>
-                      )}
-                    </button>
-                    <button
+                    <button type="button" className="ar"
                       onClick={() => vaiA((matchIdx + 1) % matches.length)}
-                      aria-label="Risultato successivo"
-                      className="shrink-0 w-11 h-11 rounded-full border border-[#C9BFA8] text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
-                      ›
-                    </button>
+                      aria-label="Risultato successivo">›</button>
                   </div>
 
-                  {/* Desktop: riquadri in fila */}
-                  <div className="hidden lg:flex gap-1.5 mt-1.5 overflow-x-auto pb-1">
+                  {/* Dal Mac: i risultati in fila */}
+                  <div className="cal-fila hidden lg:flex">
                     {matches.map((x, i) => (
-                      <button
-                        key={x.id}
-                        onClick={() => vaiA(i)}
-                        className={`shrink-0 rounded-[10px] border px-3 py-1 text-left ${i === matchIdx ? 'bg-green-mid border-green-mid text-white' : 'bg-white border-card-border text-green-dark'}`}>
-                        <span className="block text-[13px] font-extrabold whitespace-nowrap">{voce(x)}</span>
-                        {!stessoCliente && (
-                          <span className={`block text-[11px] whitespace-nowrap ${i === matchIdx ? 'text-white/85' : 'text-gray-400'}`}>{nomeConAltri(x)} · …{tel4(x)}</span>
-                        )}
+                      <button type="button" key={x.id} onClick={() => vaiA(i)} className={i === matchIdx ? 'on' : ''}>
+                        <b>{voceNavigatore(x)}</b>
+                        {!stessoCliente && <i>{nomeConAltri(x)} · …{tel4(x)}</i>}
                       </button>
                     ))}
                   </div>
 
                   {/* Elenco a comparsa: sta SOPRA il calendario, non lo spinge in basso */}
                   {menuAperto && (
-                    <div className="absolute left-4 right-4 z-50 mt-1 ed-riquadro shadow-lg p-1">
+                    <div className="cal-dd" data-elenco-risultati>
                       {matches.map((x, i) => (
-                        <button
-                          key={x.id}
-                          onClick={() => vaiA(i)}
-                          className={`flex flex-col items-start w-full text-left px-2.5 py-2 rounded-lg ${i === matchIdx ? 'bg-cream' : ''}`}>
-                          <span className="text-[13.5px] font-extrabold text-green-dark">{voce(x)}</span>
-                          {!stessoCliente && <span className="text-[11px] text-gray-400">{nomeConAltri(x)} · …{tel4(x)}</span>}
+                        <button type="button" key={x.id} onClick={() => vaiA(i)} className={i === matchIdx ? 'on' : ''}>
+                          {voceNavigatore(x)}
+                          {!stessoCliente && <i>{nomeConAltri(x)} · …{tel4(x)}</i>}
                         </button>
                       ))}
                     </div>
@@ -697,30 +680,27 @@ export default function Calendario() {
 
         {webRequests.length > 0 && (
           // Una riga per richiesta, ognuna col suo Apri: il tocco sulla riga
-          // porta il calendario sulla data, il bottone apre la prenotazione.
+          // porta il calendario sulla data, «Apri» apre la prenotazione.
           // Durante una ricerca con più richieste il blocco si compatta in una
           // riga sola (il calendario deve restare visibile); un tocco lo riapre
           // e con ✕ torna comunque tutto com'era.
-          <div className="chip-in mt-2 bg-white rounded-lg px-3 py-1 shadow-sm">
+          <div className="cal-wr chip-in" data-richieste-sito>
             {searchAttiva && webRequests.length > 1 && !wrAperto ? (
-              <div
-                onClick={() => setWrAperto(true)}
-                className="flex items-center gap-2 py-1.5 cursor-pointer transition-transform duration-100 active:scale-[0.98]">
+              <div onClick={() => setWrAperto(true)}>
                 <span aria-hidden>🌐</span>
-                <span className="text-[13px] font-bold text-green-dark">{webRequests.length} richieste dal sito</span>
-                <span className="ml-auto text-[11px] text-gray-400 font-semibold">tocca per vedere</span>
+                <span><b>{webRequests.length} richieste dal sito</b></span>
+                <span className="tocca">tocca per vedere</span>
               </div>
             ) : webRequests.map(b => (
               <div key={b.id}
                 onClick={() => {
                   if (!scrollRef.current) return
                   scrollRef.current.scrollTo({ left: Math.max(0, dayIndex(b.check_in) * CELL_W - Math.round(CELL_W * 1.5)), behavior: 'smooth' })
-                }}
-                className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-b-0 cursor-pointer transition-transform duration-100 active:scale-[0.97]">
+                }}>
                 <span aria-hidden>🌐</span>
-                <span className="text-[13px] text-green-dark min-w-0 flex-1">
-                  <span className="block truncate">
-                    <span className="font-semibold">{nomeConAltri(b)}</span>
+                <span className="tx">
+                  <span>
+                    <b>{nomeConAltri(b)}</b>
                     {' · '}
                     {b.check_in?.slice(5).split('-').reverse().join('/')} → {b.check_out?.slice(5).split('-').reverse().join('/')}
                     {rooms.find(r => r.id === b.room_id)?.name ? ` · ${rooms.find(r => r.id === b.room_id)?.name}` : ''}
@@ -728,15 +708,14 @@ export default function Calendario() {
                   {/* Numero già in archivio con un altro nominativo: avviso rosso su
                       riga propria, mai troncato (su mobile lo spazio è poco) */}
                   {nomeDiverso(b) && (
-                    <span className="block font-bold text-[12px]" style={{ color: '#C0392B' }}>⚠️ Numero già usato · in archivio: {b.guests?.full_name}</span>
+                    <span className="avviso">⚠️ Numero già usato · in archivio: {b.guests?.full_name}</span>
                   )}
                 </span>
-                <button
+                <button type="button" className="mz-lnk"
                   onClick={e => {
                     e.stopPropagation()
                     router.push(`/scheda/${b.id}`)
-                  }}
-                  className="shrink-0 text-[12.5px] font-semibold text-white bg-green-mid rounded-full px-3 py-1 transition-transform duration-100 active:scale-[0.97]">
+                  }}>
                   Apri
                 </button>
               </div>
