@@ -1,8 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useState } from 'react'
 import { usePathname } from 'next/navigation'
-import FoglioMaison from './maison/FoglioMaison'
 import { House, CalendarDays, Inbox, DoorOpen, Sparkles, ClipboardList, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { isHiddenPath } from '@/lib/demoMode'
@@ -11,29 +9,22 @@ import { useRichiesteAperte } from '@/lib/richiesteDati'
 
 // Barra in basso «Maison» (riferimento approvato da Ania il 28/09/2026):
 // cinque voci con icone a filo sottile ed etichette maiuscolette 8,5 px.
-// Pulizie, Prenotazioni, Clienti, Spese, Statistiche e Impostazioni stanno
-// nel foglio «Menu». Le icone sono quelle del riferimento, tali e quali.
+// Dal 30/09/2026 (Ania, deciso il 29/09): «Oggi · Calendario · Richieste ·
+// Arrivi · Pulizie». Via «Menu»: le altre pagine sono già elencate in fondo
+// alla Home. «Pulizie» apre le pulizie di oggi, con la sua icona a filo.
 const ICONE_BARRA = {
   oggi: <svg viewBox="0 0 24 24" aria-hidden><path d="M3 11l9-8 9 8v10H3z" /></svg>,
   calendario: <svg viewBox="0 0 24 24" aria-hidden><rect x="3" y="5" width="18" height="16" rx="1" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>,
   richieste: <svg viewBox="0 0 24 24" aria-hidden><path d="M4 5h16v11H9l-5 4z" /></svg>,
   arrivi: <svg viewBox="0 0 24 24" aria-hidden><circle cx="8" cy="12" r="4" /><path d="M12 12h9M18 12v3M15 12v2" /></svg>,
-  menu: <svg viewBox="0 0 24 24" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg>,
+  pulizie: <svg viewBox="0 0 24 24" aria-hidden><path d="M10 3l1.6 5.4L17 10l-5.4 1.6L10 17l-1.6-5.4L3 10l5.4-1.6z" /><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z" /></svg>,
 }
 export const VOCI_BARRA = [
   { href: '/', label: 'Oggi', icona: 'oggi' },
   { href: '/calendario', label: 'Calendario', icona: 'calendario' },
   { href: '/richieste', label: 'Richieste', icona: 'richieste' },
   { href: '/arrivi', label: 'Arrivi', icona: 'arrivi' },
-] as const
-export const VOCI_MENU = [
-  { href: '/prenotazioni', label: 'Prenotazioni' },
-  { href: '/clienti', label: 'Clienti' },
-  { href: '/pulizie', label: 'Pulizie' },
-  { href: '/spese', label: 'Spese B&B' },
-  { href: '/spese-famiglia', label: 'Spese Famiglia' },
-  { href: '/statistiche', label: 'Statistiche' },
-  { href: '/impostazioni', label: 'Impostazioni e notifiche' },
+  { href: '/pulizie', label: 'Pulizie', icona: 'pulizie' },
 ] as const
 
 // Menu del Mac «Maison» (riferimento approvato da Ania il 29/09/2026:
@@ -77,7 +68,6 @@ function RequestBadge({ count, colore = 'ottone' }: { count: number | '!'; color
 
 export default function BottomNav() {
   const pathname = usePathname()
-  const [menuAperto, setMenuAperto] = useState(false)
   const demo = useDemoMode()
   // La chiave cambia a ogni navigazione: il conteggio si riaggiorna anche
   // quando Ania conferma una richiesta e torna indietro.
@@ -108,20 +98,8 @@ export default function BottomNav() {
               </Link>
             )
           })}
-          <button type="button" className={menuAperto || VOCI_MENU.some(v => pathname.startsWith(v.href)) ? 'on' : ''} onClick={() => setMenuAperto(true)} aria-expanded={menuAperto} data-menu-barra>
-            {ICONE_BARRA.menu}Menu
-          </button>
         </div>
       </nav>
-      {menuAperto && (
-        <FoglioMaison titolo="Menu" altezza={420} onChiudi={() => setMenuAperto(false)} dati="menu">
-          <div className="mz-vai" style={{ marginTop: 8 }} onClick={() => setMenuAperto(false)}>
-            {VOCI_MENU.filter(v => visible(v.href)).map(v => (
-              <Link key={v.href} href={v.href}><span>{v.label}</span><span aria-hidden>→</span></Link>
-            ))}
-          </div>
-        </FoglioMaison>
-      )}
 
       {/* Mac: menu laterale «Maison» (29/09/2026) */}
       <nav className="mz-lato hidden lg:flex fixed left-0 top-0 bottom-0 z-50 flex-col" aria-label="Menu">
