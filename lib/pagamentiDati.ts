@@ -51,7 +51,7 @@ export type ContoRiletto = { righe: RigaPagabile[]; pagamenti: PagamentoLetto[];
 
 export type EsitoPagamento =
   | { esito: 'ok'; pagamenti: PagamentoLetto[]; pagato: boolean; avviso: string | null; giaRegistrato?: boolean }
-  | { esito: 'errore'; messaggio: string; pagamenti: PagamentoLetto[] | null; contoCambiato?: ContoRiletto; incerto?: TentativoIncerto }
+  | { esito: 'errore'; messaggio: string; pagamenti: PagamentoLetto[] | null; contoCambiato?: ContoRiletto; incerto?: TentativoIncerto; somiglia?: boolean }
 
 export const ERRORE_CONTO_CAMBIATO = 'Il conto è cambiato mentre il foglio era aperto: niente registrato.'
 export const AVVISO_BOLLINO_CONTO_CAMBIATO = 'Pagamento registrato, ma il conto è cambiato nel frattempo (una camera in più o un movimento tolto): il bollino «pagato» non è stato messo. Ricarica la scheda.'
@@ -77,6 +77,13 @@ export const VERIFICA_NON_RIUSCITA = 'Non riesco a controllare i pagamenti regis
 // C'è già un tentativo non confermato per questa prenotazione e il pagamento
 // chiesto adesso è un ALTRO: non si scrive niente, altrimenti nascerebbe una
 // chiave nuova accanto a una scrittura che potrebbe essere solo tardiva.
+/** Un incasso uguale (importo, giorno, modo) registrato da meno di 2 minuti
+ *  che NON porta la chiave del nostro tentativo: può essere un secondo
+ *  versamento vero oppure lo stesso toccato due volte da un altro telefono.
+ *  Non si decide da soli: si chiede (audit Codex R1, 30/09/2026). */
+export const PAGAMENTO_SOMIGLIANTE = (importo: string, metodo: string) =>
+  `Un pagamento uguale (${importo} · ${metodo}) è stato registrato meno di due minuti fa. È un altro pagamento?`
+export const REGISTRA_ALTRO_PAGAMENTO = 'Sì, è un altro pagamento'
 export const MESSAGGIO_TENTATIVO_DA_VERIFICARE = 'C’è un pagamento non confermato su questa prenotazione: verificalo prima di registrarne un altro.'
 export const TENTATIVO_IN_SOSPESO = (importo: string, metodo: string, giorno: string) =>
   `C’è un pagamento non confermato: ${importo} · ${metodo} · ${giorno}. Verificalo prima di registrarne altri.`
@@ -171,7 +178,7 @@ const CONTO_CAMBIATO_DAL_SERVER = 'CONTO_CAMBIATO'
  *  finché la 0057 non è applicata resta la finestra fra rilettura e scrittura. */
 export async function registraPagamento(
   booking: RigaPagabile, righe: RigaPagabile[],
-  dati: { importo: number; metodo: MetodoPagamento; giorno: string; nota: string },
+  dati: { importo: number; metodo: MetodoPagamento; giorno: string; nota: string; altroPagamento?: boolean },
   controllo?: { totaleAttesoCent: number; ricevutiAttesiCent: number },
 ): Promise<EsitoPagamento> {
   const chiave = chiavePrenotazione(booking)
@@ -194,19 +201,27 @@ export async function registraPagamento(
     return { esito: 'errore', messaggio: MESSAGGIO_TENTATIVO_DA_VERIFICARE, pagamenti: null, incerto: tentativoIncerto(booking, righe) ?? undefined }
   }
   // Il gemello (29/09/2026, Ania): prima di scrivere si rileggono i pagamenti
-  // e se uno identico — stesso importo, giorno e modo — è nato negli ultimi 2
-  // minuti non se ne scrive un secondo: è lo stesso tocco (una risposta persa,
-  // un «Salva» ripremuto dopo il limite di tempo). Si conferma quello.
+  // e si cerca uno identico — stesso importo, giorno e modo — nato negli
+  // ultimi 2 minuti. Se porta la chiave del NOSTRO tentativo custodito è lo
+  // stesso tocco (risposta persa, «Salva» ripremuto): si conferma quello.
+  // Altrimenti la somiglianza non basta a dire che è lo stesso (due acconti
+  // uguali sono legittimi, audit Codex R1 del 30/09/2026): si chiede ad Ania
+  // e con «Sì, è un altro pagamento» (altroPagamento) si scrive normalmente.
   let lettiPrima: { data: unknown; error: unknown } | null = null
   try { lettiPrima = await rileggi() } catch { lettiPrima = null }
   const pagamentiPrima = lettiPrima && !lettiPrima.error && Array.isArray(lettiPrima.data) ? lettiPrima.data as (PagamentoLetto & { created_at?: string | null; chiave_operazione?: string | null })[] : null
   const gemello = pagamentiPrima ? pagamentoGemello(pagamentiPrima, dati, Date.now()) : null
   if (gemello && pagamentiPrima) {
-    // è il nostro per chiave solo se porta la chiave del tentativo custodito
-    const identificato = !!inSospeso && gemello.chiave_operazione === inSospeso.chiave
-    try { localStorage.removeItem(chiaveMemoria) } catch { /* senza memoria non c'è nulla da togliere */ }
-    const completato = await completaDopoMovimento(booking, righe, dati, gemello.id, pagamentiPrima, identificato)
-    return completato.esito === 'ok' ? { ...completato, giaRegistrato: true } : completato
+    const identificato = !!inSospeso && !!gemello.chiave_operazione && gemello.chiave_operazione === inSospeso.chiave
+    if (identificato) {
+      try { localStorage.removeItem(chiaveMemoria) } catch { /* senza memoria non c'è nulla da togliere */ }
+      const completato = await completaDopoMovimento(booking, righe, dati, gemello.id, pagamentiPrima, true)
+      return completato.esito === 'ok' ? { ...completato, giaRegistrato: true } : completato
+    }
+    if (!dati.altroPagamento) {
+      const euro = (Math.round(dati.importo * 100) / 100).toFixed(2).replace('.', ',') + ' €'
+      return { esito: 'errore', messaggio: PAGAMENTO_SOMIGLIANTE(euro, dati.metodo), pagamenti: pagamentiPrima, somiglia: true }
+    }
   }
   // l'intero conto com'è adesso: le camere della prenotazione (come le legge la scheda) e i loro pagamenti
   const rileggiConto = async (): Promise<ContoRiletto | null> => {

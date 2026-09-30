@@ -130,7 +130,8 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   assert.match(pagamento, /data-oltre-il-dovuto className="mz-errore"/)   // mattone, nella veste «Maison»
   assert.match(pagamento, /data-errore-importo[\s\S]{0,80}\{ERRORE_IMPORTO\}/)
   // senza importo valido non si salva: il tasto è spento (e oltre il dovuto NON si blocca)
-  assert.match(pagamento, /<PiedeMaison azione=\{incerto \? COMANDO_RIPROVA_PAGAMENTO : SALVA_PAGAMENTO\} onAzione=\{salva\} salvando=\{salvando\} disabilitato=\{cent == null \|\| \(!!incerto && !riprovabile\)/)
+  // (con un incasso uguale di meno di 2 minuti fa il tasto chiede «Sì, è un altro pagamento», audit R1 30/09/2026)
+  assert.match(pagamento, /<PiedeMaison azione=\{incerto \? COMANDO_RIPROVA_PAGAMENTO : somiglia \? REGISTRA_ALTRO_PAGAMENTO : SALVA_PAGAMENTO\} onAzione=\{\(\) => salva\(somiglia && !incerto\)\} salvando=\{salvando\} disabilitato=\{cent == null \|\| \(!!incerto && !riprovabile\)/)
   assert.equal(/oltre[^\n]*return/.test(pagamento), false, 'il foglio blocca l’importo oltre il dovuto')
   assert.match(foglio, /disabled=\{salvando \|\| disabilitato\}/)
   assert.match(foglio, /data-annulla-foglio onClick=\{onAnnulla\} disabled=\{salvando\}/)   // «Annulla» resta viva
@@ -144,14 +145,14 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   // aprire il foglio o scegliere un tasto non scrive: si scrive solo in salva()
   assert.equal((pagamento.match(/registraPagamento\(/g) || []).length, 1, 'registraPagamento chiamato fuori da salva()')
   // il freno contro il doppio clic è sincrono (ref), non solo lo stato che si aggiorna al prossimo disegno
-  assert.match(pagamento, /async function salva\(\) \{\s*if \(inCorso\.current \|\| salvando\) return/)
+  assert.match(pagamento, /async function salva\(altroPagamento = false\) \{\s*if \(inCorso\.current \|\| salvando\) return/)
   assert.match(pagamento, /inCorso\.current = true\s*setSalvando\(true\)/)
   assert.match(pagamento, /finally \{\s*inCorso\.current = false\s*setSalvando\(false\)\s*\}/)
 })
 
 test('il conto cambiato mentre il foglio è aperto (punto 5): si rilegge TUTTO il conto prima di scrivere, niente scritto, cifre aggiornate qui e nella scheda', () => {
   // il foglio manda le cifre che mostra (totale e ricevuto) e, se il conto è cambiato, aggiorna e avvisa
-  assert.match(pagamento, /const dati = incerto\s*\? \{ importo: incerto\.importo, metodo: [^\n]*, giorno: incerto\.giorno, nota: incerto\.nota \}\s*: \{ importo: cent \/ 100, metodo, giorno, nota \}/)
+  assert.match(pagamento, /const dati = incerto\s*\? \{ importo: incerto\.importo, metodo: [^\n]*, giorno: incerto\.giorno, nota: incerto\.nota \}\s*: \{ importo: cent \/ 100, metodo, giorno, nota, altroPagamento \}/)
   assert.match(pagamento, /registraPagamento\(booking, righe, dati, \{ totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent \}\)/)
   assert.match(pagamento, /if \(esito\.contoCambiato\) \{[\s\S]{0,400}aggiornaConto\(esito\.contoCambiato\.conto\)\s*onContoCambiato\?\.\(esito\.contoCambiato\)\s*return/)
   assert.match(pagamento, /setAvvisoConto\(CONTO_CAMBIATO\(nuovoResiduo\)\)/)

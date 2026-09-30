@@ -48,7 +48,7 @@ import {
 import { euroScheda } from '@/lib/schedaPrenotazione'
 import {
   registraPagamento, verificaPagamento, tentativoIncerto, COMANDO_RIPROVA_PAGAMENTO, PAGAMENTO_NON_RIPROVABILE, type ContoRiletto, type EsitoPagamento, type RigaPagabile, type TentativoIncerto,
-  COMANDO_VERIFICA_PAGAMENTO, PAGAMENTO_NON_TROVATO, TENTATIVO_IN_SOSPESO, MESSAGGIO_ESITO_INCERTO,
+  COMANDO_VERIFICA_PAGAMENTO, PAGAMENTO_NON_TROVATO, TENTATIVO_IN_SOSPESO, MESSAGGIO_ESITO_INCERTO, REGISTRA_ALTRO_PAGAMENTO,
 } from '@/lib/pagamentiDati'
 import { dataConGiorno } from '@/lib/dateItaliane'
 import { metodoIniziale, type PagamentoAbituale } from '@/lib/pagamentoAbituale'
@@ -104,6 +104,9 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   const [riprovabile, setRiprovabile] = useState(false)
   const [esitoVerifica, setEsitoVerifica] = useState<string | null>(null)
   const [verificando, setVerificando] = useState(false)
+  // un incasso uguale di meno di 2 minuti fa, non nostro per chiave: si chiede
+  // se è un altro pagamento (audit Codex R1, 30/09/2026); cambiando i dati si torna a Salva
+  const [somigliaA, setSomigliaA] = useState<string | null>(null)
   const campoImporto = useRef<HTMLInputElement>(null)
   const daFocalizzare = useRef(false)
   // Il freno contro il doppio clic dev'essere SINCRONO: lo stato `salvando`
@@ -146,6 +149,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   }
 
   const cent = importoInCent(importo)
+  const somiglia = somigliaA != null && somigliaA === `${cent}|${metodo}|${giorno}`
   const importoScrittoMale = importo.trim() !== '' && cent == null
   const previsto = residuoPrevisto(residuoCent, cent)
   const nienteDaSaldare = residuoCent <= 0
@@ -166,7 +170,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     if (modo === 'altro' && daFocalizzare.current) { daFocalizzare.current = false; campoImporto.current?.focus() }
   }, [modo])
 
-  async function salva() {
+  async function salva(altroPagamento = false) {
     if (inCorso.current || salvando) return
     if (incerto && !riprovabile) return
     if (cent == null) { setErrore(ERRORE_IMPORTO); return }
@@ -178,7 +182,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     // con un tentativo in sospeso si rimanda QUELLO, coi suoi dati: stessa chiave
     const dati = incerto
       ? { importo: incerto.importo, metodo: (incerto.metodo === 'bonifico' ? 'bonifico' : 'contanti') as ModoPagamento, giorno: incerto.giorno, nota: incerto.nota }
-      : { importo: cent / 100, metodo, giorno, nota }
+      : { importo: cent / 100, metodo, giorno, nota, altroPagamento }
     // Mai più «Salvo…» per sempre (29/09/2026, pagamento di Ledi): dopo 10
     // secondi il foglio lo dice e «Salva» torna attivo. Riprovare non
     // raddoppia (stessa chiave custodita, e il controllo del gemello).
@@ -207,6 +211,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     }
     const esito = risposta.valore
     if (esito.esito === 'errore') {
+      if (esito.somiglia) { setSomigliaA(`${cent}|${metodo}|${giorno}`); setErrore(esito.messaggio); return }
       if (esito.incerto) {
         setIncerto(esito.incerto)
         setRiprovabile(false)   // di nuovo incerto: prima si verifica
@@ -250,7 +255,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   return (
     <FoglioMaison titolo={nome} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PAGAMENTO} onChiudi={salvato ? () => {} : onChiudi} dati="pagamento"
       salvato={salvato} onFineSalvato={() => { if (salvato) onSalvato(salvato.esito) }}
-      piede={<PiedeMaison azione={incerto ? COMANDO_RIPROVA_PAGAMENTO : SALVA_PAGAMENTO} onAzione={salva} salvando={salvando} disabilitato={cent == null || (!!incerto && !riprovabile) || !!salvato} onAnnulla={onChiudi} dati="pagamento" />}>
+      piede={<PiedeMaison azione={incerto ? COMANDO_RIPROVA_PAGAMENTO : somiglia ? REGISTRA_ALTRO_PAGAMENTO : SALVA_PAGAMENTO} onAzione={() => salva(somiglia && !incerto)} salvando={salvando} disabilitato={cent == null || (!!incerto && !riprovabile) || !!salvato} onAnnulla={onChiudi} dati="pagamento" />}>
       <div data-foglio-pagamento>
         {/* In cima: quanto resta da incassare, dal conto autorevole della scheda */}
         <div data-resta-da-incassare>

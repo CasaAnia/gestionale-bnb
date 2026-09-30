@@ -73,3 +73,37 @@ test('un importo diverso non è un gemello', async () => {
   await mod.registraPagamento(ledi, righe, dati)
   assert.ok(chiamate.length > 0, 'la scrittura parte')
 })
+
+// Audit Codex R1 (30/09/2026): un incasso uguale di pochi secondi fa che NON
+// porta la chiave del nostro tentativo può essere un secondo versamento vero.
+// Non si assorbe in silenzio: si chiede, e con «Sì, è un altro pagamento» si scrive.
+test('un incasso uguale non nostro: si chiede, niente scritto e niente «Salvato»', async () => {
+  movimenti = [{ id: 'm1', booking_id: 'lena', amount: 170, method: 'contanti', paid_on: '2026-09-29', created_at: new Date().toISOString(), chiave_operazione: 'altra-operazione' }]
+  const r = await mod.registraPagamento(ledi, righe, dati)
+  assert.equal(r.esito, 'errore')
+  assert.equal(r.somiglia, true)
+  assert.equal(r.messaggio, mod.PAGAMENTO_SOMIGLIANTE('170,00 €', 'contanti'))
+  assert.equal(chiamate.length, 0, 'nessuna scrittura finché Ania non risponde')
+})
+
+test('«Sì, è un altro pagamento»: la scrittura parte', async () => {
+  movimenti = [{ id: 'm1', booking_id: 'lena', amount: 170, method: 'contanti', paid_on: '2026-09-29', created_at: new Date().toISOString(), chiave_operazione: 'altra-operazione' }]
+  await mod.registraPagamento(ledi, righe, { ...dati, altroPagamento: true })
+  assert.ok(chiamate.length > 0, 'la scrittura parte')
+})
+
+test('tentativo custodito ma il gemello ha un\'altra chiave: si chiede, non si conferma quello', async () => {
+  movimenti = [{ id: 'm1', booking_id: 'lena', amount: 170, method: 'contanti', paid_on: '2026-09-29', created_at: new Date().toISOString(), chiave_operazione: 'altra-operazione' }]
+  memoria.set('ca_acconto_pendente_P', JSON.stringify({ chiave: 'k1', amount: 170, method: 'contanti', paid_on: '2026-09-29', creato: new Date().toISOString(), giaPresenti: 0 }))
+  const r = await mod.registraPagamento(ledi, righe, dati)
+  assert.equal(r.somiglia, true)
+  assert.equal(chiamate.length, 0)
+  assert.equal(memoria.has('ca_acconto_pendente_P'), true, 'il nostro tentativo resta custodito')
+})
+
+test('senza colonna chiave (gemello senza chiave): si chiede', async () => {
+  movimenti = [{ id: 'm1', booking_id: 'lena', amount: 170, method: 'contanti', paid_on: '2026-09-29', created_at: new Date().toISOString() }]
+  const r = await mod.registraPagamento(ledi, righe, dati)
+  assert.equal(r.somiglia, true)
+  assert.equal(chiamate.length, 0)
+})

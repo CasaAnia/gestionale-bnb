@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  segnaFatturaPagata, commissioneCent, importoIniziale, notaCommissione, METODI_FATTURA,
+  segnaFatturaPagata, idCommissione, commissioneCent, importoIniziale, notaCommissione, METODI_FATTURA,
   ERRORE_IMPORTO_MINORE, ERRORE_IMPORTO_FATTURA, COMMISSIONE_NON_SALVATA, type ClienteFattura, type FatturaDaPagare,
 } from './fatturaPagata.ts'
 import { MESSAGGIO_NON_SALVATO } from './scritturaSicura.ts'
@@ -56,6 +56,7 @@ test('il caso di Ania: 127,95 € da Mooney → bolletta 125,00 € + spesa a pa
   assert.deepEqual(esito, { ok: true, commissioneCent: 295 })
   assert.equal(chiamate.spese.length, 1)
   assert.deepEqual(chiamate.spese[0], {
+    id: await idCommissione('doc1'),
     expense_date: '2026-09-30', amount: 2.95, group_id: 'casa', category_id: 'servizi', subcategory: 'Commissioni', store: null,
     description: 'Commissione pagamento', notes: notaCommissione(BOLLETTA), payment_method: 'contanti', paid_at: '2026-09-30',
     expense_nature: 'ordinaria', source: 'manuale',
@@ -95,4 +96,46 @@ test('la Home: «Segna pagata» apre il foglio, «Apri PDF» c\'è, la data scad
   assert.match(foglio, /FoglioMaison/)
   assert.match(foglio, /ALTEZZA_FOGLIO_SEGNA_PAGATA/)
   assert.match(foglio, /AvvisoAzione/)
+})
+
+// Audit Codex R2 (30/09/2026): due salvataggi contemporanei (due telefoni)
+// passano entrambi il controllo «c'è già?» prima che l'altro scriva. Il
+// database finto qui sotto ha la chiave primaria come quello vero: la seconda
+// riga con lo stesso id viene rifiutata (23505) e vale come «già registrata».
+test('due salvataggi contemporanei: una commissione sola, ed entrambi «salvato»', async () => {
+  const tabella = new Map<string, Record<string, unknown>>()
+  let inAttesa: (() => void)[] = []
+  const client: ClienteFattura = {
+    async rpc() { return { data: ['e1'], error: null } },
+    async categoriaCommissione() { return { id: 'servizi', error: null } },
+    async commissioneGiaRegistrata(nota) {
+      const esiste = [...tabella.values()].some(r => r.notes === nota)
+      await new Promise<void>(ok => { inAttesa.push(ok); if (inAttesa.length === 2) { inAttesa.forEach(f => f()); inAttesa = [] } })
+      return { esiste, error: null }
+    },
+    async inserisciSpesa(riga) {
+      const id = String(riga.id)
+      if (tabella.has(id)) return { error: { message: 'duplicate key value violates unique constraint "family_expenses_pkey"', code: '23505' } }
+      tabella.set(id, riga)
+      return { error: null }
+    },
+  }
+  const scelta = { giorno: '2026-09-30', metodo: 'contanti' as const, importo: '127,95' }
+  const [a, b] = await Promise.all([segnaFatturaPagata(client, BOLLETTA, scelta), segnaFatturaPagata(client, BOLLETTA, scelta)])
+  assert.deepEqual(a, { ok: true, commissioneCent: 295 })
+  assert.deepEqual(b, { ok: true, commissioneCent: 295 })
+  assert.equal(tabella.size, 1, 'una riga sola: 2,95 €, non 5,90 €')
+})
+
+test('idCommissione: stesso documento → stesso uuid valido; documenti diversi → uuid diversi', async () => {
+  const a = await idCommissione('doc1'), b = await idCommissione('doc1'), c = await idCommissione('doc2')
+  assert.equal(a, b)
+  assert.notEqual(a, c)
+  assert.match(a, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+})
+
+test('un altro errore di scrittura resta «commissione non salvata»', async () => {
+  const { client } = finto({ erroreSpesa: true })
+  const esito = await segnaFatturaPagata(client, BOLLETTA, { giorno: '2026-09-30', metodo: 'contanti', importo: '127,95' })
+  assert.deepEqual(esito, { ok: false, errore: COMMISSIONE_NON_SALVATA, pagata: true })
 })

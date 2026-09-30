@@ -13,7 +13,11 @@
 // Se si è pagato DI PIÙ (commissione Mooney, posta…), la differenza è una
 // spesa a parte «Commissione pagamento» nello stesso gruppo (Ania,
 // 30/09/2026: «spesa a parte»): Casa → Servizi, Casa Ania → Commissioni.
-// Non si ripete: la riconosce la nota con l'id del documento.
+// Non si ripete: la riga ha un id FISSO ricavato dal documento (idCommissione),
+// così due salvataggi contemporanei — anche da due telefoni — si scontrano
+// sulla chiave primaria e il secondo trova quella del primo (audit Codex R2,
+// 30/09/2026). La nota con l'id del documento resta per le commissioni
+// salvate prima, che hanno un id qualsiasi.
 // Meno della bolletta non si registra (niente pagamenti parziali).
 //
 // Nessun import di lib/supabase: il client arriva da fuori (test col finto).
@@ -41,7 +45,7 @@ export type ClienteFattura = {
   rpc(nome: string, argomenti: Record<string, unknown>): PromiseLike<Risposta>
   categoriaCommissione(gruppoId: string): PromiseLike<{ id: string | null; error: { message?: string } | null }>
   commissioneGiaRegistrata(nota: string): PromiseLike<{ esiste: boolean; error: { message?: string } | null }>
-  inserisciSpesa(riga: Record<string, unknown>): PromiseLike<{ error: { message?: string } | null }>
+  inserisciSpesa(riga: Record<string, unknown>): PromiseLike<{ error: { message?: string; code?: string } | null }>
 }
 
 export const ERRORE_IMPORTO_FATTURA = 'Scrivi l\'importo pagato, per esempio 127,95'
@@ -61,6 +65,17 @@ export const importoIniziale = (cent: number) => (cent / 100).toFixed(2).replace
 
 export const notaCommissione = (f: FatturaDaPagare) =>
   `Commissione del pagamento: ${f.nome}${f.numero ? ` n. ${f.numero}` : ''} (documento ${f.documentoId})`
+
+/** L'id della commissione di un documento: sempre lo stesso uuid per lo stesso
+ *  documento (SHA-256 di «commissione-pagamento:<id>», nel formato di un uuid v5). */
+export async function idCommissione(documentoId: string): Promise<string> {
+  const byte = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`commissione-pagamento:${documentoId}`))).slice(0, 16)
+  byte[6] = (byte[6] & 0x0f) | 0x50
+  byte[8] = (byte[8] & 0x3f) | 0x80
+  const h = [...byte].map(x => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+const CHIAVE_DOPPIA = '23505'   // unique_violation: la commissione c'è già
 
 export type EsitoFattura = { ok: true; commissioneCent: number } | { ok: false; errore: string; pagata: boolean }
 
@@ -93,11 +108,12 @@ export async function segnaFatturaPagata(
     const cat = await client.categoriaCommissione(f.gruppoId)
     if (cat.error) return { ok: false, errore: COMMISSIONE_NON_SALVATA, pagata: true }
     const s = await client.inserisciSpesa({
+      id: await idCommissione(f.documentoId),
       expense_date: scelta.giorno, amount: extra / 100, group_id: f.gruppoId, category_id: cat.id,
       subcategory: 'Commissioni', store: null, description: 'Commissione pagamento', notes: nota,
       payment_method: scelta.metodo, paid_at: scelta.giorno, expense_nature: 'ordinaria', source: 'manuale',
     })
-    if (s.error) return { ok: false, errore: COMMISSIONE_NON_SALVATA, pagata: true }
+    if (s.error && s.error.code !== CHIAVE_DOPPIA) return { ok: false, errore: COMMISSIONE_NON_SALVATA, pagata: true }
   } catch {
     return { ok: false, errore: COMMISSIONE_NON_SALVATA, pagata: true }
   }
