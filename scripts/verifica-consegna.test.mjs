@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { eseguiPiano, giudica, opzioni } from './verifica-consegna.mjs'
+import { eseguiPiano, eseguiLocale, giudica, opzioni } from './verifica-consegna.mjs'
 
 const foto = { head: 'a'.repeat(40), impronta: 'b'.repeat(64), file: 4, status: '' }
 const passi = [{ nome: 'A', args: [] }, { nome: 'B', args: [] }]
@@ -75,4 +75,20 @@ test('CLI effettiva in --piano: solo comandi locali previsti, senza eseguirli', 
   for (const p of piano.passi) assert.ok(p.args[0] === '--test' || p.args[0].startsWith('node_modules/'))
   assert.ok(piano.esclusi.includes('build'))
   assert.ok(piano.esclusi.includes('collaudi remoti'))
+})
+
+test('ogni passo ha un limite suo; le suite lunghe non sono fermate a 60 secondi', () => {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  const piano = JSON.parse(execFileSync(process.execPath, ['scripts/verifica-consegna.mjs', '--piano'], { cwd: root, encoding: 'utf8' }))
+  for (const p of piano.passi) assert.ok(Number.isInteger(p.limiteMs) && p.limiteMs > 0, p.nome)
+  for (const nome of ['Suite applicazione', 'Regressioni delle revisioni'])
+    assert.ok(piano.passi.find(p => p.nome === nome).limiteMs >= 300000, nome)
+})
+
+test('un passo fermato dal limite non è verde e lo dice', async () => {
+  const esito = await eseguiLocale({ nome: 'lento', limiteMs: 300, args: ['-e', 'setTimeout(() => {}, 10000)'] }, process.cwd())
+  assert.equal(esito.uscita, null)
+  assert.match(esito.dettaglio, /FERMATO dopo 0.3 s/)
+  const veloce = await eseguiLocale({ nome: 'veloce', args: ['-e', 'process.exit(0)'] }, process.cwd())
+  assert.equal(veloce.uscita, 0)
 })

@@ -79,7 +79,7 @@ for (const f of FOGLI) {
       assert.match(sorgente, /piede=\{\s*<div className="cli-piede" data-piede-foglio>[\s\S]{0,400}data-annulla-foglio onClick=\{onChiudi\}/)
     } else if (FOGLI_MAISON.includes(f.file)) {
       assert.match(sorgente, /import FoglioMaison, \{ PiedeMaison \} from '@\/components\/maison\/FoglioMaison'/)
-      assert.match(sorgente, /<PiedeMaison[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
+      assert.match(sorgente, /<PiedeMaison[^\n]*onAnnulla=\{onChiudi\}/)
     } else {
       assert.match(sorgente, /import Foglio, \{ PiedeFoglio \} from '\.\/Foglio'/)
       assert.match(sorgente, /<PiedeFoglio[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
@@ -104,10 +104,10 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   assert.match(pagamento, /data-resta-da-incassare[\s\S]{0,200}\{RESTA_DA_INCASSARE\}[\s\S]{0,200}data-residuo-attuale className="mz-grande"/)
   // i due tasti, e all'apertura con residuo positivo è scelto il saldo, col campo già scritto e in sola lettura
   assert.match(pagamento, /useState<ModoImporto>\(incerto \? 'altro' : modoIniziale\(residuoCent\)\)/)
-  assert.match(pagamento, /data-modo="saldo" aria-pressed=\{modo === 'saldo'\} disabled=\{nienteDaSaldare \|\| !!incerto\} onClick=\{scegliSaldo\}/)
-  assert.match(pagamento, /data-modo="altro" aria-pressed=\{modo === 'altro'\} disabled=\{!!incerto\} onClick=\{scegliAltro\}/)
+  assert.match(pagamento, /data-modo="saldo" aria-pressed=\{modo === 'saldo'\} disabled=\{nienteDaSaldare \|\| !!incerto \|\| salvando \|\| attesaConferma\} onClick=\{scegliSaldo\}/)
+  assert.match(pagamento, /data-modo="altro" aria-pressed=\{modo === 'altro'\} disabled=\{!!incerto \|\| salvando \|\| attesaConferma\} onClick=\{scegliAltro\}/)
   assert.match(pagamento, /role="group" aria-label=\{GRUPPO_MODI\} className="mz-seg"/)
-  assert.match(pagamento, /type="text" inputMode="decimal"[^\n]*data-campo="importo" value=\{importo\} readOnly=\{modo === 'saldo' \|\| !!incerto\}/)
+  assert.match(pagamento, /type="text" inputMode="decimal"[^\n]*data-campo="importo" value=\{importo\} readOnly=\{modo === 'saldo' \|\| !!incerto \|\| salvando \|\| attesaConferma\}/)
   assert.match(pagamento, /\{modo === 'saldo' \? SPIEGA_SALDO : SPIEGA_ALTRO\}/)
   // «Altro importo» svuota il campo e ci porta il fuoco; «Saldo completo» riscrive il residuo; data, modo e nota non si toccano
   assert.match(pagamento, /function scegliAltro\(\) \{\s*setModo\('altro'\)\s*setImporto\(''\)\s*setErrore\(null\)\s*daFocalizzare\.current = true\s*\}/)
@@ -131,7 +131,7 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   assert.match(pagamento, /data-errore-importo[\s\S]{0,80}\{ERRORE_IMPORTO\}/)
   // senza importo valido non si salva: il tasto è spento (e oltre il dovuto NON si blocca)
   // (con un incasso uguale di meno di 2 minuti fa il tasto chiede «Sì, è un altro pagamento», audit R1 30/09/2026)
-  assert.match(pagamento, /<PiedeMaison azione=\{incerto \? COMANDO_RIPROVA_PAGAMENTO : somiglia \? REGISTRA_ALTRO_PAGAMENTO : SALVA_PAGAMENTO\} onAzione=\{\(\) => salva\(somiglia && !incerto\)\} salvando=\{salvando\} disabilitato=\{cent == null \|\| \(!!incerto && !riprovabile\)/)
+  assert.match(pagamento, /<PiedeMaison azione=\{attesaConferma \? 'Attendo conferma…' : incerto \? COMANDO_RIPROVA_PAGAMENTO : somiglia \? REGISTRA_ALTRO_PAGAMENTO : SALVA_PAGAMENTO\} onAzione=\{\(\) => salva\(somiglia && !incerto\)\} salvando=\{salvando\} disabilitato=\{attesaConferma \|\| verificando \|\| cent == null \|\| \(!!incerto && !riprovabile\)/)
   assert.equal(/oltre[^\n]*return/.test(pagamento), false, 'il foglio blocca l’importo oltre il dovuto')
   assert.match(foglio, /disabled=\{salvando \|\| disabilitato\}/)
   assert.match(foglio, /data-annulla-foglio onClick=\{onAnnulla\} disabled=\{salvando\}/)   // «Annulla» resta viva
@@ -147,7 +147,7 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   // il freno contro il doppio clic è sincrono (ref), non solo lo stato che si aggiorna al prossimo disegno
   assert.match(pagamento, /async function salva\(altroPagamento = false\) \{\s*if \(inCorso\.current \|\| salvando\) return/)
   assert.match(pagamento, /inCorso\.current = true\s*setSalvando\(true\)/)
-  assert.match(pagamento, /finally \{\s*inCorso\.current = false\s*setSalvando\(false\)\s*\}/)
+  assert.match(pagamento, /finally \{\s*inCorso\.current = false\s*setSalvando\(false\)\s*setAttesaConferma\(false\)\s*\}/)
 })
 
 test('il conto cambiato mentre il foglio è aperto (punto 5): si rilegge TUTTO il conto prima di scrivere, niente scritto, cifre aggiornate qui e nella scheda', () => {
@@ -217,7 +217,7 @@ test('rilievo 3 (20/09/2026 notte): tre esiti, tre messaggi; «Verifica pagament
   // nel foglio: il tentativo si legge all'apertura, il tasto verifica, Salva spento finché c'è un tentativo
   assert.match(pagamento, /useState<TentativoIncerto \| null>\(\(\) => tentativoIncerto\(booking, righe\)\)/)
   assert.match(pagamento, /if \(esito\.incerto\) \{\s*setIncerto\(esito\.incerto\)\s*setRiprovabile\(false\)[^\n]*\n\s*setErrore\(esito\.messaggio\)\s*return\s*\}/)
-  assert.match(pagamento, /data-verifica-pagamento onClick=\{verifica\} disabled=\{verificando\}/)
+  assert.match(pagamento, /data-verifica-pagamento onClick=\{verifica\} disabled=\{verificando \|\| salvando \|\| attesaConferma\}/)
   assert.match(pagamento, /if \(esito\.esito === 'ritrovato'\) \{[\s\S]{0,500}ritrovato: true \} \}\)/)
   // dal 28/09/2026 la conferma è la B del foglio: il ritrovato si dice lì («ritrovato e confermato»)
   assert.match(pagamento, /COSA_SALVATA\.pagamento\(nome, true\)/)
@@ -689,10 +689,10 @@ test('21/09/2026 — «Verifica pagamento» e nota; risposta persa con la scritt
   // i campi restano fermi sui dati del tentativo: importo e nota in sola lettura, tasti spenti, data e modo non cambiano
   assert.match(pagamento, /useState\(incerto \? importoProposto\(Math\.round\(incerto\.importo \* 100\)\) : /)
   assert.match(pagamento, /useState\(incerto \? incerto\.nota : ''\)/)
-  assert.match(pagamento, /data-campo="importo" value=\{importo\} readOnly=\{modo === 'saldo' \|\| !!incerto\}/)
-  assert.match(pagamento, /onChange=\{e => \{ if \(!incerto\) setGiorno\(e\.target\.value\) \}\}/)
-  assert.match(pagamento, /onClick=\{\(\) => \{ if \(!incerto\) setMetodo\(m\.chiave\) \}\}/)
-  assert.match(pagamento, /data-campo="nota" value=\{nota\} readOnly=\{!!incerto\}/)
+  assert.match(pagamento, /data-campo="importo" value=\{importo\} readOnly=\{modo === 'saldo' \|\| !!incerto \|\| salvando \|\| attesaConferma\}/)
+  assert.match(pagamento, /onChange=\{e => \{ if \(!incerto && !inCorso\.current\) setGiorno\(e\.target\.value\) \}\}/)
+  assert.match(pagamento, /onClick=\{\(\) => \{ if \(!incerto && !inCorso\.current\) setMetodo\(m\.chiave\) \}\}/)
+  assert.match(pagamento, /data-campo="nota" value=\{nota\} readOnly=\{!!incerto \|\| salvando \|\| attesaConferma\}/)
   // al rinvio la conferma dice «Ritrovati e confermati» (il pagamento era quello in sospeso)
   assert.match(pagamento, /COSA_SALVATA\.pagamento\(nome, !!esito\.giaRegistrato\), quando: new Date\(\), esito: \{ \.\.\.esito, importo: dati\.importo, metodo: dati\.metodo, ritrovato: !!esito\.giaRegistrato \}/)
   assert.match(pagamentiDati, /giaPresente = r\.gia_presente === true/)

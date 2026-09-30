@@ -36,7 +36,7 @@ import { contoSoggiorno } from './conto.ts'
 import { euroScheda, periodoConMese, testoNotti } from './schedaPrenotazione.ts'
 import { giorniSoggiorno, fmtEuroBreve } from './prezzoNotti.ts'
 import { euroTondi } from './euroTondi.ts'
-import { ripartisciConcordato, type PianoNotti, type TrattoPiano, type ScontoScelto } from './strisciaNotti.ts'
+import { ripartisciConcordato, differenzaConcordata, type PianoNotti, type TrattoPiano, type ScontoScelto } from './strisciaNotti.ts'
 import { prezzoPienoRiga, valoreDaCampo, type RigaScontabile } from './scontoScheda.ts'
 import {
   rigaSconto, nottiANotte, dettaglioLetto, percentualeComune, RIGA_LETTO,
@@ -112,6 +112,8 @@ export function soggiornoConSconto(tutti: RigaScontabile[]): boolean {
  *  concordato non starebbe più sotto il prezzo pieno. */
 export function serveConfermaPrezzo(segmentiLinea: RigaScontabile[], tutti: RigaScontabile[], pianoSenza: PianoNotti): boolean {
   if (pianoSenza.errore || pianoSenza.tratti.length === 0) return false
+  // un prezzo concordato a mano che il piano non sa portare (30/09/2026)
+  if (pianoSenza.concordatoDubbio) return true
   if (!soggiornoConSconto(tutti)) return false
   const prima = primaDelCambio(segmentiLinea)
   const dopo = dopoIlCambio(pianoSenza.tratti)
@@ -155,7 +157,8 @@ export function scontatiPerTratto(tratti: TrattoPiano[], scelta: SceltaTengo): n
 
 /** Lo sconto salvato adesso su tutte le camere attive del soggiorno, in centesimi */
 export function scontoDiPrima(tutti: RigaScontabile[]): number {
-  return attive(tutti).reduce((s, r) => s + cent(contoSoggiorno(r).sconto), 0)
+  // anche il prezzo concordato a mano sotto il listino (30/09/2026)
+  return attive(tutti).reduce((s, r) => s + cent(contoSoggiorno(r).sconto) + Math.max(0, -differenzaConcordata(r)), 0)
 }
 
 export type ScelteTengo = {
@@ -186,7 +189,8 @@ export function scelteTengo(segmentiLinea: RigaScontabile[], tutti: RigaScontabi
   if (percento !== null && vive.length > 0) return { aNotte: aNotte({ tipo: 'percentuale', percento }), motivo: null, inTutto }
   // il prezzo finale: lo sconto di prima diviso per le notti di prima
   if (altre.length > 0) return { aNotte: null, motivo: MOTIVO_PIU_CAMERE, inTutto }
-  if (vive.length === 0 || vive.some(s => s.discount_type !== 'target_total')) return { aNotte: null, motivo: MOTIVO_ACCORDI_DIVERSI, inTutto }
+  // il prezzo concordato a mano sotto il listino vale come un prezzo finale (30/09/2026)
+  if (vive.length === 0 || vive.some(s => s.discount_type !== 'target_total' && !(differenzaConcordata(s) < 0))) return { aNotte: null, motivo: MOTIVO_ACCORDI_DIVERSI, inTutto }
   const prima = primaDelCambio(segmentiLinea)
   if (prima.scontoCent <= 0 || prima.notti <= 0) return { aNotte: null, motivo: MOTIVO_ACCORDI_DIVERSI, inTutto }
   const centANotte = prima.scontoCent / prima.notti

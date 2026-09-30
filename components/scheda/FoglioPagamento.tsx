@@ -117,6 +117,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   // Il numero del salvataggio: una risposta arrivata dopo il limite di tempo
   // vale solo se nel frattempo non ne è partito un altro
   const giroSalva = useRef(0)
+  const [attesaConferma, setAttesaConferma] = useState(false)
   // Conferma B (28/09/2026): la spunta, poi il foglio si chiude da solo e la scheda (o la Home) riceve l'esito
   const [salvato, setSalvato] = useState<(Salvataggio & { esito: PagamentoSalvato }) | null>(null)
   const nome = nomeConAltri(booking) || 'Ospite'
@@ -142,7 +143,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     setContoLocale({ totaleCent: Math.round(nuovo.totaleCent), ricevutiCent: Math.round(nuovo.ricevutiCent) })
     ultimoConto.current = `${Math.round(nuovo.totaleCent)}/${Math.round(nuovo.ricevutiCent)}`
     setAvvisoConto(CONTO_CAMBIATO(nuovoResiduo))
-    if (modo === 'saldo') {
+    if (modo === 'saldo' && !incerto && !inCorso.current) {
       if (nuovoResiduo > 0) setImporto(importoProposto(nuovoResiduo))
       else { setModo('altro'); setImporto('') }
     }
@@ -177,36 +178,40 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     if (!giorno) { setErrore(ERRORE_GIORNO); return }
     inCorso.current = true
     setSalvando(true)
+    setAttesaConferma(false)
     setErrore(null)
     setEsitoVerifica(null)
     // con un tentativo in sospeso si rimanda QUELLO, coi suoi dati: stessa chiave
     const dati = incerto
       ? { importo: incerto.importo, metodo: (incerto.metodo === 'bonifico' ? 'bonifico' : 'contanti') as ModoPagamento, giorno: incerto.giorno, nota: incerto.nota }
       : { importo: cent / 100, metodo, giorno, nota, altroPagamento }
-    // Mai più «Salvo…» per sempre (29/09/2026, pagamento di Ledi): dopo 10
-    // secondi il foglio lo dice e «Salva» torna attivo. Riprovare non
-    // raddoppia (stessa chiave custodita, e il controllo del gemello).
     const giro = ++giroSalva.current
     const richiesta = registraPagamento(booking, righe, dati, { totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent })
     let risposta: Scadenza<EsitoPagamento> | null
     try {
       risposta = await conLimite(richiesta, LIMITE_SALVATAGGIO_MS)
+      if (risposta.scaduto) {
+        setErrore(ERRORE_SALVATAGGIO_SCADUTO)
+        setAttesaConferma(true)
+        setSalvando(false)
+        setIncerto(tentativoIncerto(booking, righe))
+        setRiprovabile(false)
+        // Il timer non annulla la scrittura. Il freno resta chiuso fino
+        // all'esito vero; chiudi/riapri recupera la chiave già custodita.
+        risposta = { scaduto: false, valore: await richiesta }
+      }
     } catch {
-      risposta = null   // la richiesta è finita con un errore: lo si dice, niente «Salvo…»
+      risposta = null
     } finally {
       inCorso.current = false
       setSalvando(false)
+      setAttesaConferma(false)
     }
+    if (giro !== giroSalva.current) return
     if (!risposta || risposta.scaduto) {
-      setErrore(ERRORE_SALVATAGGIO_SCADUTO)
-      // la risposta arriva tardi ed è buona: se intanto non è partito un altro
-      // salvataggio, il foglio si chiude con «Salvato» come sempre
-      if (risposta) richiesta.then(tardi => {
-        if (tardi.esito === 'ok' && giro === giroSalva.current && !inCorso.current) {
-          setErrore(null)
-          setSalvato({ cosa: COSA_SALVATA.pagamento(nome, !!tardi.giaRegistrato), quando: new Date(), esito: { ...tardi, importo: dati.importo, metodo: dati.metodo, ritrovato: !!tardi.giaRegistrato } })
-        }
-      }).catch(() => { /* già detto: riprova */ })
+      setIncerto(tentativoIncerto(booking, righe))
+      setRiprovabile(false)
+      setErrore(MESSAGGIO_ESITO_INCERTO)
       return
     }
     const esito = risposta.valore
@@ -238,7 +243,11 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     setErrore(null)
     setEsitoVerifica(null)
     let esito: Awaited<ReturnType<typeof verificaPagamento>>
-    try { esito = await verificaPagamento(booking, righe) } finally { setVerificando(false) }
+    try {
+      const r = await conLimite(verificaPagamento(booking, righe), LIMITE_SALVATAGGIO_MS)
+      if (r.scaduto) { setErrore(MESSAGGIO_ESITO_INCERTO); return }
+      esito = r.valore
+    } catch { setErrore(MESSAGGIO_ESITO_INCERTO); return } finally { setVerificando(false) }
     if (esito.esito === 'ritrovato') {
       setSalvato({ cosa: COSA_SALVATA.pagamento(nome, true), quando: new Date(), esito: { esito: 'ok', pagamenti: esito.pagamenti, pagato: esito.pagato, avviso: esito.avviso, importo: esito.tentativo.importo, metodo: (esito.tentativo.metodo === 'bonifico' ? 'bonifico' : 'contanti'), ritrovato: true } })
       return
@@ -255,7 +264,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   return (
     <FoglioMaison titolo={nome} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PAGAMENTO} onChiudi={salvato ? () => {} : onChiudi} dati="pagamento"
       salvato={salvato} onFineSalvato={() => { if (salvato) onSalvato(salvato.esito) }}
-      piede={<PiedeMaison azione={incerto ? COMANDO_RIPROVA_PAGAMENTO : somiglia ? REGISTRA_ALTRO_PAGAMENTO : SALVA_PAGAMENTO} onAzione={() => salva(somiglia && !incerto)} salvando={salvando} disabilitato={cent == null || (!!incerto && !riprovabile) || !!salvato} onAnnulla={onChiudi} dati="pagamento" />}>
+      piede={<PiedeMaison azione={attesaConferma ? 'Attendo conferma…' : incerto ? COMANDO_RIPROVA_PAGAMENTO : somiglia ? REGISTRA_ALTRO_PAGAMENTO : SALVA_PAGAMENTO} onAzione={() => salva(somiglia && !incerto)} salvando={salvando} disabilitato={attesaConferma || verificando || cent == null || (!!incerto && !riprovabile) || !!salvato} onAnnulla={onChiudi} dati="pagamento" />}>
       <div data-foglio-pagamento>
         {/* In cima: quanto resta da incassare, dal conto autorevole della scheda */}
         <div data-resta-da-incassare>
@@ -268,37 +277,37 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
         {/* Il tipo di pagamento: saldo completo, oppure un altro importo */}
         <span className="mz-lab">{GRUPPO_MODI}</span>
         <div role="group" aria-label={GRUPPO_MODI} className="mz-seg">
-          <button type="button" data-modo="saldo" aria-pressed={modo === 'saldo'} disabled={nienteDaSaldare || !!incerto} onClick={scegliSaldo} className={modo === 'saldo' ? 'on' : ''}>{MODO_SALDO}</button>
-          <button type="button" data-modo="altro" aria-pressed={modo === 'altro'} disabled={!!incerto} onClick={scegliAltro} className={modo === 'altro' ? 'on' : ''}>{MODO_ALTRO}</button>
+          <button type="button" data-modo="saldo" aria-pressed={modo === 'saldo'} disabled={nienteDaSaldare || !!incerto || salvando || attesaConferma} onClick={scegliSaldo} className={modo === 'saldo' ? 'on' : ''}>{MODO_SALDO}</button>
+          <button type="button" data-modo="altro" aria-pressed={modo === 'altro'} disabled={!!incerto || salvando || attesaConferma} onClick={scegliAltro} className={modo === 'altro' ? 'on' : ''}>{MODO_ALTRO}</button>
         </div>
         <p id="pagamento-spiegazione" data-spiegazione className="mz-hint">{modo === 'saldo' ? SPIEGA_SALDO : SPIEGA_ALTRO}</p>
 
         <div className="mz-g3" style={{ marginTop: 14 }}>
           <label><span className="mz-lab">{ETICHETTA_QUANTO}</span>
-            <input ref={campoImporto} type="text" inputMode="decimal" autoComplete="off" data-campo="importo" value={importo} readOnly={modo === 'saldo' || !!incerto}
-              aria-describedby="pagamento-spiegazione" onChange={e => { if (!incerto) setImporto(e.target.value) }} className="mz-fld grande" /></label>
+            <input ref={campoImporto} type="text" inputMode="decimal" autoComplete="off" data-campo="importo" value={importo} readOnly={modo === 'saldo' || !!incerto || salvando || attesaConferma}
+              aria-describedby="pagamento-spiegazione" onChange={e => { if (!incerto && !inCorso.current) setImporto(e.target.value) }} className="mz-fld grande" /></label>
           <label style={{ gridColumn: 'span 2' }}><span className="mz-lab">{ETICHETTA_QUANDO}</span>
             <span className="relative block">
               <span className="mz-fld grande" data-data-scritta>{giornoInParole(giorno)}</span>
-              <input type="date" data-campo="giorno" value={giorno} onChange={e => { if (!incerto) setGiorno(e.target.value) }} onClick={e => apriSelettore(e.currentTarget)}
+              <input type="date" data-campo="giorno" value={giorno} onChange={e => { if (!incerto && !inCorso.current) setGiorno(e.target.value) }} onClick={e => apriSelettore(e.currentTarget)}
                 style={{ position: 'absolute', inset: '-8px 0', width: '100%', opacity: 0, cursor: 'pointer' }} />
             </span></label>
         </div>
         <span className="mz-lab">{ETICHETTA_COME}</span>
         <div className="mz-chips">
           {MODI_PAGAMENTO.map(m => (
-            <button key={m.chiave} type="button" data-pastiglia={`modo-${m.chiave}`} aria-pressed={metodo === m.chiave} className={`mz-chip ${metodo === m.chiave ? 'on' : ''}`} onClick={() => { if (!incerto) setMetodo(m.chiave) }}>{m.testo}</button>
+            <button key={m.chiave} type="button" data-pastiglia={`modo-${m.chiave}`} aria-pressed={metodo === m.chiave} className={`mz-chip ${metodo === m.chiave ? 'on' : ''}`} onClick={() => { if (!incerto && !inCorso.current) setMetodo(m.chiave) }}>{m.testo}</button>
           ))}
         </div>
         <label className="block"><span className="mz-lab">{ETICHETTA_NOTA}</span>
-          <input type="text" data-campo="nota" value={nota} readOnly={!!incerto} onChange={e => { if (!incerto) setNota(e.target.value) }} className="mz-fld ui" /></label>
+          <input type="text" data-campo="nota" value={nota} readOnly={!!incerto || salvando || attesaConferma} onChange={e => { if (!incerto && !inCorso.current) setNota(e.target.value) }} className="mz-fld ui" /></label>
 
         {/* Quanto resterà dopo questo pagamento: si aggiorna mentre si scrive */}
         <div aria-live="polite">
-          <p data-dopo-resta className="mz-hint" style={{ marginTop: 14 }}>
+          {incerto ? <p className="mz-hint">Verifica il pagamento già inviato: il conto potrebbe già comprenderlo.</p> : <p data-dopo-resta className="mz-hint" style={{ marginTop: 14 }}>
             {DOPO_IL_PAGAMENTO_RESTA} <b data-residuo-previsto style={{ fontWeight: 500, color: 'var(--m-ink)' }}>{previsto.cifra}</b>
             {previsto.esito && <span data-esito> · {previsto.esito}</span>}
-          </p>
+          </p>}
           {previsto.oltre && <p data-oltre-il-dovuto className="mz-errore">{previsto.oltre}</p>}
           {importoScrittoMale && <p data-errore-importo className="mz-errore">{ERRORE_IMPORTO}</p>}
           {avvisoConto && <p data-conto-cambiato className="mz-errore">{avvisoConto}</p>}
@@ -310,7 +319,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
               {errore === MESSAGGIO_ESITO_INCERTO ? MESSAGGIO_ESITO_INCERTO : TENTATIVO_IN_SOSPESO(euroScheda(Math.round(incerto.importo * 100)), incerto.metodo, dataConGiorno(incerto.giorno))}
             </p>
             {errore === MESSAGGIO_ESITO_INCERTO && <p className="mz-hint">{TENTATIVO_IN_SOSPESO(euroScheda(Math.round(incerto.importo * 100)), incerto.metodo, dataConGiorno(incerto.giorno))}</p>}
-            <button type="button" data-verifica-pagamento onClick={verifica} disabled={verificando} className="mz-lnk" style={{ marginTop: 10 }}>{verificando ? 'Controllo…' : COMANDO_VERIFICA_PAGAMENTO}</button>
+            <button type="button" data-verifica-pagamento onClick={verifica} disabled={verificando || salvando || attesaConferma} className="mz-lnk" style={{ marginTop: 10 }}>{verificando ? 'Controllo…' : COMANDO_VERIFICA_PAGAMENTO}</button>
           </div>
         )}
         {esitoVerifica && <p data-esito-verifica className="mz-note">{esitoVerifica}</p>}

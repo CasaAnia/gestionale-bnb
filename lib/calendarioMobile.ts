@@ -41,11 +41,10 @@ export const ROSA_LETTO = '#F8D9D6'
 export const VERDE_OGGI = '#2D6A4F'
 /** I buchi liberi */
 export const BUCO = { bordo: '#D5CCBB', testo: '#A89E8C', piu: '#C9BFA8' } as const
-/** PROVA del 29/09/2026 (ritocchi «Maison», punto A3): i riquadri tratteggiati
- *  dei buchi liberi («2 → 5 ott · +») nel Calendario e negli Arrivi. Con
- *  `false` la corsia vuota resta vuota e il tocco su un giorno libero apre lo
- *  stesso la nuova prenotazione con camera e giorno; per tornare ai riquadri
- *  basta rimettere `true`. */
+/** SCELTA CONFERMATA da Ania il 30/09/2026 («Sì, completa così»; era la prova
+ *  del 29/09, ritocchi «Maison» A3): niente riquadri tratteggiati dei buchi
+ *  liberi nel Calendario e negli Arrivi. La corsia vuota resta vuota e il tocco
+ *  su un giorno libero apre la nuova prenotazione con camera e giorno. */
 export const BUCHI_LIBERI_VISIBILI: boolean = false
 /** Le viste nella fascia della data (Ania, 30/09/2026, versione E di
  *  docs/design/fascia-data-riferimento.html): «MESE» da solo sopra, «2 SETT. |

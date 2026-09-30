@@ -160,11 +160,10 @@ export function bollinoDaTogliere(pagato: boolean, totaleCent: number, ricevutiC
 // ── IL SALVATAGGIO NON RESTA APPESO (29/09/2026) ─────────────────────────
 // Il pagamento di Ledi (Lena, 27 → 29 set, 170 € contanti) è rimasto su
 // «Salvo…» per sempre: una richiesta che non torna non deve bloccare il
-// foglio. Dopo 10 secondi si dice di riprovare e il tasto torna attivo.
-// Riprovare non raddoppia: il tentativo custodito ha la sua chiave, e prima
-// di scrivere si cerca un pagamento gemello (qui sotto).
+// foglio. Dopo 10 secondi si mostra l’attesa della conferma; nessun nuovo
+// invio mentre la richiesta è viva. La custodia permette verifica e recupero.
 export const LIMITE_SALVATAGGIO_MS = 10_000
-export const ERRORE_SALVATAGGIO_SCADUTO = 'Non sono riuscita a salvare: controlla la connessione e riprova'
+export const ERRORE_SALVATAGGIO_SCADUTO = 'Sto aspettando la conferma del pagamento. Non registrarlo di nuovo: la richiesta può essere ancora in corso. Puoi chiudere e riaprire il foglio per verificarlo.'
 export const ERRORE_LETTURA_SCADUTA = 'Non riesco a leggere il conto: controlla la connessione e riprova'
 
 export type Scadenza<T> = { scaduto: true } | { scaduto: false; valore: T }

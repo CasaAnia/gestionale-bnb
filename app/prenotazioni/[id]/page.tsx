@@ -40,6 +40,9 @@ import ConfermaVolante from '@/components/ConfermaVolante'
 import { confermaPagamento, type ConfermaPagamento } from '@/lib/confermaPagamento'
 import CambiaCliente from '@/components/CambiaCliente'
 import type { ClienteBreve } from '@/lib/cambiaCliente'
+import type { CameraMessaggio, RigaMessaggio, PagamentoMessaggio } from '@/lib/messaggiPrenotazione'
+import type { Room } from '@/lib/types'
+import type { PagamentoLetto } from '@/lib/pagamentiDati'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, provenienzaDi, testoProvenienza, clienteConProvenienza, normalizzaProvenienza, ETICHETTA_PROVENIENZA, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente } from '@/lib/provenienzaDati'
@@ -66,6 +69,26 @@ function formatDateIT(dateStr: string) {
 const MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
 
 const formatDateShort = (dateStr: string) => dataItaliana(dateStr)
+
+// Le camere come le legge questa pagina (select *): il tipo comune più le
+// colonne arrivate dopo (al posto di `any`, lint del 30/09/2026)
+type CameraPagina = Room & { matrimoniale_price?: number | null; double_price?: number | null }
+// I movimenti riletti da payments hanno sempre il loro id
+type PagamentoPagina = PagamentoLetto & { id: string }
+// Un tratto del soggiorno come lo usa il piano delle date (computeStayPlan)
+type PassoSoggiorno = {
+  id: string; roomName: string; check_in: string; check_out: string; nights: number
+  price_per_night: number; extra_bed_dates: string[]; extra_bed_total: number; total: number
+  sconto: number; scontoDecaduto: boolean; discount_type: string | null; discount_value: number | string | null
+}
+type TrattoSoggiorno = {
+  id: string; check_in: string; check_out: string
+  price_per_night?: number | string | null; num_guests?: number | string | null
+  discount_type?: string | null; discount_value?: number | string | null
+  extra_bed_dates?: string[] | null; rooms?: CameraPagina | null
+}
+// La riga che occupa già la camera, per l'avviso di conflitto
+type RigaConflitto = { check_in: string; check_out: string; guest_name?: string | null; guests?: { full_name?: string | null } | null; rooms?: { name?: string | null } | null }
 
 // Quali notti hanno il letto aggiuntivo (Ania, 10/09/2026: «non riesco a
 // vedere che notti hanno il letto in più»). Compatto: «24 e 25 set», e se le
@@ -101,7 +124,7 @@ function ComandoModifica({ aperto, onClick, etichetta = 'Modifica', nome }: { ap
   )
 }
 
-function bagnoDesc(room: any) {
+function bagnoDesc(room: CameraMessaggio | null | undefined) {
   if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
   if (room?.bathroom_type === 'privato_esterno') return room?.bathroom_note ? `privato esterno (${room.bathroom_note})` : 'privato esterno'
   return ''
@@ -119,7 +142,7 @@ function roomPageLink(roomName: string): string | null {
 // identico da entrambi i mittenti. Durante la transizione del nome, i messaggi formali
 // usano la formula ufficiale "CASA ANIA / precedentemente Casa Granata Humanitas".
 // La causale del bonifico è quella corta condivisa con la locandina (lib/causale.ts).
-function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = [], acconti: any[] = []) {
+function buildWhatsappMsg(b: RigaMessaggio, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: RigaMessaggio[] = [], acconti: PagamentoMessaggio[] = []) {
   // Il SALUTO di ogni messaggio è il solo nome (Ania, 21/09/2026), e lo
   // decide un posto solo: salutoOspite in lib/guestName. `name` resta il
   // nominativo INTERO, che serve a identificare la prenotazione nella causale
@@ -153,7 +176,7 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   // Un soggiorno può essere spezzato in più periodi o perché l'ospite cambia camera,
   // oppure perché resta nella stessa camera a una tariffa diversa: l'intestazione deve
   // dire la cosa giusta, altrimenti al cliente annunciamo un cambio camera che non c'è.
-  const camereDiverse = new Set(segmenti.map((s: any) => s.rooms?.name)).size > 1
+  const camereDiverse = new Set(segmenti.map(s => s.rooms?.name)).size > 1
   const intestazioneSegmenti = periodi.separati ? 'Periodi separati della prenotazione:' : haCamereParallele(segmenti) ? 'Camere della prenotazione:' : camereDiverse
     ? 'Camere (cambio camera durante il soggiorno):'
     : 'Periodi del soggiorno:'
@@ -422,7 +445,12 @@ export default function BookingDetail() {
   }, [toastRichiesta])
   const { id } = useParams()
   const router = useRouter()
+  // any storico: con il tipo onesto (riga | null) tsc dà 165 errori (103 «possibly null» nelle
+  // funzioni che girano dopo il caricamento): è una riscrittura, non una pulizia (30/09/2026)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [booking, setBooking] = useState<any>(null)
+  // any storico, stesso motivo di booking: le righe del gruppo passano per le stesse funzioni
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [groupBookings, setGroupBookings] = useState<any[]>([])
   const [reservationBookings, setReservationBookings] = useState<RigaPrenotazione[]>([])
   const [errorePrenotazione, setErrorePrenotazione] = useState<string | null>(null)
@@ -434,7 +462,7 @@ export default function BookingDetail() {
   const accordoComune = accordoPrenotazione(righePrenotazione) || booking
   // Altre prenotazioni dello stesso ospite (anche annullate): se ha mandato
   // più richieste dal sito, magari una sbagliata, da qui si ritrovano tutte
-  const [otherBookings, setOtherBookings] = useState<any[]>([])
+  const [otherBookings, setOtherBookings] = useState<RigaPrenotazione[]>([])
   // Cliente che torna (08/09/2026): soggiorni conclusi dello stesso telefono
   // o dello stesso nome e cognome, anche su un'altra scheda cliente
   // Conferma della richiesta dal sito: un solo tocco, poi il bottone sparisce
@@ -539,13 +567,15 @@ export default function BookingDetail() {
   // Conferma a due tocchi per la rimozione dello sconto dalla scheda
   const [confermaRimuoviSconto, setConfermaRimuoviSconto] = useState(false)
   const [rimuovendoSconto, setRimuovendoSconto] = useState(false)
-  const [rooms, setRooms] = useState<any[]>([])
+  const [rooms, setRooms] = useState<CameraPagina[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  // any storico: il modulo è {} finché la prenotazione non è letta; tipizzato onesto (Partial)
+  // servono 15 ripieghi che cambiano il comportamento prima del caricamento (30/09/2026)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editForm, setEditForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
   const [saveEditError, setSaveEditError] = useState<string | null>(null)
-  const timeRef = useRef<HTMLInputElement>(null)
   const [showCancel, setShowCancel] = useState(false)
   // Dopo l'annullamento la pagina si svuota e resta solo l'avviso di conferma:
   // vedere ancora la prenotazione sotto faceva dubitare che fosse andata a buon fine
@@ -553,12 +583,12 @@ export default function BookingDetail() {
   const [showConferma, setShowConferma] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [conflitto, setConflitto] = useState<string | null>(null)
-  const [lettiOccupati, setLettiOccupati] = useState(0)
+  const [, setLettiOccupati] = useState(0)
   const [extraBedsPerDay, setExtraBedsPerDay] = useState<Record<string, number>>({})
   const [stayForm, setStayForm] = useState<{ check_in: string; check_out: string }>({ check_in: '', check_out: '' })
   const [stayConflict, setStayConflict] = useState<string | null>(null)
   // Conto del soggiorno (acconti). accontiOk=false se la tabella payments non è ancora migrata
-  const [acconti, setAcconti] = useState<any[]>([])
+  const [acconti, setAcconti] = useState<PagamentoPagina[]>([])
   const [accontiOk, setAccontiOk] = useState(true)
   const [chiavePagamentiLetti, setChiavePagamentiLetti] = useState('')
   const contoPronto = accontiOk && Boolean(chiaveCamere) && chiavePagamentiLetti === chiaveCamere
@@ -596,7 +626,7 @@ export default function BookingDetail() {
         .lt('check_in', check_out).gt('check_out', check_in),
     ])
     if (conf && conf.length > 0) {
-      const b = conf[0] as any
+      const b = conf[0] as RigaConflitto
       setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${dataItaliana(b.check_in)} al ${dataItaliana(b.check_out)} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
     } else {
       setConflitto(null)
@@ -660,7 +690,7 @@ export default function BookingDetail() {
           .neq('id', id)
           .order('check_in', { ascending: false })
           .then(({ data: others }) => {
-            setOtherBookings((others || []).filter((x: any) => chiavePrenotazione(x) !== chiavePrenotazione(b)))
+            setOtherBookings((others || []).filter(x => chiavePrenotazione(x) !== chiavePrenotazione(b)))
           })
       }
       // Richiesta di prenotazione da cui è nata (prenotazione_id = primo segmento
@@ -738,7 +768,7 @@ export default function BookingDetail() {
       if (esito.esito === 'errore') { setAccontoError(esito.messaggio); return }
       const pagamenti = [...esito.pagamenti].sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on)))
       const metodoScelto = accontoForm.method
-      setAcconti(pagamenti)
+      setAcconti(pagamenti as PagamentoPagina[])   // righe rilette da payments: hanno l'id
       setAccontoForm({ amount: '', method: 'contanti', paid_on: oggiARoma() })
       setAccontoError(null)
       setConfermaIncasso(confermaPagamento(amount, metodoScelto, saldoMancanteCent(segmentiSoggiorno(), pagamenti)))
@@ -796,11 +826,6 @@ export default function BookingDetail() {
       discount_type: senzaSconto ? null : editForm.discount_type,
       discount_value: senzaSconto ? null : editForm.discount_value,
     })
-  }
-
-  function calcTotal() {
-    if (calcNotti(editForm.check_in, editForm.check_out) <= 0) return 0
-    return contoEdit().totale
   }
 
   // Un campo economico è cambiato rispetto al salvato? Solo in quel caso il
@@ -895,7 +920,7 @@ export default function BookingDetail() {
       const errore = await scriviPoiAggiorna(scrivi, () => {
         setBooking({ ...booking, status: 'confermata' })
         setReservationBookings(rs => rs.map(r => r.status === 'in_attesa' ? { ...r, status: 'confermata' } : r))
-        setGroupBookings(gs => gs.map((g: any) => g.status === 'in_attesa' ? { ...g, status: 'confermata' } : g))
+        setGroupBookings(gs => gs.map(g => g.status === 'in_attesa' ? { ...g, status: 'confermata' } : g))
       })
       setErroreConferma(errore)
     } finally {
@@ -940,7 +965,7 @@ export default function BookingDetail() {
           return { error: error || (data?.length !== ids.length ? new Error('Non tutte le camere sono state aggiornate') : null), righe: data?.length ?? 0 }
         },
       })
-      if (esito.pagamenti) setAcconti(esito.pagamenti)
+      if (esito.pagamenti) setAcconti(esito.pagamenti as PagamentoPagina[])
       if (esito.esito === 'errore') { setErrorePagato(esito.messaggio); return }
       dimenticaChiavePagato()
       setBooking({ ...booking, pagato: true })
@@ -1121,6 +1146,7 @@ export default function BookingDetail() {
       const erroreRilettura = await rileggiScheda()
       if (erroreRilettura) setBooking({ ...booking, discount_type: null, discount_value: null, total_amount: pieno })
       setAvvisoScheda(erroreRilettura)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- lo stato editForm è any (vedi sopra)
       setEditForm((f: any) => ({ ...f, discount_type: null, discount_value: null }))
     }
     setConfermaRimuoviSconto(false)
@@ -1130,10 +1156,10 @@ export default function BookingDetail() {
   // Nuovo piano dei segmenti del soggiorno per le date [newIn, newOut):
   // ogni segmento viene ritagliato sull'intervallo, quelli rimasti vuoti vanno annullati,
   // il primo/ultimo si estendono fino alle nuove date (le date dei cambi camera restano invariate).
-  function computeStayPlan(segments: any[], newIn: string, newOut: string) {
+  function computeStayPlan(segments: TrattoSoggiorno[], newIn: string, newOut: string) {
     const sorted = [...segments].sort((a, z) => a.check_in.localeCompare(z.check_in))
     if (!newIn || !newOut || newIn >= newOut) {
-      return { kept: [] as any[], removed: sorted, total: 0, error: "La data di partenza deve essere successiva all'arrivo" }
+      return { kept: [] as PassoSoggiorno[], removed: sorted, total: 0, error: "La data di partenza deve essere successiva all'arrivo" }
     }
     const clipped = sorted.map(seg => ({
       seg,
@@ -1143,7 +1169,7 @@ export default function BookingDetail() {
     const kept = clipped.filter(c => c.s < c.e)
     const removed = clipped.filter(c => c.s >= c.e).map(c => c.seg)
     if (kept.length === 0) {
-      return { kept: [] as any[], removed: sorted, total: 0, error: 'Le nuove date non coprono nessuna camera del soggiorno' }
+      return { kept: [] as PassoSoggiorno[], removed: sorted, total: 0, error: 'Le nuove date non coprono nessuna camera del soggiorno' }
     }
     kept[0].s = newIn
     kept[kept.length - 1].e = newOut
@@ -1192,7 +1218,7 @@ export default function BookingDetail() {
         .not('id', 'in', `(${groupIds.join(',')})`)
         .lt('check_in', c.to).gt('check_out', c.from)
       if (data && data.length > 0) {
-        const b = data[0] as any
+        const b = data[0] as RigaConflitto
         setStayConflict(`⚠️ ${c.roomName} già occupata dal ${dataItaliana(b.check_in)} al ${dataItaliana(b.check_out)} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
         return
       }
@@ -1425,14 +1451,39 @@ export default function BookingDetail() {
         tariffa: Number.isFinite(tariffa) && tariffa > 0 ? tariffa : null,
       }
       const riga = rigaDaSalvare(periodo, camera, gruppo)
-      const conto = contoSoggiorno({
+      let conto = contoSoggiorno({
         check_in: dal, check_out: al,
         price_per_night: riga.price_per_night, extra_bed_total: riga.extra_bed_total,
         discount_type: booking.discount_type, discount_value: booking.discount_value,
       })
       const pieno = Number(riga.price_per_night) * giorni.length + Number(riga.extra_bed_total)
       const scontoDecaduto = booking.discount_type === 'target_total' && !(Number(booking.discount_value) > 0 && Number(booking.discount_value) < pieno)
+      // Il totale concordato a mano (la regola di salvaLetto, ripresa il
+      // 30/09/2026 dopo l'audit Codex R5): senza uno sconto registrato, un
+      // total_amount diverso da tariffa × notti + letto è un prezzo preso con
+      // la cliente e non si riscrive col listino. Cambiando solo letto o
+      // persone si sposta solo la differenza del letto (senza cambiare niente
+      // resta identico); cambiando date o tariffa non si sa come rifarlo e ci
+      // si ferma, con un avviso: il modulo resta aperto e si può tornare indietro.
+      let errore: string | null = null
+      const totalePrima = booking.total_amount == null ? NaN : Number(booking.total_amount)
+      const lettoPrima = Number(booking.extra_bed_total || 0)
+      const listinoPrima = Math.round((Number(booking.price_per_night || 0) * getDaysBetween(booking.check_in, booking.check_out).length + lettoPrima) * 100) / 100
+      const scontoRegistrato = contoSoggiorno(booking).sconto > 0
+      const aMano = !scontoRegistrato && Number.isFinite(totalePrima) && Math.abs(totalePrima - listinoPrima) > 0.005
+      if (aMano) {
+        const stesseDateETariffa = dal === booking.check_in && al === booking.check_out
+          && Math.abs(Number(riga.price_per_night) - Number(booking.price_per_night || 0)) <= 0.005
+        if (!stesseDateETariffa) {
+          errore = `Il totale di questa prenotazione è stato concordato a mano (€${totalePrima.toLocaleString('it-IT')} invece di €${listinoPrima.toLocaleString('it-IT')} dal listino): cambiando date o tariffa non so come rifarlo. Registralo prima come sconto da «Altre modifiche», poi cambia il soggiorno.`
+        } else {
+          const totale = Math.round((totalePrima - lettoPrima + Number(riga.extra_bed_total)) * 100) / 100
+          if (totale < 0) errore = 'Il nuovo supplemento porterebbe il totale sotto zero. Rivedi il prezzo concordato prima di salvare.'
+          else conto = { ...conto, prezzoPieno: totale, sconto: 0, totale }
+        }
+      }
       return {
+        errore,
         id: booking.id, roomName: booking.rooms?.name || 'Camera',
         check_in: dal, check_out: al, nights: giorni.length,
         num_guests: ospiti, price_per_night: Number(riga.price_per_night),
@@ -1449,7 +1500,7 @@ export default function BookingDetail() {
         return { righe: [] as ReturnType<typeof rigaAperta>[], rimosse: [] as unknown[], totale: 0, errore: 'La partenza deve essere dopo l\u2019arrivo.', scontoDecaduto: false }
       }
       const r = rigaAperta(dateForm.check_in, dateForm.check_out)
-      return { righe: [r], rimosse: [] as unknown[], totale: r.total, errore: null as string | null, scontoDecaduto: r.scontoDecaduto }
+      return { righe: [r], rimosse: [] as unknown[], totale: r.total, errore: r.errore, scontoDecaduto: r.scontoDecaduto }
     }
     const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
     if (plan.error) return { righe: [] as ReturnType<typeof rigaAperta>[], rimosse: plan.removed as unknown[], totale: 0, errore: plan.error, scontoDecaduto: false }
@@ -2064,7 +2115,7 @@ export default function BookingDetail() {
             className="flex items-center justify-between ed-riga py-3 mb-3 cursor-pointer active:opacity-70">
             <div>
               <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
-              <p className="text-xs text-green-mid">La conferma includerà l'IBAN</p>
+              <p className="text-xs text-green-mid">La conferma includerà l&apos;IBAN</p>
             </div>
             <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.bonifico ? 'translate-x-6' : ''}`} />

@@ -10,6 +10,10 @@
 // ============================================================================
 import { test, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
+import { register } from 'node:module'
+// Il loader si registra da qui (R5, 30/09/2026): la prova gira anche nel
+// comando generale `node --test scripts/revisioni/*.test.mjs`, senza opzioni.
+register('./loader-supabase-finto.mjs', import.meta.url)
 
 const memoria = new Map()
 globalThis.localStorage = {

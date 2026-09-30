@@ -519,7 +519,8 @@ export default function SchedaPage() {
   // con una camera annullata aperta finivano nel messaggio la camera e
   // l'importo sbagliati. I pagamenti restano TUTTI quelli della prenotazione,
   // anche registrati sul tratto annullato: è la regola del conto unico.
-  const perIMessaggi = () => perMessaggio({ ...rigaViva, accordo_pagamento: accordoSalvato?.accordo_pagamento ?? null, bonifico: accordo?.bonifico })
+  // rigaViva è null solo quando booking è null (rigaPerMessaggi): i messaggi si fanno solo con booking
+  const perIMessaggi = () => perMessaggio({ ...rigaViva, accordo_pagamento: accordoSalvato?.accordo_pagamento ?? null, bonifico: accordo?.bonifico } as NonNullable<typeof rigaViva> & { accordo_pagamento: string | null })
   const testoMessaggio = (tipo: TipoMessaggio) =>
     booking ? buildWhatsappMsg(perIMessaggi(), tipo, attive, pagamenti) : ''
   // «A chi scrivi» (28/09/2026): il numero dei link WhatsApp è quello della

@@ -17,8 +17,9 @@ import { leggiArrivo } from '@/lib/arrivo'
 import { oraRoma } from '@/lib/opzioni'
 import { vuoleRicevuta } from '@/lib/valutazione'
 import {
-  SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, FILO_SINISTRO, CAMBIO_CAMERA,
+  MISURE_NASTRO, ARIA_SCHEDA, TAGLIO_CAMBIO, FILO_SINISTRO, CAMBIO_CAMERA,
   geometriaScheda, statoScheda, tintaScheda, testoStato, rigaDate, iconeScheda, rigaSotto, rigaArrivo, fondoConAcconti, trattiLetto,
+  type MisureNastro,
 } from '@/lib/calendarioSchede'
 import { TINTE_SCHEDA, areaTocco } from '@/lib/calendarioMobile'
 import type { LegamiCatene } from '@/lib/calendarioNastro'
@@ -32,7 +33,7 @@ type Prenotazione = {
   guests?: { rating?: string | null; vuole_ricevuta?: boolean | null } | null
 }
 
-export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, colonnaCamere, giorno, giorni, indice, legami, coperte, attenuata, cerca, trovata, selezionata, larghezzaTesto, onTocca }: {
+export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, colonnaCamere, giorno, giorni, indice, legami, coperte, attenuata, cerca, trovata, selezionata, larghezzaTesto, onTocca, misure = MISURE_NASTRO.normale }: {
   booking: T
   /** il bordo alto della corsia */
   rigaTop: number
@@ -54,6 +55,8 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
   selezionata: boolean
   larghezzaTesto: (da: number, a: number) => number
   onTocca: (booking: T, chainKey: string | undefined, e: MouseEvent<HTMLDivElement>) => void
+  /** corsia/scheda: normali, o compatte col telefono in orizzontale a «Sett.» (lib/calendarioSchede) */
+  misure?: MisureNastro
 }) {
   const startIdx = Math.max(0, indice(booking.check_in))
   const endIdx = Math.min(giorni, indice(booking.check_out))
@@ -80,8 +83,8 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
   // Cambio camera: il tratto che parte tagliato in basso a destra, quello che arriva in basso a sinistra
   const cutLeft = hasIncoming && startIdx === indice(booking.check_in)
   const cutRight = hasOutgoing && endIdx === indice(booking.check_out)
-  const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(g.width, SCHEDA_H, cutLeft, cutRight, 6, TAGLIO_CAMBIO) : undefined
-  const tocco = areaTocco(rigaTop + SCHEDA_TOP, SCHEDA_H)
+  const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(g.width, misure.scheda, cutLeft, cutRight, 6, TAGLIO_CAMBIO) : undefined
+  const tocco = areaTocco(rigaTop + misure.sopra, misure.scheda)
   const righe = {
     date: rigaDate(booking.check_in, booking.check_out, isWebPending ? 'dalSito' : null),
     icone: iconeScheda({ esclusiva: isEsclusiva, ottimo: isOttimo, ricevuta, letto: !!hasExtraBed, cambio: isMultiRoom, dalSito: booking.source === 'sito_web' && !isWebPending }),
@@ -93,7 +96,7 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
     <SchedaNastro id={booking.id} dati={{ stato }}
       onClick={e => { e.stopPropagation(); onTocca(booking, chainKey, e) }}
       classi={`${attenuata ? (cerca ? 'dim cerca' : 'dim') : ''} ${selezionata ? 'catena' : ''} ${trovata ? 'trovata' : ''}`}
-      top={tocco.top} height={tocco.height} left={colonnaCamere + g.left} width={g.width} zIndex={trovata ? 16 : selezionata ? 15 : 5}
+      top={tocco.top} height={tocco.height} altezzaScheda={misure.scheda} left={colonnaCamere + g.left} width={g.width} zIndex={trovata ? 16 : selezionata ? 15 : 5}
       sito={isWebPending} cutLeft={cutLeft} letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
       lettoTratti={trattiLetto(nottiLettoExtra(booking), indice, startIdx, endIdx, giorno)}
       fondo={tinta.fondo} testo={tinta.testo} filo={tinta.filo} clipPath={clipPath}
@@ -108,7 +111,7 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
 }
 
 /** La camera tenuta da una proposta (15/09/2026): scheda in ottone, «in opzione», fino a quando; smorzata quando è scaduta */
-export function SchedaTenuta({ barra, rigaTop, colonnaCamere, giorno, giorni, indice, attenuata, cerca, larghezzaTesto, titolo, onTocca }: {
+export function SchedaTenuta({ barra, rigaTop, colonnaCamere, giorno, giorni, indice, attenuata, cerca, larghezzaTesto, titolo, onTocca, misure = MISURE_NASTRO.normale }: {
   barra: BarraTenuta
   rigaTop: number
   colonnaCamere: number
@@ -120,6 +123,7 @@ export function SchedaTenuta({ barra, rigaTop, colonnaCamere, giorno, giorni, in
   larghezzaTesto: (da: number, a: number) => number
   titolo: string
   onTocca: (barra: BarraTenuta) => void
+  misure?: MisureNastro
 }) {
   const startIdx = Math.max(0, indice(barra.arrivo))
   const endIdx = Math.min(giorni, indice(barra.partenza))
@@ -131,7 +135,7 @@ export function SchedaTenuta({ barra, rigaTop, colonnaCamere, giorno, giorni, in
       onClick={(e) => { e.stopPropagation(); onTocca(barra) }}
       title={titolo}
       className={`cal-scheda ${attenuata ? (cerca ? 'dim cerca' : 'dim') : barra.scaduta ? 'scaduta' : ''}`}
-      style={{ top: rigaTop + SCHEDA_TOP, height: SCHEDA_H, left: colonnaCamere + g.left, width: g.width, zIndex: 5 }}>
+      style={{ top: rigaTop + misure.sopra, height: misure.scheda, left: colonnaCamere + g.left, width: g.width, zIndex: 5 }}>
       <div className="cal-scheda-in" data-letto={barra.lettoNotti.length > 0 ? 1 : undefined}
         style={{ background: tinta.fondo, color: tinta.testo, borderLeftColor: tinta.filo, borderRadius: 6 }}>
         <FiloLetto tratti={trattiLetto(barra.lettoNotti, indice, startIdx, endIdx, giorno)} bordoSinistro={FILO_SINISTRO} />

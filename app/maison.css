@@ -894,6 +894,21 @@ body:has(.cal) { background: var(--home-bg); }
    la scheda parla di arrivo. L'orario grande in Cormorant 19 px grassetto nero (700, Ania 29/09/2026), «?» in mattone dello stesso peso ── */
 .cal-scheda-in .tx > b .hr { font-family: var(--m-disp); font-size: 19px; font-weight: 700; margin-right: 7px; letter-spacing: .01em; color: #000; }
 .cal-scheda-in .tx > b .hr.manca { color: var(--m-mat); }
+
+/* ── «SETT.» COMPLETATA (30/09/2026, «Sì, completa così» di Ania) ──
+   Telefono in ORIZZONTALE a «Sett.»: corsie 56 e schede 44 su DUE righe
+   (lib/calendarioSchede, MISURE_NASTRO.compatta). Calendario e Richieste:
+   date e nome; Arrivi: orario e nome, poi la riga dell'arrivo. Il resto
+   sta nel foglietto. La scheda da 44 è l'area di tocco minima. */
+.cal-nastro.compatta .cal-scheda-in { padding: 3px 0; }
+.cal-nastro.compatta .cal-scheda-in .tx > small { display: none; }
+.cal-nastro.arrivi.compatta .cal-scheda-in .tx > em { display: none; }
+.cal-nastro.arrivi.compatta .cal-scheda-in .tx > small { display: block; margin-top: 1px; }
+.cal-nastro.arrivi.compatta .cal-scheda-in .tx > b .hr { font-size: 16px; margin-right: 5px; }
+/* Arrivi a «Sett.» col telefono dritto: la riga dell'arrivo va a capo (fino a
+   tre righe) e si legge tutta anche su una notte; scheda 90 e corsia 108
+   (MISURE_NASTRO.arriviSett) */
+.cal-nastro.arrivi.sett .cal-scheda-in .tx > small { white-space: normal; overflow-wrap: break-word; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 /* il box «⇄ Cambi camera» sotto il nastro */
 .cal-cambi { margin: 10px 16px 0; border: 1px solid var(--m-line); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: var(--m-ink); }
 .cal-cambi .ck { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--m-acc); margin-bottom: 3px; }

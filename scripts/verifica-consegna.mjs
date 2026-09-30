@@ -79,29 +79,36 @@ export function creaPiano(cwd = radice, base = 'HEAD') {
     try { return lstatSync(join(cwd, file)).isFile() }
     catch (e) { if (e.code === 'ENOENT') return false; throw e }
   })
+  // Ogni passo ha il suo limite (R5 dell'audit, 30/09/2026): con 60 secondi
+  // per tutti la suite applicazione (oltre 1.900 prove) veniva fermata a metà
+  // e il comando non arrivava mai alle regressioni.
   const passi = [
-    { nome: 'Suite applicazione', args: ['--test', '--test-reporter=spec', 'lib/**/*.test.ts'] },
-    { nome: 'Regressioni delle revisioni', args: ['--test', '--test-reporter=spec', 'scripts/revisioni/*.test.mjs'] },
-    { nome: 'Strumenti locali', args: ['--test', '--test-reporter=spec',
+    { nome: 'Suite applicazione', limiteMs: 600000, args: ['--test', '--test-reporter=spec', 'lib/**/*.test.ts'] },
+    { nome: 'Regressioni delle revisioni', limiteMs: 600000, args: ['--test', '--test-reporter=spec', 'scripts/revisioni/*.test.mjs'] },
+    { nome: 'Strumenti locali', limiteMs: 300000, args: ['--test', '--test-reporter=spec',
       'scripts/verifica-consegna.test.mjs', 'scripts/fase4/collaudo.test.mjs',
       'scripts/collaudo-contratto/strumenti.test.mjs', 'scripts/collaudo-contratto/registro.test.mjs'] },
-    { nome: 'TypeScript senza emissione', args: ['node_modules/typescript/bin/tsc', '--noEmit', '--incremental', 'false'] },
+    { nome: 'TypeScript senza emissione', limiteMs: 300000, args: ['node_modules/typescript/bin/tsc', '--noEmit', '--incremental', 'false'] },
   ]
-  if (lint.length) passi.push({ nome: 'Lint dei file modificati', args: ['node_modules/eslint/bin/eslint.js', '--', ...lint] })
+  if (lint.length) passi.push({ nome: 'Lint dei file modificati', limiteMs: 300000, args: ['node_modules/eslint/bin/eslint.js', '--', ...lint] })
   return { commitBase, lint, passi }
 }
 
-function eseguiLocale(passo, cwd) {
+export const LIMITE_PREDEFINITO_MS = 60000
+export function eseguiLocale(passo, cwd) {
+  const limite = passo.limiteMs ?? LIMITE_PREDEFINITO_MS
   return new Promise(risolvi => {
     const processo = spawn(process.execPath, passo.args, {
-      cwd, shell: false, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000,
+      cwd, shell: false, stdio: ['ignore', 'pipe', 'pipe'], timeout: limite,
     })
     let dettaglio = ''
     const raccogli = dati => { dettaglio = (dettaglio + dati.toString()).slice(-6000) }
     processo.stdout.on('data', raccogli)
     processo.stderr.on('data', raccogli)
     processo.on('error', e => risolvi({ uscita: null, dettaglio: e.message }))
-    processo.on('close', (code, signal) => risolvi({ uscita: signal ? null : code, dettaglio }))
+    // fermato dal limite: si dice, così non sembra un difetto delle prove
+    processo.on('close', (code, signal) => risolvi({ uscita: signal ? null : code,
+      dettaglio: signal ? `${dettaglio}\nFERMATO dopo ${limite / 1000} s (limite di tempo del passo, segnale ${signal}): esito non noto.` : dettaglio }))
   })
 }
 

@@ -12,6 +12,7 @@ import { leggiConEsito,MESSAGGIO_RILETTURA } from '../../lib/prenotazioneScrittu
 import { scriviPoiAggiorna } from '../../lib/scritturaSicura.ts';
 import { righeStorico } from '../../lib/storicoCliente.ts';
 import { oraCompleta } from '../../lib/ora.ts';
+import { confermaPagamento } from '../../lib/confermaPagamento.ts';
 const file=fs.readFileSync(new URL('../../app/prenotazioni/[id]/page.tsx',import.meta.url),'utf8');
 const ast=ts.createSourceFile('page.tsx',file,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const extracted={};
@@ -66,6 +67,7 @@ async function pagina(){
    segnandoPagato:ui.segnando||false,metodoPagato:'bonifico',setSegnandoPagato:set('segnando'),setErrorePagato:set('erroreSaldo'),setFinestraPagato:set('finestraSaldo'),setAccontiOk:set('accontiOk'),chiavePagatoStabile:()=>chiaveSaldo||(chiaveSaldo=crypto.randomUUID()),dimenticaChiavePagato:()=>{chiaveSaldo=null},
    salvandoAccordo:ui.salvandoAccordo||false,accordoModo:ui.modo||'caparra_libera',accordoImporto:ui.importo??150,accordoData:'2026-09-12',accordoOra:'18:00',setErroreAccordo:set('erroreAccordo'),setSalvandoAccordo:set('salvandoAccordo'),setAccordoAperto:set('accordoAperto'),
    annullando:ui.annullando||false,cancelReason:ui.motivo||'',setAnnullando:set('annullando'),setErroreAnnulla:set('erroreAnnulla'),setAvvisoScheda:set('avviso'),setShowCancel:set('showCancel'),setCancelDone:set('cancelDone'),window:{scrollTo:()=>{}},buildWhatsappMsg:()=> 'Messaggio sintetico',
+   confermaPagamento,setConfermaIncasso:set('confermaIncasso'),segnaPagato:()=>invoke('segnaPagato'),
    rileggiScheda:()=>invoke('rileggiScheda')};
   return new Function(...Object.keys(scope),'args',`${extracted[name]};return ${name}(...args);`)(...Object.values(scope),args);
  }

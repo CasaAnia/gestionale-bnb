@@ -16,7 +16,7 @@ import { comePagaSalvato } from './comePaga.ts'
 import { nomeOspite, nomePerMessaggio, salutoOspite } from './guestName.ts'
 import { roomWithType, lettoInclusoNellaCamera } from './roomTypes.ts'
 import { contoSoggiorno, residuoDaPagare } from './conto.ts'
-import { dettaglioNottiSalvato, testoDettaglioNotti } from './prezzoNotti.ts'
+import { dettaglioNottiSalvato, testoDettaglioNotti, type CameraTariffa } from './prezzoNotti.ts'
 import { haCamereParallele } from './prenotazioneUnica.ts'
 import { righeCostiSegmenti } from './riepilogoCosti.ts'
 import { causaleBonifico } from './causale.ts'
@@ -47,7 +47,21 @@ export const MESSAGGI_SCHEDA: { tipo: TipoMessaggio; label: string }[] = [
 ]
 export const MESSAGGIO_ANNULLAMENTO = { tipo: 'annullamento' as TipoMessaggio, label: 'Messaggio di annullamento' }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// La prenotazione come la usano i messaggi (al posto di `any`, 30/09/2026):
+// i campi che le due copie leggono davvero, il resto passa senza vincoli.
+export type CameraMessaggio = CameraTariffa & { name?: string | null; bathroom_type?: string | null; bathroom_note?: string | null }
+export type RigaMessaggio = {
+  id: string; prenotazione_id?: string | null; group_id?: string | null
+  check_in: string; check_out: string; status?: string | null
+  num_guests?: number | string | null; price_per_night?: number | string | null
+  extra_bed_dates?: string[] | null; extra_bed_total?: number | string | null; total_amount?: number | string | null
+  discount_type?: string | null; discount_value?: number | string | null
+  guest_name?: string | null; bonifico?: boolean | null
+  rooms?: CameraMessaggio | null
+  guests?: { full_name?: string | null; phone?: string | null } | null
+}
+export type PagamentoMessaggio = { amount: number | string; paid_on?: string | null; method?: string | null }
+
 // ── COPIA ESATTA da app/prenotazioni/[id]/page.tsx (vedi sopra) ─────────────
 function formatDateIT(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -57,7 +71,7 @@ function formatDateIT(dateStr: string) {
 
 const formatDateShort = (dateStr: string) => dataItaliana(dateStr)
 
-function bagnoDesc(room: any) {
+function bagnoDesc(room: CameraMessaggio | null | undefined) {
   if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
   if (room?.bathroom_type === 'privato_esterno') return room?.bathroom_note ? `privato esterno (${room.bathroom_note})` : 'privato esterno'
   return ''
@@ -71,7 +85,7 @@ function roomPageLink(roomName: string): string | null {
   return null
 }
 
-export default function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = [], acconti: any[] = []) {
+export default function buildWhatsappMsg(b: RigaMessaggio, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: RigaMessaggio[] = [], acconti: PagamentoMessaggio[] = []) {
   // Il SALUTO di ogni messaggio è il solo nome (Ania, 21/09/2026), e lo
   // decide un posto solo: salutoOspite in lib/guestName. `name` resta il
   // nominativo INTERO, che serve a identificare la prenotazione nella causale
@@ -105,7 +119,7 @@ export default function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' |
   // Un soggiorno può essere spezzato in più periodi o perché l'ospite cambia camera,
   // oppure perché resta nella stessa camera a una tariffa diversa: l'intestazione deve
   // dire la cosa giusta, altrimenti al cliente annunciamo un cambio camera che non c'è.
-  const camereDiverse = new Set(segmenti.map((s: any) => s.rooms?.name)).size > 1
+  const camereDiverse = new Set(segmenti.map(s => s.rooms?.name)).size > 1
   const intestazioneSegmenti = periodi.separati ? 'Periodi separati della prenotazione:' : haCamereParallele(segmenti) ? 'Camere della prenotazione:' : camereDiverse
     ? 'Camere (cambio camera durante il soggiorno):'
     : 'Periodi del soggiorno:'

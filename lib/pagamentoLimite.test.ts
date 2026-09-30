@@ -16,7 +16,7 @@ const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), '
 test('il limite è di 10 secondi, la finestra del gemello di 2 minuti, il testo è quello di Ania', () => {
   assert.equal(LIMITE_SALVATAGGIO_MS, 10_000)
   assert.equal(FINESTRA_GEMELLO_MS, 120_000)
-  assert.equal(ERRORE_SALVATAGGIO_SCADUTO, 'Non sono riuscita a salvare: controlla la connessione e riprova')
+  assert.equal(ERRORE_SALVATAGGIO_SCADUTO, 'Sto aspettando la conferma del pagamento. Non registrarlo di nuovo: la richiesta può essere ancora in corso. Puoi chiudere e riaprire il foglio per verificarlo.')
 })
 
 test('conLimite: la risposta in tempo passa, quella che non arriva scade, un errore passa com’è', async () => {
@@ -42,18 +42,16 @@ test('pagamentoGemello: stesso importo, giorno e modo, nato da meno di 2 minuti'
   assert.equal(pagamentoGemello([{ ...ledi, created_at: '2026-09-29T12:56:30Z' }], dati, adesso)?.id, 'm1')
 })
 
-test('il foglio mette il limite al salvataggio e dice l’errore invece di restare su «Salvo…»', () => {
+test('il timer lascia viva la richiesta e permette di ricevere l’esito tardivo', async () => {
+  let termina!: (v: string) => void
+  const richiesta = new Promise<string>(ok => { termina = ok })
+  assert.deepEqual(await conLimite(richiesta, 5), { scaduto: true })
+  termina('registrato')
+  assert.equal(await richiesta, 'registrato')
   const foglio = leggi('components/scheda/FoglioPagamento.tsx')
-  assert.match(foglio, /risposta = await conLimite\(richiesta, LIMITE_SALVATAGGIO_MS\)/)
-  // anche un errore lanciato: niente «Salvo…», l'avviso
-  assert.match(foglio, /\} catch \{\s*risposta = null/)
-  assert.match(foglio, /if \(!risposta \|\| risposta\.scaduto\) \{\s*setErrore\(ERRORE_SALVATAGGIO_SCADUTO\)/)
-  // il tasto torna attivo: il freno si riapre sempre
-  assert.match(foglio, /\} finally \{\s*inCorso\.current = false\s*setSalvando\(false\)/)
-  // una risposta tardiva vale solo se non è partito un altro salvataggio
-  assert.match(foglio, /tardi\.esito === 'ok' && giro === giroSalva\.current && !inCorso\.current/)
-  // l'avviso è AvvisoAzione
-  assert.match(foglio, /\{errore && errore !== MESSAGGIO_ESITO_INCERTO && <AvvisoAzione testo=\{errore\}/)
+  assert.match(foglio, /setAttesaConferma\(true\)/)
+  assert.match(foglio, /valore: await richiesta/)
+  assert.match(foglio, /disabilitato=\{attesaConferma/)
 })
 
 test('prima di scrivere si cerca il gemello; dalla Home anche la lettura ha il limite', () => {

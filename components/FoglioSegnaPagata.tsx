@@ -9,15 +9,17 @@
 // messaggio visibile e campi intatti; riuscito = spunta «Salvato» e la voce
 // sparisce da sola alla rilettura.
 // ============================================================================
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import type { Salvataggio } from '@/components/maison/SalvatoMaison'
+import Link from 'next/link'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { apriSelettore } from '@/components/nuova/CampoData'
 import { MESI_LUNGHI, dataItaliana } from '@/lib/dateItaliane'
-import { importoInCent } from '@/lib/pagamentoFoglio'
+import { leggiTentativoFattura, custodisciFattura, dimenticaFattura, ERRORE_CUSTODIA_FATTURA } from '@/lib/fatturaCustodia'
+import { importoInCent, conLimite, LIMITE_SALVATAGGIO_MS } from '@/lib/pagamentoFoglio'
 import {
-  METODI_FATTURA, commissioneCent, importoIniziale, segnaFatturaPagata, ERRORE_IMPORTO_FATTURA, ERRORE_IMPORTO_MINORE,
+  FATTURA_INCERTA, METODI_FATTURA, commissioneCent, importoIniziale, segnaFatturaPagata, ERRORE_IMPORTO_FATTURA, ERRORE_IMPORTO_MINORE,
   type ClienteFattura, type FatturaDaPagare, type MetodoFattura,
 } from '@/lib/fatturaPagata'
 
@@ -36,39 +38,65 @@ export default function FoglioSegnaPagata({ fattura, scadenza, oggi, client, onC
   onChiudi: () => void
   onSalvato: () => void
 }) {
-  const [importo, setImporto] = useState(importoIniziale(fattura.importoCent))
-  const [giorno, setGiorno] = useState(oggi)
-  const [metodo, setMetodo] = useState<MetodoFattura>('contanti')
+  const [pendente, setPendente] = useState(() => leggiTentativoFattura(fattura.documentoId))
+  const [riprovabile, setRiprovabile] = useState(false)
+  const [conflitto, setConflitto] = useState(false)
+  const inCorso = useRef(false)
+  const [attesa, setAttesa] = useState(false)
+  const [importo, setImporto] = useState(pendente?.scelta.importo ?? importoIniziale(fattura.importoCent))
+  const [giorno, setGiorno] = useState(pendente?.scelta.giorno ?? oggi)
+  const [metodo, setMetodo] = useState<MetodoFattura>(pendente?.scelta.metodo ?? 'contanti')
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [salvato, setSalvato] = useState<Salvataggio | null>(null)
-  // pagata ma commissione non salvata: la voce si rilegge alla chiusura (non
-  // subito, sennò con l'ultima voce il foglio sparirebbe col suo avviso)
-  const [daRileggere, setDaRileggere] = useState(false)
-  const chiudi = () => { if (daRileggere) onSalvato(); onChiudi() }
+  const chiudi = () => { onSalvato(); onChiudi() }
 
   const cent = importoInCent(importo)
   const extra = commissioneCent(importo, fattura.importoCent)
   const avvisoImporto = importo.trim() === '' || cent == null ? ERRORE_IMPORTO_FATTURA : extra == null ? ERRORE_IMPORTO_MINORE : null
 
-  async function salva() {
-    if (salvando || avvisoImporto) return
+  async function salva(soloVerifica = false) {
+    if (inCorso.current || salvando || avvisoImporto) return
+    const tentativo = pendente ?? { fattura, scelta: { giorno, metodo, importo } }
+    if (!soloVerifica && !custodisciFattura(tentativo)) { setErrore(ERRORE_CUSTODIA_FATTURA); return }
+    setPendente(tentativo)
+    inCorso.current = true
     setSalvando(true)
+    setRiprovabile(false)
+    setConflitto(false)
     setErrore(null)
-    const esito = await segnaFatturaPagata(client, fattura, { giorno, metodo, importo })
+    const richiesta = segnaFatturaPagata(client, tentativo.fattura, tentativo.scelta, soloVerifica)
+    const risposta = await conLimite(richiesta, LIMITE_SALVATAGGIO_MS)
+    // Nessun secondo invio mentre il primo è vivo, nemmeno dopo dieci secondi.
+    if (risposta.scaduto) { setErrore(FATTURA_INCERTA); setAttesa(true); setSalvando(false) }
+    const esito = risposta.scaduto ? await richiesta : risposta.valore
+    setAttesa(false)
+    inCorso.current = false
     setSalvando(false)
     if (!esito.ok) {
       setErrore(esito.errore)
-      if (esito.pagata) setDaRileggere(true)
+      setRiprovabile(!!esito.riprovabile)
+      setConflitto(!!esito.conflitto)
+      // Un rifiuto certo non lascia campi bloccati per sempre. Nessuna
+      // custodia incerta viene eliminata da questo ramo.
+      if (esito.rifiutata && !esito.pagata && dimenticaFattura(tentativo)) setPendente(null)
       return
     }
-    setSalvato({ cosa: `${fattura.nome} · pagata il ${dataItaliana(giorno)}`, quando: new Date() })
+    if (!dimenticaFattura(tentativo)) { setErrore('Pagamento verificato; non riesco a chiudere il promemoria. Riapri il gestionale e verifica di nuovo.'); return }
+    setSalvato({ cosa: `${fattura.nome} · pagata il ${dataItaliana(tentativo.scelta.giorno)}`, quando: new Date() })
+  }
+
+  function chiudiPromemoria() {
+    if (!pendente || !conflitto) return
+    if (!dimenticaFattura(pendente)) { setErrore('Non riesco a chiudere il promemoria su questo dispositivo.'); return }
+    onSalvato()
+    onChiudi()
   }
 
   return (
     <FoglioMaison titolo={fattura.nome} sottotitolo="Segna pagata" altezza={ALTEZZA_FOGLIO_SEGNA_PAGATA} dati="segna-pagata"
       onChiudi={salvato ? () => {} : chiudi} salvato={salvato} onFineSalvato={() => { onSalvato(); onChiudi() }}
-      piede={<PiedeMaison azione="Salva" onAzione={salva} salvando={salvando} disabilitato={!!avvisoImporto || !!salvato} onAnnulla={chiudi} dati="segna-pagata" />}>
+      piede={<PiedeMaison azione={attesa ? 'Attendo conferma…' : pendente ? (riprovabile ? 'Riprendi salvataggio' : 'Verifica salvataggio') : 'Salva'} onAzione={() => salva(!!pendente && !riprovabile)} salvando={salvando} disabilitato={attesa || !!avvisoImporto || !!salvato} onAnnulla={chiudi} dati="segna-pagata" />}>
       <div data-foglio-segna-pagata>
         <div>
           <span className="mz-lab">Bolletta</span>
@@ -78,12 +106,12 @@ export default function FoglioSegnaPagata({ fattura, scadenza, oggi, client, onC
 
         <div className="mz-g3" style={{ marginTop: 14 }}>
           <label><span className="mz-lab">Pagato</span>
-            <input type="text" inputMode="decimal" autoComplete="off" data-campo="importo" value={importo}
+            <input type="text" inputMode="decimal" autoComplete="off" data-campo="importo" value={importo} readOnly={!!pendente}
               onChange={e => setImporto(e.target.value)} className="mz-fld grande" /></label>
           <label style={{ gridColumn: 'span 2' }}><span className="mz-lab">Quando</span>
             <span className="relative block">
               <span className="mz-fld grande" data-data-scritta>{giornoInParole(giorno)}</span>
-              <input type="date" data-campo="giorno" value={giorno} max={oggi} onChange={e => setGiorno(e.target.value || oggi)} onClick={e => apriSelettore(e.currentTarget)}
+              <input type="date" data-campo="giorno" value={giorno} disabled={!!pendente} max={oggi} onChange={e => setGiorno(e.target.value || oggi)} onClick={e => apriSelettore(e.currentTarget)}
                 style={{ position: 'absolute', inset: '-8px 0', width: '100%', opacity: 0, cursor: 'pointer' }} />
             </span></label>
         </div>
@@ -91,7 +119,7 @@ export default function FoglioSegnaPagata({ fattura, scadenza, oggi, client, onC
         <span className="mz-lab">Come</span>
         <div className="mz-chips">
           {METODI_FATTURA.map(m => (
-            <button key={m.chiave} type="button" data-pastiglia={`modo-${m.chiave}`} aria-pressed={metodo === m.chiave}
+            <button key={m.chiave} type="button" data-pastiglia={`modo-${m.chiave}`} aria-pressed={metodo === m.chiave} disabled={!!pendente}
               className={`mz-chip ${metodo === m.chiave ? 'on' : ''}`} onClick={() => setMetodo(m.chiave)}>{m.testo}</button>
           ))}
         </div>
@@ -104,7 +132,12 @@ export default function FoglioSegnaPagata({ fattura, scadenza, oggi, client, onC
           )}
           {importo.trim() !== '' && avvisoImporto && <p data-errore-importo className="mz-errore">{avvisoImporto}</p>}
         </div>
+        {pendente && !errore && !salvato && <p className="mz-note">I dati del salvataggio sono conservati. Verifica l’esito prima di registrarne un altro.</p>}
         {errore && <AvvisoAzione testo={errore} className="mt-3" />}
+        {conflitto && <div className="mz-note">
+          <Link className="mz-lnk" href={`/spese?documento=${fattura.documentoId}`}>Controlla nelle Spese</Link>
+          <button type="button" className="mz-lnk" style={{ display: 'block', marginTop: 12 }} onClick={chiudiPromemoria}>Ho controllato nelle Spese: chiudi il promemoria</button>
+        </div>}
       </div>
     </FoglioMaison>
   )

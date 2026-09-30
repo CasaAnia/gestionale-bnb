@@ -9,6 +9,7 @@ import { useDemoMode } from '@/lib/useDemoMode'
 import { hasDemoPin, setDemoPin, enableDemo, disableDemo } from '@/lib/demoMode'
 import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import MaterialeDaStampare from '@/components/MaterialeDaStampare'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -19,12 +20,20 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
 }
 
+// Le tariffe che si cambiano da qui e la camera come la legge questa pagina
+// (al posto di `any`, lint del 30/09/2026: solo tipi, nessun cambio di comportamento)
+type CampoPrezzo = 'base_price' | 'extra_bed_price' | 'double_price' | 'matrimoniale_price'
+type CameraImpostazioni = {
+  id: string; name: string; bathroom_type: string; bathroom_note: string | null
+  base_price: number; extra_bed_price: number; double_price?: number | null; matrimoniale_price?: number | null
+}
+
 export default function Impostazioni() {
   const router = useRouter()
-  const [rooms, setRooms] = useState<any[]>([])
+  const [rooms, setRooms] = useState<CameraImpostazioni[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
-  const [edits, setEdits] = useState<Record<string, any>>({})
+  const [edits, setEdits] = useState<Record<string, Partial<Record<CampoPrezzo, number>>>>({})
   // Errori di salvataggio visibili, parte 2 (05/09/2026): le tariffe cambiano
   // a schermo solo se salvate; con un errore le modifiche restano in bozza
   const [erroreCamera, setErroreCamera] = useState<Record<string, string | null>>({})
@@ -40,6 +49,9 @@ export default function Impostazioni() {
   const [pinSaved, setPinSaved] = useState(false)
   const [exitPin, setExitPin] = useState('')
   const [exitErr, setExitErr] = useState(false)
+  // Il PIN sta nella memoria del browser: si legge dopo il montaggio (niente
+  // localStorage nel rendering sul server) e di nuovo quando cambia la modalità
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPinSet(hasDemoPin()) }, [demo])
   function salvaPin() {
     const p = newPin.trim()
@@ -96,15 +108,16 @@ export default function Impostazioni() {
       })
   }, [])
 
-  function edit(id: string, field: string, value: any) {
+  function edit(id: string, field: CampoPrezzo, value: number) {
     setEdits(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }))
   }
 
-  function val(room: any, field: string) {
-    return edits[room.id]?.[field] !== undefined ? edits[room.id][field] : room[field]
+  function val(room: CameraImpostazioni, field: CampoPrezzo) {
+    // null solo per le tariffe che la camera non ha: quei campi non si mostrano (vedi sotto)
+    return edits[room.id]?.[field] !== undefined ? edits[room.id][field] : room[field] ?? undefined
   }
 
-  async function saveRoom(room: any) {
+  async function saveRoom(room: CameraImpostazioni) {
     const changes = edits[room.id]
     if (!changes) return
     setSaving(room.id)
@@ -130,7 +143,7 @@ export default function Impostazioni() {
       <BackBar href="/" />
       {/* Dal Mac la testa condivisa (29/09/2026), senza sottotitolo: non c'è un dato da dire */}
       <TestaMac titolo="Impostazioni" />
-      <p className="text-sm text-gray-500 mb-4">Configura prezzi e camere</p>
+      <p className="text-sm text-gray-500 mb-4">Camere, notifiche e materiale da stampare</p>
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
@@ -197,6 +210,8 @@ export default function Impostazioni() {
         </div>
         </>
       )}
+
+      <MaterialeDaStampare />
 
       {/* Notifiche push */}
       <div className="mt-6 ed-riga py-4">

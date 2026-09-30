@@ -76,7 +76,7 @@ export default function DaControllare({ dati, richieste = false }: { dati: Retur
   }
   // Gli arrivi hanno già il loro blocco operativo sopra: esclusi anche dai conteggi.
   const eccezioni = dc.eccezioni.filter(e => richieste ? e.tipo === 'richiesta' : e.tipo !== 'arrivo' && e.tipo !== 'richiesta')
-  if (eccezioni.length === 0) return null
+  if (eccezioni.length === 0 && !daPagare) return null
   const aPosto = richieste ? null : rigaAPosto(eccezioni, ['arrivo', 'richiesta'])
 
   const voci = eccezioni.map(e => (

@@ -421,7 +421,7 @@ test('il calendario delle Richieste è il nastro del Calendario, con la riga «V
     assert.match(nastro, new RegExp(`<${pezzo} `), `manca ${pezzo}`)
   // l'ordine: periodo, vista, nastro, mesi, legenda
   const dove = (x: string) => { const i = nastro.indexOf(x); assert.notEqual(i, -1, `manca ${x}`); return i }
-  assert.ok(dove('<RigaPeriodo ') < dove('data-riga-vista') && dove('data-riga-vista') < dove('className="cal-nastro"') && dove('className="cal-nastro"') < dove('<RigaMesi ') && dove('<RigaMesi ') < dove('aria-label="Legenda"'))
+  assert.ok(dove('<RigaPeriodo ') < dove('data-riga-vista') && dove('data-riga-vista') < dove('className={`cal-nastro') && dove('className={`cal-nastro') < dove('<RigaMesi ') && dove('<RigaMesi ') < dove('aria-label="Legenda"'))
   assert.match(nastro, /<span className="k">Vista<\/span>\s*<InterruttorePillola voci=\{VOCI_VISTA\} scelta=\{vista\} onScegli=\{onVista\}[^>]*maison \/>/)
   // niente riga «🛏 extra» qui
   assert.equal(/cal-extra|extraBedsMap/.test(nastro), false)

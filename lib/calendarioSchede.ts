@@ -27,6 +27,25 @@ import { TINTE_SCHEDA, TESTO_NOTA, schiarisci, type TintaScheda } from './calend
 export const CORSIA_H = 92
 export const SCHEDA_H = 72
 export const SCHEDA_TOP = 9
+/** Le misure del nastro in un punto solo (30/09/2026, «Sì, completa così» di Ania):
+ *  · normale — corsia 92, scheda 72 (Mac, telefono dritto, tutte le viste);
+ *  · compatta — telefono in ORIZZONTALE a «Sett.»: corsie 56, schede 44 su due
+ *    righe (riferimento S7 di docs/design/settimana-checklist.md). La scheda da
+ *    44 è già l'area di tocco minima; il resto dei dettagli sta nel foglietto;
+ *  · arriviSett — gli Arrivi a «Sett.» col telefono dritto: la riga dell'arrivo
+ *    va a capo (fino a tre righe) e si legge anche su UNA notte (145 px), quindi
+ *    scheda e corsia più alte solo lì. */
+export type MisureNastro = { corsia: number; scheda: number; sopra: number; compatta: boolean }
+export const MISURE_NASTRO = {
+  normale: { corsia: CORSIA_H, scheda: SCHEDA_H, sopra: SCHEDA_TOP, compatta: false },
+  compatta: { corsia: 56, scheda: 44, sopra: 6, compatta: true },
+  arriviSett: { corsia: 108, scheda: 90, sopra: 9, compatta: false },
+} as const satisfies Record<string, MisureNastro>
+export function misureNastro(p: { modo: string; orizzontale: boolean; arrivi?: boolean }): MisureNastro {
+  if (p.modo !== 'settimana') return MISURE_NASTRO.normale
+  if (p.orizzontale) return MISURE_NASTRO.compatta
+  return p.arrivi ? MISURE_NASTRO.arriviSett : MISURE_NASTRO.normale
+}
 /** L'aria ai lati di una scheda: 3 px per lato (larghezza = notti × giorno − 6) */
 export const ARIA_SCHEDA = 3
 /** Il taglio obliquo del cambio camera, come oggi */

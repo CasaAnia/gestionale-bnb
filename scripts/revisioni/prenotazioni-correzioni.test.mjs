@@ -10,6 +10,11 @@ import {payloadValutazione,valutazioneDi,colonnaRicevutaPresente} from '../../li
 import {nomeSuPrenotazione} from '../../lib/clienteTelefono.ts';
 
 import {colonnaMancante} from '../../lib/colonnaMancante.ts';
+import {comePagaSalvato,campiComePaga,chiedeImporto,chiedeScadenza} from '../../lib/comePaga.ts';
+import {nomeDaSalvareONull} from '../../lib/guestName.ts';
+import {ARRIVO_VUOTO,campiArrivo,controllaArrivo} from '../../lib/arrivo.ts';
+import {COLONNE_ARRIVO_0058,totaliScontati} from '../../lib/nuovaPrenotazione.ts';
+import {accordoPrenotazione} from '../../lib/prenotazioneUnica.ts';
 const path=new URL('../../app/nuova/page.tsx',import.meta.url);
 const source=fs.readFileSync(path,'utf8');
 const ast=ts.createSourceFile('page.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
@@ -24,7 +29,7 @@ const first={id:'p1',gruppo:'g1',roomId:'ambra',checkIn:'2026-10-01',checkOut:'2
 async function run(overrides={},options={}){
   const out={errors:[],attempts:[],stored:[],guestWrites:[],warnings:[],routes:[]};
   const scope={
-    problemi,rigaDaSalvare,conInizialiONull,payloadValutazione,valutazioneDi,colonnaMancante,problematicoOk:null,setProblematico:()=>{},setNuovo:()=>{},calcolaNomeSuPrenotazione:nomeSuPrenotazione,
+    problemi,rigaDaSalvare,conInizialiONull,comePagaSalvato,campiComePaga,chiedeImporto,chiedeScadenza,nomeDaSalvareONull,arrivo:ARRIVO_VUOTO,campiArrivo,controllaArrivo,COLONNE_ARRIVO_0058,totaliScontati,accordoPrenotazione,accordoCaricato:true,erroreAggiunta:null,payloadValutazione,valutazioneDi,colonnaMancante,problematicoOk:null,setProblematico:()=>{},setNuovo:()=>{},calcolaNomeSuPrenotazione:nomeSuPrenotazione,
     periodi:[first],trovaCamera:id=>cameras.find(c=>c.id===id),lettiAltrui:new Map(),scelto:true,
     nuovo:null,cliente:{id:'cliente-prova',full_name:'Cliente Prova',rating:'normale'},
     strutture:{disponibile:false,lista:[]},provenienza:{provenienza:null,struttura:''},
@@ -95,7 +100,7 @@ test('nota e motivo del cliente esistente restano separati dopo due salvataggi e
   let cliente={id:'cliente-prova',full_name:'Cliente Prova',phone:'393330000000',rating:'problematico',vuole_ricevuta:false,notes:'Preferisce il cortile',motivo_problematico:'Motivo precedente'};
   let persisted=structuredClone(cliente);
   const save=async(motivo)=>{
-    const scope={cliente,modifica:{nome:cliente.full_name,telefono:cliente.phone,valutazione:'problematico',ricevuta:false,nota:cliente.notes,motivo},conInizialiONull,payloadValutazione,colonnaRicevutaPresente,colonnaMancante,
+    const scope={cliente,modifica:{nome:cliente.full_name,telefono:cliente.phone,valutazione:'problematico',ricevuta:false,nota:cliente.notes,motivo},conInizialiONull,nomeDaSalvareONull,payloadValutazione,colonnaRicevutaPresente,colonnaMancante,
       supabase:{from:()=>({update:fields=>({eq:async()=>{persisted={...persisted,...fields};return {error:null};}})})},
       setCliente:value=>{cliente=value;},setModifica:()=>{},setErroreModifica:value=>{if(value)assert.fail(value);}};
     await invoke(codiceCliente,'salvaDatiCliente',scope);
@@ -110,7 +115,7 @@ test('nota e motivo del cliente esistente restano separati dopo due salvataggi e
 test('motivo non registrabile: non cancella la nota e lascia aperta la modifica', async()=>{
   const cliente={id:'cliente-prova',full_name:'Cliente Prova',phone:'393330000000',rating:'problematico',notes:'Preferisce il cortile'};
   const sent=[],errors=[];let closed=false,updated=false;
-  await invoke(codiceCliente,'salvaDatiCliente',{cliente,modifica:{nome:cliente.full_name,telefono:cliente.phone,valutazione:'problematico',ricevuta:false,nota:cliente.notes,motivo:'Ha fumato'},conInizialiONull,payloadValutazione,colonnaRicevutaPresente,colonnaMancante,
+  await invoke(codiceCliente,'salvaDatiCliente',{cliente,modifica:{nome:cliente.full_name,telefono:cliente.phone,valutazione:'problematico',ricevuta:false,nota:cliente.notes,motivo:'Ha fumato'},conInizialiONull,nomeDaSalvareONull,payloadValutazione,colonnaRicevutaPresente,colonnaMancante,
     supabase:{from:()=>({update:fields=>({eq:async()=>{sent.push(fields);return {error:{code:'PGRST204',message:"Could not find the 'motivo_problematico' column of 'guests' in the schema cache"}};}})})},
     setCliente:()=>{updated=true;},setModifica:()=>{closed=true;},setErroreModifica:v=>{if(v)errors.push(v);}});
   assert.equal(sent.length,1);assert.equal(sent[0].notes,cliente.notes);assert.equal(sent[0].motivo_problematico,'Ha fumato');

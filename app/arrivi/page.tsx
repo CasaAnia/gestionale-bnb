@@ -45,7 +45,7 @@ import { vuoleRicevuta } from '@/lib/valutazione'
 import { dataConGiorno } from '@/lib/dateItaliane'
 import { iconeFoglietto, LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import {
-  CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, TAGLIO_CAMBIO, FILO_SINISTRO, geometriaScheda, iconeScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco,
+  misureNastro, ARIA_SCHEDA, TAGLIO_CAMBIO, FILO_SINISTRO, geometriaScheda, iconeScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco,
   daConfermareDalSito, trattiLetto,
 } from '@/lib/calendarioSchede'
 import {
@@ -187,7 +187,10 @@ export default function Arrivi() {
   const CELL_W = larghezzaGriglia > 0
     ? larghezzaGiorno(modo, larghezzaGriglia - NAME_W, colonnaMin, COLONNE_VISIBILI[modo])
     : (isDesktop ? CELL_W_DESKTOP : 60)
-  const ROW_H = CORSIA_H
+  // Corsie e schede: compatte (56/44) col telefono in orizzontale a «Sett.»; col telefono
+  // dritto a «Sett.» più alte, perché la riga dell'arrivo vada a capo e si legga tutta (30/09/2026)
+  const misure = misureNastro({ modo, orizzontale, arrivi: true })
+  const ROW_H = misure.corsia
   const RULER_H = isDesktop && !orizzontale ? RULER_H_DESKTOP : RULER_H_MOBILE
 
   const today = new Date()
@@ -382,7 +385,7 @@ export default function Arrivi() {
         <div className="mz-caricamento">Caricamento…</div>
       ) : (
         <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="cal-nastro" style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
+          <div className={`cal-nastro arrivi ${misure.compatta ? 'compatta' : modo === 'settimana' ? 'sett' : ''}`} style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
             {/* ── IL RIGHELLO «lun 28» E I FILI (ottone al 1° del mese, verde su oggi) — gli stessi del Calendario ── */}
             <RighelloNastro giorni={days} oggi={todayStr} colonnaCamere={NAME_W} giorno={CELL_W} altezza={RULER_H} />
@@ -411,7 +414,7 @@ export default function Arrivi() {
                     }} />
 
                   {/* I buchi liberi: riquadro tratteggiato, le date e il «+»; il tocco apre la nuova prenotazione con camera e data */}
-                  {/* PROVA del 29/09/2026 (A3): con BUCHI_LIBERI_VISIBILI a false i riquadri
+                  {/* SCELTA CONFERMATA da Ania il 30/09/2026 (era la prova A3 del 29/09): con BUCHI_LIBERI_VISIBILI a false i riquadri
                       non si disegnano e la corsia resta vuota; il tocco lo prende la corsia */}
                   {BUCHI_LIBERI_VISIBILI && buchi.map(h => {
                     const da = Math.max(0, dayIndex(h.da)), a = Math.min(DAYS_TOTAL, dayIndex(h.a))
@@ -419,7 +422,7 @@ export default function Arrivi() {
                     const g = geometriaScheda(da, a, CELL_W)
                     return (
                       <BucoNastro key={`buco-${h.da}`} chiave={`${h.da}_${h.a}`} etichetta={`Nuova prenotazione in ${shortName} dal ${h.da}`} riga={rigaBuco(h)}
-                        left={NAME_W + g.left} top={rowTop + SCHEDA_TOP} width={g.width} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
+                        left={NAME_W + g.left} top={rowTop + misure.sopra} width={g.width} altezza={misure.scheda} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
                         onClick={e => {
                           e.stopPropagation()
                           // L'arrivo è il GIORNO TOCCATO (Ania, 29/09/2026): dalle coordinate del tocco
@@ -460,8 +463,8 @@ export default function Arrivi() {
                     // Cambio camera: il tratto che parte tagliato in basso a destra, quello che arriva in basso a sinistra
                     const cutLeft = hasIncoming && startIdx === dayIndex(booking.check_in)
                     const cutRight = hasOutgoing && endIdx === dayIndex(booking.check_out)
-                    const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(g.width, SCHEDA_H, cutLeft, cutRight, 6, TAGLIO_CAMBIO) : undefined
-                    const tocco = areaTocco(rowTop + SCHEDA_TOP, SCHEDA_H)
+                    const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(g.width, misure.scheda, cutLeft, cutRight, 6, TAGLIO_CAMBIO) : undefined
+                    const tocco = areaTocco(rowTop + misure.sopra, misure.scheda)
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
                     const icone = iconeScheda({
                       esclusiva: booking.color === '#f97316', ottimo: booking.guests?.rating === 'ottimo', ricevuta: vuoleRicevuta(booking.guests),
@@ -472,7 +475,7 @@ export default function Arrivi() {
                       <SchedaNastro key={booking.id} id={booking.id} dati={{ arrivo: isWebPending ? 'dalSito' : stato, passato: passato ? 1 : undefined }}
                         onClick={e => { e.stopPropagation(); tocca(booking, chainKey) }}
                         classi={`${isDimmed ? (searchAttiva ? 'dim cerca' : 'dim') : ''} ${isSelected ? 'catena' : ''} ${isCurrent ? 'trovata' : ''}`}
-                        top={tocco.top} height={tocco.height} left={NAME_W + g.left} width={g.width} zIndex={isCurrent ? 16 : isSelected ? 15 : 5}
+                        top={tocco.top} height={tocco.height} altezzaScheda={misure.scheda} left={NAME_W + g.left} width={g.width} zIndex={isCurrent ? 16 : isSelected ? 15 : 5}
                         sito={isWebPending} cutLeft={cutLeft} letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
                         lettoTratti={trattiLetto(nottiLettoExtra(booking), dayIndex, startIdx, endIdx, CELL_W)}
                         fondo={tinta.fondo} testo={tinta.testo} filo={tinta.filo} clipPath={clipPath}

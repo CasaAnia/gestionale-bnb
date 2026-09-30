@@ -12,7 +12,7 @@ import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import type { Booking, Guest, Room } from '@/lib/types'
 import { COLORE_LETTI_ESAURITI, statoLettiAggiuntivi } from '@/lib/calendarioLetti'
 import {
-  CORSIA_H, SCHEDA_TOP, ARIA_SCHEDA, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco, FILO_SINISTRO,
+  misureNastro, ARIA_SCHEDA, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco, FILO_SINISTRO,
 } from '@/lib/calendarioSchede'
 import BackLink from '@/components/BackLink'
 import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione'
@@ -221,7 +221,9 @@ export default function Calendario() {
   const CELL_W = larghezzaGriglia > 0
     ? larghezzaGiorno(modo, larghezzaGriglia - NAME_W, colonnaMin, COLONNE_VISIBILI[modo])
     : (isDesktop ? CELL_W_DESKTOP : 60)
-  const ROW_H = CORSIA_H
+  // Corsie e schede: normali; compatte (56/44) col telefono in orizzontale a «Sett.» (30/09/2026)
+  const misure = misureNastro({ modo, orizzontale })
+  const ROW_H = misure.corsia
   const RULER_H = isDesktop && !orizzontale ? RULER_H_DESKTOP : RULER_H_MOBILE
   const EXTRA_ROW_H = 30
 
@@ -735,7 +737,7 @@ export default function Calendario() {
         <div className="mz-caricamento">Caricamento…</div>
       ) : (
         <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="cal-nastro" style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
+          <div className={`cal-nastro ${misure.compatta ? 'compatta' : ''}`} style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
             {/* ── IL RIGHELLO DEI GIORNI: «lun 28», domeniche in terra, oggi in verde; fermo in alto ── */}
             {/* ── FILI: ottone al 1° del mese, verde su oggi (components/calendario/Nastro, condivisi con gli Arrivi) ── */}
@@ -769,15 +771,16 @@ export default function Calendario() {
 
                   {/* I buchi liberi: riquadro tratteggiato, «3 → 4 ott» e il «+»; il
                       tocco apre la nuova prenotazione con camera e arrivo già scritti */}
-                  {/* PROVA del 29/09/2026 (A3): con BUCHI_LIBERI_VISIBILI a false i riquadri
-                      non si disegnano e la corsia resta vuota; il tocco lo prende la corsia */}
+                  {/* SCELTA CONFERMATA da Ania il 30/09/2026 (era la prova A3 del 29/09): con
+                      BUCHI_LIBERI_VISIBILI a false i riquadri non si disegnano e la corsia resta
+                      vuota; il tocco lo prende la corsia */}
                   {BUCHI_LIBERI_VISIBILI && buchi.map(h => {
                     const da = Math.max(0, dayIndex(h.da)), a = Math.min(daysTotal, dayIndex(h.a))
                     if (a - da <= 0) return null
                     const g = geometriaScheda(da, a, CELL_W)
                     return (
                       <BucoNastro key={`buco-${h.da}`} chiave={`${h.da}_${h.a}`} etichetta={`Nuova prenotazione in ${shortName} dal ${h.da}`} riga={rigaBuco(h)}
-                        left={NAME_W + g.left} top={rowTop + SCHEDA_TOP} width={g.width} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
+                        left={NAME_W + g.left} top={rowTop + misure.sopra} width={g.width} altezza={misure.scheda} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
                         onClick={e => {
                           e.stopPropagation()
                           // L'arrivo è il GIORNO TOCCATO (Ania, 29/09/2026): dalle coordinate del tocco
@@ -804,7 +807,7 @@ export default function Calendario() {
                       <SchedaPrenotazione key={booking.id} booking={booking} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
                         indice={dayIndex} legami={legami} coperte={paidNightsByBooking[booking.id]}
                         attenuata={isDimmed} cerca={searchAttiva} trovata={isCurrent} selezionata={isSelected}
-                        larghezzaTesto={larghezzaTesto} onTocca={tocca} />
+                        larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} />
                     )
                   })}
 
@@ -813,7 +816,7 @@ export default function Calendario() {
                   {tenute.map(barra => (
                     <SchedaTenuta key={`tenuta-${barra.richiestaId}-${barra.cameraId}-${barra.arrivo}`} barra={barra} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
                       indice={dayIndex} attenuata={searchAttiva || selectedGroupId !== null} cerca={searchAttiva} larghezzaTesto={larghezzaTesto}
-                      titolo={`${barra.ospite} · ${testoTenuta(barra, adesso)}`} onTocca={setBarraAperta} />
+                      titolo={`${barra.ospite} · ${testoTenuta(barra, adesso)}`} onTocca={setBarraAperta} misure={misure} />
                   ))}
                 </div>
               )

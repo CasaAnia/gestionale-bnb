@@ -73,13 +73,14 @@ export function CorsiaNastro({ top, larghezza, altezza, colonnaCamere, nome, des
 }
 
 /** Il buco libero: riquadro tratteggiato, «3 → 4 ott» e il «+» */
-export function BucoNastro({ chiave, etichetta, riga, left, top, width, testoLeft, testoWidth, onClick }: {
+export function BucoNastro({ chiave, etichetta, riga, left, top, width, testoLeft, testoWidth, onClick, altezza = SCHEDA_H }: {
   chiave: string; etichetta: string; riga: string; left: number; top: number; width: number; testoLeft: number; testoWidth: number
+  altezza?: number
   onClick: (e: MouseEvent<HTMLButtonElement>) => void
 }) {
   return (
     <button type="button" className="cal-buco" data-buco={chiave} aria-label={etichetta}
-      style={{ left, top, width, height: SCHEDA_H }} onClick={onClick}>
+      style={{ left, top, width, height: altezza }} onClick={onClick}>
       <span className="in" style={{ left: testoLeft, width: testoWidth }}>
         <em>{riga}</em>
         <span className="pl" aria-hidden>+</span>
@@ -94,12 +95,14 @@ export function BucoNastro({ chiave, etichetta, riga, left, top, width, testoLef
  * taglio stesso è `clipPath`. Il testo (`children`) sta nello `.tx` che resta
  * in vista quando la scheda comincia fuori, a sinistra.
  */
-export function SchedaNastro({ id, dati, classi, top, height, left, width, zIndex, onClick, sito, cutLeft, letto, lettoTratti, fondo, testo, filo, clipPath, cuneoDestra, cuneoSinistra, testoLeft, testoWidth, stileInterno, children }: {
+export function SchedaNastro({ id, dati, classi, top, height, altezzaScheda = SCHEDA_H, left, width, zIndex, onClick, sito, cutLeft, letto, lettoTratti, fondo, testo, filo, clipPath, cuneoDestra, cuneoSinistra, testoLeft, testoWidth, stileInterno, children }: {
   id: string
   /** attributi data-* in più (data-stato, data-arrivo…) */
   dati?: Record<string, string | number | undefined>
   classi: string
   top: number; height: number; left: number; width: number; zIndex: number
+  /** l'altezza disegnata della scheda, per il filo obliquo del cambio camera (normale 72, compatta 44) */
+  altezzaScheda?: number
   onClick: (e: MouseEvent<HTMLDivElement>) => void
   /** richiesta dal sito da confermare: bordo tratteggiato del colore del filo */
   sito?: boolean
@@ -128,8 +131,8 @@ export function SchedaNastro({ id, dati, classi, top, height, left, width, zInde
           clipPath, borderRadius: clipPath ? 0 : 6,
           ...stileInterno,
         }}>
-        {cuneoDestra && <span aria-hidden data-filo-obliquo="uscita" className="cal-cuneo" style={{ background: cuneoDestra, clipPath: filoObliquo('destra', width, SCHEDA_H) }} />}
-        {cuneoSinistra && <span aria-hidden data-filo-obliquo="arrivo" className="cal-cuneo" style={{ background: cuneoSinistra, clipPath: filoObliquo('sinistra', width, SCHEDA_H) }} />}
+        {cuneoDestra && <span aria-hidden data-filo-obliquo="uscita" className="cal-cuneo" style={{ background: cuneoDestra, clipPath: filoObliquo('destra', width, altezzaScheda) }} />}
+        {cuneoSinistra && <span aria-hidden data-filo-obliquo="arrivo" className="cal-cuneo" style={{ background: cuneoSinistra, clipPath: filoObliquo('sinistra', width, altezzaScheda) }} />}
         <FiloLetto tratti={lettoTratti} bordoSinistro={sito ? 1.5 : FILO_SINISTRO} />
         {/* il testo resta in vista anche quando la scheda comincia fuori, a sinistra */}
         <span className="tx" style={{ left: testoLeft, width: testoWidth }}>

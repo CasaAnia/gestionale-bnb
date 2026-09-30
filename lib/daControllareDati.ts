@@ -20,7 +20,9 @@ import {
 } from './daControllare'
 import type { PagamentoStat } from './statistiche/tipi'
 import { spostaGiorni } from './statistiche/periodo'
-import { NOMI_CATEGORIA_COMMISSIONE, type ClienteFattura } from './fatturaPagata'
+import { NOMI_CATEGORIA_COMMISSIONE, type ClienteFattura, type FatturaRiletta, type SpesaFattura } from './fatturaPagata'
+
+import { aggiungiFattureInSospeso } from './fatturaCustodia'
 
 export const MESSAGGIO_NON_RIESCO = 'Non riesco a controllare, riprova'
 
@@ -132,7 +134,7 @@ function pubblica(s: StatoDaControllareHome) {
 }
 function pubblicaDati(d: Dati) {
   datiCondivisi = d
-  pubblica({ stato: 'pronto', oggi: d.oggi, rinviiDisponibili: d.rinviiDisponibili, eccezioni: daControllareHome({ ...d, adesso: new Date() }) })
+  pubblica({ stato: 'pronto', oggi: d.oggi, rinviiDisponibili: d.rinviiDisponibili, eccezioni: aggiungiFattureInSospeso(daControllareHome({ ...d, adesso: new Date() })) })
 }
 
 // Rilegge tutto e aggiorna chi ascolta. Con `daCapo` mostra prima il
@@ -194,11 +196,29 @@ export const clienteFattura: ClienteFattura = {
     const scelta = NOMI_CATEGORIA_COMMISSIONE.map(n => righe.find(r => r.name === n)).find(Boolean)
     return { id: scelta?.id ?? null, error: null }
   },
-  async commissioneGiaRegistrata(nota) {
-    const { data, error } = await supabase.from('family_expenses').select('id').eq('notes', nota).limit(1)
-    return { esiste: (data?.length ?? 0) > 0, error }
+  async leggiFattura(documentoId) {
+    const [doc, bozze, legami] = await Promise.all([
+      supabase.from('family_documents').select('id, kind, status, doc_total').eq('id', documentoId).maybeSingle(),
+      supabase.from('family_draft_expenses').select('id, status, expense_id, group_id').eq('document_id', documentoId),
+      supabase.from('family_expense_documents').select('expense_id').eq('document_id', documentoId),
+    ])
+    const error = doc.error ?? bozze.error ?? legami.error
+    if (error || !doc.data || !bozze.data || !legami.data) return { data: null, error: error ?? { message: 'Rilettura incompleta' } }
+    const ids = legami.data.map(r => r.expense_id)
+    const spese = ids.length ? await supabase.from('family_expenses').select('*').in('id', ids) : { data: [], error: null }
+    if (spese.error || !spese.data || spese.data.length !== ids.length) return { data: null, error: spese.error ?? { message: 'Spese incomplete' } }
+    return { data: { documento: doc.data, bozze: bozze.data, spese: spese.data } as FatturaRiletta, error: null }
   },
-  inserisciSpesa: riga => supabase.from('family_expenses').insert(riga),
+  async leggiCommissione(id, nota) {
+    const [perId, perNota] = await Promise.all([
+      supabase.from('family_expenses').select('*').eq('id', id),
+      supabase.from('family_expenses').select('*').eq('notes', nota),
+    ])
+    const error = perId.error ?? perNota.error
+    if (error || !perId.data || !perNota.data) return { data: null, error: error ?? { message: 'Rilettura incompleta' } }
+    return { data: [...new Map([...perId.data, ...perNota.data].map(r => [r.id, r])).values()] as SpesaFattura[], error: null }
+  },
+  inserisciSpesa: riga => supabase.from('family_expenses').insert(riga).select('*'),
 }
 
 // Il PDF della bolletta: URL firmato per un'ora (il bucket è privato)

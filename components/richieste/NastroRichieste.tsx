@@ -36,7 +36,7 @@ import { SchedaPrenotazione, SchedaTenuta } from '@/components/calendario/Scheda
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI, RIGA_QUALSIASI } from '@/lib/richiesteCalendario'
-import { CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, FILO_SINISTRO, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco } from '@/lib/calendarioSchede'
+import { misureNastro, ARIA_SCHEDA, FILO_SINISTRO, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco } from '@/lib/calendarioSchede'
 import { areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_LEGENDA, ICONE_LEGENDA, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, larghezzaGiorno, type ModoNastro } from '@/lib/calendarioMobile'
 import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { barreTenute, barrePerCamera, testoTenuta, type RichiestaTenuta, type BarraTenuta } from '@/lib/calendarioOpzioni'
@@ -128,6 +128,8 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   const colonnaLarga = desktop && !orizzontale
   const NAME_W = colonnaLarga ? NAME_W_DESKTOP : NAME_W_MOBILE
   // «Sett.» anche girato: giorni da 145 px con le schede compatte (30/09/2026)
+  // Corsie e schede compatte (56/44) col telefono in orizzontale a «Sett.» (30/09/2026)
+  const misure = misureNastro({ modo, orizzontale })
   const colonnaMin = modo === 'settimana' ? colonnaMinTelefono(modo) : desktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
   const CELL_W = larghezzaGriglia > 0
     ? larghezzaGiorno(modo, larghezzaGriglia - NAME_W, colonnaMin, COLONNE_VISIBILI[modo])
@@ -237,7 +239,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   }
 
   const totalW = NAME_W + DAYS_TOTAL * CELL_W
-  const totalH = RULER_H + righe.length * CORSIA_H
+  const totalH = RULER_H + righe.length * misure.corsia
   const corsiaVisibile = Math.max(0, larghezzaGriglia - NAME_W - ARIA_SCHEDA * 2)
   const parteInVista = (da: number, a: number) => {
     const w = geometriaScheda(Math.max(da, colonnaSinistra) < a ? Math.max(da, colonnaSinistra) : da, a, CELL_W).width
@@ -258,12 +260,12 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
     const r = righeSchedaRichieste(s, adesso)
     const piena = !evid || s.richieste.some(x => evid.has(x.id))
     const attenuata = !piena || selectedGroupId !== null
-    const tocco = areaTocco(rigaTop + SCHEDA_TOP, SCHEDA_H)
+    const tocco = areaTocco(rigaTop + misure.sopra, misure.scheda)
     return (
       <SchedaNastro key={s.chiave} id={s.richieste.map(x => x.id).join('+')} dati={{ richiesta: s.richieste.map(x => x.id).join(' '), sovrapposte: r.sovrapposte ? 1 : undefined, inviata: r.inviata ? 1 : undefined }}
         onClick={e => { e.stopPropagation(); onRichieste(s.richieste, e) }}
         classi={`rq ${attenuata ? 'dim cerca' : ''} ${evid && piena ? 'scelta' : ''}`}
-        top={tocco.top} height={tocco.height} left={NAME_W + g.left} width={g.width} zIndex={evid && piena ? 16 : 6}
+        top={tocco.top} height={tocco.height} altezzaScheda={misure.scheda} left={NAME_W + g.left} width={g.width} zIndex={evid && piena ? 16 : 6}
         sito fondo={r.inviata ? TINTA_RICHIESTA.fondoInviata : TINTA_RICHIESTA.fondo} testo={TINTA_RICHIESTA.testo} filo={TINTA_RICHIESTA.bordo}
         stileInterno={r.sovrapposte ? { borderStyle: 'dotted' } : undefined}
         testoLeft={NAME_W + ARIA_SCHEDA + 8} testoWidth={larghezzaTesto(da, a)}>
@@ -290,12 +292,12 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
         </div>
 
         <div ref={scrollRef} onScroll={aggiornaVisibile} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="cal-nastro" style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
+          <div className={`cal-nastro ${misure.compatta ? 'compatta' : ''}`} style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
             <RighelloNastro giorni={days} oggi={todayStr} colonnaCamere={NAME_W} giorno={CELL_W} altezza={RULER_H} />
             <FiliNastro giorni={days} indiceOggi={dayIndex(todayStr)} colonnaCamere={NAME_W} giorno={CELL_W} top={RULER_H} altezza={totalH - RULER_H} />
 
             {righe.map((riga, ri) => {
-              const rowTop = RULER_H + ri * CORSIA_H
+              const rowTop = RULER_H + ri * misure.corsia
               const qualsiasi = riga.id === RIGA_QUALSIASI
               const sue = qualsiasi ? [] : prenotazioni.filter(b => b.room_id === riga.id)
               const inVista = sue.filter(b => b.check_out > toStr(startDate) && b.check_in < toStr(endDate))
@@ -311,7 +313,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
               const occupato = (iso: string) => occupati.some(o => o.da <= iso && iso < o.a)
               return (
                 <div key={riga.id}>
-                  <CorsiaNastro top={rowTop} larghezza={totalW} altezza={CORSIA_H} colonnaCamere={NAME_W} nome={riga.nome} descrizione={ROOM_DESC_BY_NAME[riga.nome]} classe={qualsiasi ? 'qualsiasi' : ''}
+                  <CorsiaNastro top={rowTop} larghezza={totalW} altezza={misure.corsia} colonnaCamere={NAME_W} nome={riga.nome} descrizione={ROOM_DESC_BY_NAME[riga.nome]} classe={qualsiasi ? 'qualsiasi' : ''}
                     onClick={e => {
                       if (qualsiasi) return
                       // Un giorno libero toccato fuori dai buchi disegnati: nuova prenotazione da lì
@@ -326,7 +328,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
                     const g = geometriaScheda(da, a, CELL_W)
                     return (
                       <BucoNastro key={`buco-${h.da}`} chiave={`${h.da}_${h.a}`} etichetta={`Nuova prenotazione in ${riga.nome} dal ${h.da}`} riga={rigaBuco(h)}
-                        left={NAME_W + g.left} top={rowTop + SCHEDA_TOP} width={g.width} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
+                        left={NAME_W + g.left} top={rowTop + misure.sopra} width={g.width} altezza={misure.scheda} testoLeft={NAME_W + ARIA_SCHEDA} testoWidth={parteInVista(da, a)}
                         onClick={e => {
                           e.stopPropagation()
                           // L'arrivo è il GIORNO TOCCATO (come nel Calendario)
@@ -344,13 +346,13 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
                       <SchedaPrenotazione key={b.id} booking={b} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={DAYS_TOTAL}
                         indice={dayIndex} legami={legami} coperte={pagate[b.id]}
                         attenuata={attenuata} cerca={!!evid || selectedGroupId !== null} trovata={false} selezionata={isSelected}
-                        larghezzaTesto={larghezzaTesto} onTocca={tocca} />
+                        larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} />
                     )
                   })}
                   {tenute.map(barra => (
                     <SchedaTenuta key={`tenuta-${barra.richiestaId}-${barra.cameraId}-${barra.arrivo}`} barra={barra} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={DAYS_TOTAL}
                       indice={dayIndex} attenuata={(!!evid && !evid.has(barra.richiestaId)) || selectedGroupId !== null} cerca larghezzaTesto={larghezzaTesto}
-                      titolo={`${barra.ospite} · ${testoTenuta(barra, adesso)}`} onTocca={toccaTenuta} />
+                      titolo={`${barra.ospite} · ${testoTenuta(barra, adesso)}`} onTocca={toccaTenuta} misure={misure} />
                   ))}
                   {schedeRiga.map(s => schedaRichieste(s, rowTop))}
                 </div>

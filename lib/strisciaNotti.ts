@@ -527,6 +527,31 @@ export type PianoNotti = {
   annulla: string[]
   errore: string | null
   tratti: TrattoPiano[]
+  /** un prezzo concordato a mano non si può portare da solo nel piano
+   *  (date, camera o tariffa cambiate, tratto nuovo o tolto): va confermato
+   *  nel foglio del prezzo. Vale con e senza scelta. */
+  concordatoDubbio?: boolean
+}
+
+// ── Il prezzo concordato a mano (30/09/2026, audit Codex R5) ───────────────
+// Righe vecchie o scritte a mano: nessuno sconto registrato, ma total_amount
+// diverso da tariffa × notti + letto. È un prezzo preso con la cliente e il
+// listino non gli si riscrive sopra in silenzio. Senza cambiare niente non si
+// scrive nulla; cambiando solo il letto (o persone che non cambiano tariffa)
+// si sposta solo il supplemento; date, camera, tariffa, tratti nuovi o tolti
+// passano dal foglio «Il soggiorno cambia», dove il prezzo si sceglie.
+export const PREZZO_CONCORDATO_DA_CONFERMARE = 'Questa prenotazione ha un prezzo concordato a mano: con queste modifiche il nuovo prezzo va confermato. Riapri la modifica e conferma il prezzo.'
+export const PREZZO_CONCORDATO_NEGATIVO = 'Con questo letto il prezzo concordato andrebbe sotto zero: rivedi il prezzo prima di salvare.'
+
+/** In centesimi: il totale salvato meno tariffa × notti + letto, per una riga
+ *  SENZA sconto registrato (0 se c'è uno sconto, o se il totale manca). */
+export function differenzaConcordata(s: { check_in?: string; check_out?: string; price_per_night?: number | string | null; extra_bed_total?: number | string | null; discount_type?: string | null; total_amount?: number | string | null; status?: string | null }): number {
+  if (s.status === 'annullata' || s.discount_type) return 0
+  if (s.total_amount === null || s.total_amount === undefined || s.total_amount === '') return 0
+  const salvato = Math.round(Number(s.total_amount) * 100)
+  if (!Number.isFinite(salvato)) return 0
+  const listino = contoSoggiorno({ check_in: s.check_in, check_out: s.check_out, price_per_night: s.price_per_night, extra_bed_total: s.extra_bed_total }).totale
+  return salvato - Math.round(listino * 100)
 }
 
 // Il tratto già salvato che assomiglia di più a un blocco: quello con più
@@ -653,11 +678,22 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
   }
 
   const piano: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null, tratti }
+  const lineaConcordata = righe.some(r => differenzaConcordata(r) !== 0)
+  let dubbio = false
+  let negativo = false
   blocchi.forEach((b, i) => {
     const dati = pieni[i]!
     const origine = abbina(b, liberi)
     if (origine) liberi.splice(liberi.indexOf(origine), 1)
     const quota = quotaPerBlocco ? quotaPerBlocco[i] : null
+    // il prezzo concordato a mano del tratto di prima: si porta solo se il
+    // tratto resta nella stessa camera, con le stesse date e la stessa tariffa
+    const differenza = origine ? differenzaConcordata(origine) : 0
+    const portaConcordato = differenza !== 0 && !!origine
+      && (origine.room_id ?? origine.rooms?.id) === b.cameraId
+      && origine.check_in === b.check_in && origine.check_out === b.check_out
+      && Math.round(dati.aNotte * 100) === Math.round((Number(origine.price_per_night) || 0) * 100)
+    if ((differenza !== 0 && !portaConcordato) || (!origine && lineaConcordata)) dubbio = true
     const scontoCampi = percentuale !== null
       ? { discount_type: 'percentage', discount_value: percentuale }
       : quota !== null
@@ -669,6 +705,11 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
       discount_type: (scontoCampi as { discount_type?: string }).discount_type ?? null,
       discount_value: (scontoCampi as { discount_value?: number }).discount_value ?? null,
     })
+    // senza scelta e senza sconti registrati il concordato resta: cambia
+    // solo il supplemento del letto (dati.pieno ha già il letto nuovo)
+    const concordato = !scelta && percentuale === null && quota === null && portaConcordato
+      ? round2(dati.pieno + differenza / 100) : null
+    if (concordato !== null && concordato < 0) negativo = true
     const campi: CampiTratto = {
       room_id: dati.camera.id,
       check_in: b.check_in,
@@ -678,7 +719,7 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
       extra_bed_dates: b.nottiLetto,
       price_per_night: dati.aNotte,
       extra_bed_total: dati.letto,
-      total_amount: conto.totale,
+      total_amount: concordato ?? conto.totale,
       ...scontoCampi,
       // importo e criterio vanno insieme, o il database rifiuta la riga
       ...(accordoLetto && b.nottiLetto.length > 0
@@ -697,6 +738,11 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
     else piano.crea.push(campi)
   })
   piano.annulla = liberi.map(s => s.id)
+  // un tratto concordato che sparisce porta via il suo prezzo: da confermare
+  if (liberi.some(s => differenzaConcordata(s) !== 0)) dubbio = true
+  piano.concordatoDubbio = dubbio
+  if (!scelta && dubbio) return { ...vuoto, tratti, concordatoDubbio: true, errore: PREZZO_CONCORDATO_DA_CONFERMARE }
+  if (negativo) return { ...vuoto, tratti, errore: PREZZO_CONCORDATO_NEGATIVO }
   return piano
 }
 

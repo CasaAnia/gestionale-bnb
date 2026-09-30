@@ -90,16 +90,31 @@ test('Home vera: conferma SQL con e senza recupero, due riaperture, registro e n
   } finally { await db.close() }
 })
 
-test('Home senza lavoro: le stime storiche restano fuori, la ripresa di un salvataggio resta montata', () => {
+// Requisito ricostruito il 30/09/2026 (R5 dell'audit Codex): fino al 27/09 la
+// pulizia con l'arrivo lo stesso giorno era «automatica» e la Home restava
+// vuota. Dal 28/09 (6d3ac7c, Home Maison «novità 3», confermata in
+// lib/pulizie.test.ts) è una voce da fare come le altre. Restano fuori dalla
+// Home le stime storiche: il giorno dopo, con l'ospite nuovo già arrivato, la
+// partenza mai segnata non torna come pulizia in ritardo.
+test('cambio ospite lo stesso giorno: voce da fare in Home; il giorno dopo le stime storiche restano fuori', () => {
   const rooms = [{ id: 'r', name: 'Amelia' }]
   const bookings = [
     { id: 'uscita', room_id: 'r', status: 'confermata', check_in: '2026-09-01', check_out: '2026-09-07' },
     { id: 'arrivo', room_id: 'r', status: 'confermata', check_in: '2026-09-07', check_out: '2026-09-09' },
   ]
-  assert.equal(pulizieDiOggi(rooms, bookings, [], '2026-09-07')[0].stato, 'automatica')
-  const html = render(rooms, bookings, [], '2026-09-07')
-  assert.doesNotMatch(html, /data-pulizie-oggi/)
-  assert.match(html, /data-ripresa-pendente/)
+  const oggi = pulizieDiOggi(rooms, bookings, [], '2026-09-07')
+  assert.equal(oggi.length, 1)
+  assert.equal(oggi[0].stato, 'da_fare')
+  assert.equal(oggi[0].ritardo, 0)
+  const conLavoro = render(rooms, bookings, [], '2026-09-07')
+  assert.match(conLavoro, /data-pulizie-oggi/)
+  assert.match(conLavoro, /data-camera="Amelia"/)
+  assert.match(conLavoro, /data-ripresa-pendente/)
+
+  assert.deepEqual(pulizieDiOggi(rooms, bookings, [], '2026-09-08'), [])
+  const senzaLavoro = render(rooms, bookings, [], '2026-09-08')
+  assert.doesNotMatch(senzaLavoro, /data-pulizie-oggi/)
+  assert.match(senzaLavoro, /data-ripresa-pendente/, 'la ripresa di un salvataggio resta montata anche senza lavoro')
 })
 
 test('Home: il recupero porta alla scheda il numero di ospiti del soggiorno', () => {
