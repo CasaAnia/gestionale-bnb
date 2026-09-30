@@ -49,14 +49,18 @@ async function leggiPrenotazioni(da: string, a: string): Promise<Esito<Prenotazi
   const p = await pagine<PrenotazioneDC>(cosa, (offset, limite) => supabase.from('bookings').select(COLONNE_PRENOTAZIONI)
     .in('status', STATI_LETTI).lt('check_in', a).gt('check_out', da).order('check_in', { ascending: true }).range(offset, offset + limite - 1) as unknown as RispostaPren)
   if (p.errore) return p
+  // Le altre camere dello stesso cambio camera (group_id) e della stessa
+  // prenotazione (prenotazione_id, regola fissa n. 9: il conto è uno solo)
   const gruppi = [...new Set(p.data!.map(b => b.group_id).filter(Boolean) as string[])]
+  const prenotazioniId = [...new Set(p.data!.map(b => b.prenotazione_id).filter(Boolean) as string[])]
   let segmenti: PrenotazioneDC[] = []
-  if (gruppi.length > 0) {
-    const r = await raccogliBlocchi<PrenotazioneDC, string>(aBlocchi(gruppi), blocco =>
+  for (const [colonna, valori] of [['group_id', gruppi], ['prenotazione_id', prenotazioniId]] as const) {
+    if (valori.length === 0) continue
+    const r = await raccogliBlocchi<PrenotazioneDC, string>(aBlocchi(valori), blocco =>
       raccogliPagine<PrenotazioneDC>((offset, limite) => supabase.from('bookings').select(COLONNE_PRENOTAZIONI)
-        .in('status', STATI_LETTI).in('group_id', blocco).range(offset, offset + limite - 1) as unknown as RispostaPren), b => b.id)
+        .in('status', STATI_LETTI).in(colonna, blocco).range(offset, offset + limite - 1) as unknown as RispostaPren), b => b.id)
     if (r.error) return { data: null, errore: messaggioLetturaNonRiuscita(r.error, cosa) }
-    segmenti = r.data
+    segmenti = [...segmenti, ...r.data]
   }
   // I mancati arrivi restano da incassare anche oltre l'intervallo della Home.
   // Leggere anche le altre righe annullate conserva gli incassi dell'intera prenotazione.

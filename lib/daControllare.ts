@@ -184,16 +184,17 @@ type Soggiorno = { chiave: string; segmenti: PrenotazioneDC[]; totaleCent: numbe
 
 // UN soggiorno = tutti i segmenti che l'ospite fa di fila, anche quando sono
 // prenotazioni separate (Ania, 11/09/2026: «uniscile in una sola voce»).
-// Stanno insieme se hanno lo stesso `group_id` oppure se uno comincia il
+// Stanno insieme se sono della stessa prenotazione (prenotazione_id, poi
+// `group_id`: regola fissa n. 9, 30/09/2026) oppure se uno comincia il
 // giorno in cui finisce l'altro ed è la stessa persona — prolungamento o
 // cambio camera, con la STESSA regola degli arrivi (`eCambioCamera`, che
 // riconosce la persona anche dal telefono o dal nome). Caso Rosa: Ambra 1–7,
 // Amelia 7–11 e Ambra 11–20, tre prenotazioni non collegate, una voce sola.
 function soggiorni(prenotazioni: PrenotazioneDC[]): Soggiorno[] {
   const valide = prenotazioni.filter(prenotazioneValida)
-  // Insiemi uniti per passi successivi (union-find sulle chiavi group_id||id)
+  // Insiemi uniti per passi successivi (union-find sulla chiave della prenotazione)
   const radice = new Map<string, string>()
-  const chiaveDi = (b: PrenotazioneDC) => b.group_id || b.id
+  const chiaveDi = chiavePrenotazione
   const trova = (k: string): string => {
     const su = radice.get(k)
     if (!su || su === k) return k
@@ -247,6 +248,8 @@ function datiSoggiorno(segmenti: PrenotazioneDC[], chiaveDi: (b: PrenotazioneDC)
 // e SPEZZA la catena, così l'intervallo scritto nella voce corrisponde sempre
 // ai pezzi che ci sono dentro. Caso Rosa: fuori Ambra 6 ago – 1 set (saldata),
 // resta 1–20 set con l'anticipo di 400 €.
+// `copertoCent` è quanto arriva a quella camera dai soldi della SUA
+// prenotazione (soldiPerCamera), non solo quelli registrati su di lei.
 function trattiDaSaldare(s: Soggiorno, copertoCent: (b: PrenotazioneDC) => number): PrenotazioneDC[][] {
   const out: PrenotazioneDC[][] = []
   let corrente: PrenotazioneDC[] = []
@@ -274,9 +277,38 @@ export function eccezioniMancatiArrivi(prenotazioni: PrenotazioneDC[], pagamenti
   })
 }
 
+// REGOLA FISSA n. 9 (caso Dario Barone, 30/09/2026): il pagamento sta intero
+// sulla PRENOTAZIONE, anche se è registrato su una camera sola. Per sapere
+// quanto arriva a ogni camera i soldi della prenotazione scorrono lungo le
+// camere in ordine di arrivo, come «I pagamenti coprono fino alla notte del…»
+// della scheda: ognuna si riempie fino al suo totale, l'avanzo va alla
+// successiva, quello che supera il totale resta sull'ultima.
+function soldiPerCamera(prenotazioni: PrenotazioneDC[], pagamenti: PagamentoStat[]): Map<string, number> {
+  const registrati = new Map<string, number>()
+  for (const p of pagamenti) registrati.set(p.booking_id, (registrati.get(p.booking_id) ?? 0) + cent(p.amount))
+  const perPrenotazione = new Map<string, PrenotazioneDC[]>()
+  for (const b of prenotazioni.filter(prenotazioneValida)) {
+    const k = chiavePrenotazione(b)
+    if (!perPrenotazione.has(k)) perPrenotazione.set(k, [])
+    perPrenotazione.get(k)!.push(b)
+  }
+  const out = new Map<string, number>()
+  for (const camere of perPrenotazione.values()) {
+    const ordinate = [...camere].sort((a, z) => a.check_in.localeCompare(z.check_in) || a.id.localeCompare(z.id))
+    let soldi = ordinate.reduce((x, b) => x + (registrati.get(b.id) ?? 0), 0)
+    ordinate.forEach((b, i) => {
+      const quanto = i === ordinate.length - 1 ? soldi : Math.min(soldi, cent(b.total_amount))
+      out.set(b.id, quanto)
+      soldi -= quanto
+    })
+  }
+  return out
+}
+
 export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: PagamentoStat[], oggi: string): Eccezione[] {
   const out: Eccezione[] = []
-  const registratiDi = (b: PrenotazioneDC) => pagamenti.filter(p => p.booking_id === b.id).reduce((x, p) => x + cent(p.amount), 0)
+  const soldi = soldiPerCamera(prenotazioni, pagamenti)
+  const registratiDi = (b: PrenotazioneDC) => soldi.get(b.id) ?? 0
   const totaleRegistrato = (segmenti: PrenotazioneDC[]) => segmenti.reduce((x, b) => x + registratiDi(b), 0)
   const voce = (s: Soggiorno) => ({
     base: { chiave: `pagamento:${s.chiave}`, tipo: 'pagamento' as const, urgenza: 'normale' as const, data: s.ultimaPartenza, rimandabile: false },
@@ -302,7 +334,7 @@ export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: Pa
       // Di un soggiorno lungo si controlla SOLO la parte ancora da saldare
       // (Ania, 11/09/2026): i mesi già pagati restano fuori.
       for (const segmenti of trattiDaSaldare(s, registratiDi)) {
-        const t = datiSoggiorno(segmenti, b => b.group_id || b.id)
+        const t = datiSoggiorno(segmenti, chiavePrenotazione)
         if (t.primoArrivo > oggi || t.totaleCent <= 0) continue
         const registratiTratto = totaleRegistrato(t.segmenti)
         if (registratiTratto >= t.totaleCent) continue

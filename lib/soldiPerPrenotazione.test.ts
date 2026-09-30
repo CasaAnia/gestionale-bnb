@@ -22,6 +22,7 @@ import { incassiMese } from './statistiche/cassa.ts'
 import { vociDaIncassare, partenzeConResiduo, incassatiOggi } from './incassiHome.ts'
 import { nottiPagate as nottiPagateBarre } from './calendarioBarre.ts'
 import { nottiPagate as nottiPagateNastro } from './calendarioNastro.ts'
+import { eccezioniPagamenti } from './daControllare.ts'
 
 const allegra = { id: 'allegra', room_id: 'r-allegra', guest_id: 'g', group_id: 'gruppo-allegra', prenotazione_id: 'P', check_in: '2026-09-20', check_out: '2026-09-21', num_guests: 2, price_per_night: 80, total_amount: 80, status: 'confermata', guest_name: 'Dario Barone', rooms: { name: 'Allegra' }, accordo_pagamento: 'contanti' }
 const amelia = { id: 'amelia', room_id: 'r-amelia', guest_id: 'g', group_id: 'gruppo-amelia', prenotazione_id: 'P', check_in: '2026-09-21', check_out: '2026-09-30', num_guests: 2, price_per_night: 70, total_amount: 650, status: 'confermata', guest_name: 'Dario Barone', rooms: { name: 'Amelia' }, accordo_pagamento: 'contanti' }
@@ -60,6 +61,29 @@ test('calendario: i 730 € coprono tutte le notti di Allegra e di Amelia', () =
   assert.deepEqual(nottiPagateNastro(DARIO as never, acconti, []), { allegra: -1, amelia: -1 })
 })
 
+test('«Da controllare»: niente voce su Dario anche senza il segno «pagato», una voce sola (Amelia) se mancano 100 €', () => {
+  const senzaSegno = DARIO.map(b => ({ ...b, pagato: false }))
+  assert.deepEqual(eccezioniPagamenti(senzaSegno as never, PAGAMENTI, '2026-09-30'), [])
+  const out = eccezioniPagamenti(senzaSegno as never, [{ ...PAGAMENTI[0], amount: 610 }, PAGAMENTI[1]], '2026-09-30')
+  assert.equal(out.length, 1)
+  // Allegra è coperta dai 630 €: resta solo Amelia, con l'avanzo di 550 €
+  assert.equal(out[0].chiave, 'pagamento:P')
+  assert.match(out[0].titolo, /Amelia/)
+  assert.doesNotMatch(out[0].titolo, /Allegra/)
+  assert.match(out[0].motivo, /registrati 550 € su 650 €/)
+  assert.deepEqual(out[0].destinazione, { tipo: 'saldo', prenotazioneId: 'amelia' })
+})
+
+test('«Da controllare»: i soldi scorrono in ordine di arrivo, la camera già coperta esce dalla voce', () => {
+  const senzaSegno = DARIO.map(b => ({ ...b, pagato: false }))
+  // 100 € registrati su Amelia coprono prima Allegra (80 €): resta Amelia con 20 € su 650 €
+  const out = eccezioniPagamenti(senzaSegno as never, [{ booking_id: 'amelia', amount: 100, paid_on: '2026-09-21' }], '2026-09-30')
+  assert.equal(out.length, 1)
+  assert.match(out[0].titolo, /Amelia/)
+  assert.doesNotMatch(out[0].titolo, /Allegra/)
+  assert.match(out[0].motivo, /registrati 20 € su 650 €/)
+})
+
 test('camere di prenotazioni diverse restano separate: nessun legame dedotto da cliente o date', () => {
   const altra = { ...amelia, prenotazione_id: 'Q' }
   const d = daIncassare([allegra, altra] as never, PAGAMENTI)
@@ -76,6 +100,7 @@ const FILE_DEI_SOLDI = [
   'lib/incassiHome.ts',
   'lib/calendarioBarre.ts',
   'lib/calendarioNastro.ts',
+  'lib/daControllare.ts',
 ]
 test('REGOLA FISSA n. 9: i conti dei soldi raggruppano per prenotazione, mai per il solo group_id', () => {
   for (const f of FILE_DEI_SOLDI) {

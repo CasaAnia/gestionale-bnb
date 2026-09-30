@@ -144,9 +144,11 @@ arriva» (sui sorgenti di `lib/pagamentiDati.ts`, `ContoScheda` e la scheda).
 Anche fuori dalla scheda (Ania, 30/09/2026, caso Dario Barone: la Home
 diceva «resta 630 €» su un conto saldato perché Allegra, camera aggiunta,
 aveva un group_id diverso da Amelia): la Home («Da incassare», partenze,
-incassati oggi), il verde del calendario e i controlli delle statistiche
+incassati oggi), il verde del calendario e i controlli delle statistiche e «Da controllare»
 mettono insieme le camere per PRENOTAZIONE (`identitaSoggiorno`:
-prenotazione_id, poi group_id, poi la riga), mai col solo group_id.
+prenotazione_id, poi group_id, poi la riga), mai col solo group_id. In «Da controllare» i soldi della prenotazione
+scorrono lungo le camere in ordine di arrivo e resta in voce solo la parte
+non coperta.
 Test: `lib/soldiPerPrenotazione.test.ts` → il caso di Dario e la guardia
 «REGOLA FISSA n. 9: i conti dei soldi raggruppano per prenotazione, mai per
 il solo group_id».
