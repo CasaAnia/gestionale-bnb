@@ -11,9 +11,9 @@ import { BUCHI_LIBERI_VISIBILI } from './calendarioMobile.ts'
 const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 
 // ── A · Calendario e Arrivi ─────────────────────────────────────────────────
-test('A1: 18 px fra il nastro e «Oggi · mesi», «Legenda» 14 px sotto «Oggi», «Oggi» tocca 44 × 44; solo dal telefono, solo Calendario e Arrivi', () => {
+test('A1: 18 px fra il nastro e «Oggi · mesi», «Legenda» 28 px sotto «Oggi» (dal 30/09/2026, anche nelle Richieste), «Oggi» tocca 44 × 44; solo dal telefono', () => {
   const css = leggi('app/maison.css')
-  const blocco = /@media \(max-width: 1023px\) \{\s*\.cal-rm\.cal-rm-staccata \{ margin-top: 18px; \}\s*\.cal-rm\.cal-rm-staccata \.og button::before \{ left: 50%; right: auto; width: max\(100%, 44px\); transform: translate\(-50%, -50%\); \}\s*\.cal-lg\.cal-lg-staccata \{ margin-top: 12px; \}\s*\}/
+  const blocco = /@media \(max-width: 1023px\) \{\s*\.cal-rm\.cal-rm-staccata \{ margin-top: 18px; \}\s*\.cal-rm\.cal-rm-staccata \.og button::before \{ left: 50%; right: auto; width: max\(100%, 44px\); transform: translate\(-50%, -50%\); \}\s*\/\*[^*]*\*\/\s*\.cal-lg, \.cal-lg\.cal-lg-staccata \{ margin-top: 26px; \}\s*\}/
   assert.match(css, blocco)
   // l'area di tocco è già alta 44 px
   assert.match(css, /\.cal-rm \.og button::before \{[^}]*height: 44px;/)
@@ -22,8 +22,9 @@ test('A1: 18 px fra il nastro e «Oggi · mesi», «Legenda» 14 px sotto «Oggi
     assert.match(src, /<RigaMesi maison [\s\S]{0,400}?className=\{`shrink-0 cal-rm-staccata /, file)
     assert.match(src, /className="cal-lg cal-lg-staccata"/, file)
   }
-  // le Richieste restano come sono
+  // le Richieste: niente «staccata» sulla riga dei mesi, ma «Legenda» a 28 px come le altre (regola su .cal-lg)
   assert.doesNotMatch(leggi('components/richieste/NastroRichieste.tsx'), /staccata/)
+  assert.match(leggi('components/richieste/NastroRichieste.tsx'), /className="cal-lg"/)
 })
 
 test('A3: prova reversibile, i buchi liberi tratteggiati non si disegnano; il tocco su un giorno libero apre lo stesso la nuova prenotazione', () => {

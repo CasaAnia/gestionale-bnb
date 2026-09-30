@@ -863,13 +863,15 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-lg { display: flex; justify-content: center; margin-top: 10px; padding-bottom: 12px; }
 .cal-lg .mz-lnk { font-size: 10.5px; letter-spacing: .14em; }
 /* Ritocchi del 29/09/2026 (A1), Calendario e Arrivi dal telefono: 18 px d'aria fra
-   il nastro («🛏 extra» o l'ultima corsia) e «Oggi · mesi»; «Legenda» 14 px sotto
-   «Oggi» (12 + i 2 px sotto il cerchio); «Oggi» si tocca in almeno 44 × 44 px.
+   il nastro («🛏 extra» o l'ultima corsia) e «Oggi · mesi»; «Legenda» sotto
+   «Oggi» (dal 30/09/2026 a 28 px, vedi sotto); «Oggi» si tocca in almeno 44 × 44 px.
    Dal Mac invariato. */
 @media (max-width: 1023px) {
   .cal-rm.cal-rm-staccata { margin-top: 18px; }
   .cal-rm.cal-rm-staccata .og button::before { left: 50%; right: auto; width: max(100%, 44px); transform: translate(-50%, -50%); }
-  .cal-lg.cal-lg-staccata { margin-top: 12px; }
+  /* «Legenda» 28 px sotto «Oggi» (Ania, 30/09/2026, F4): 26 + i 2 px sotto il
+     cerchio; uguale in Calendario, Arrivi e Richieste */
+  .cal-lg, .cal-lg.cal-lg-staccata { margin-top: 26px; }
 }
 
 /* La legenda: nel foglio dal basso (telefono), centrato a 620 px (Mac) */
