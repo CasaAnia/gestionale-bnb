@@ -1,0 +1,163 @@
+{
+  "_nota": "Bollette gas da inserire (Ania, 30/09/2026). Dati riletti dai PDF in ~/Documents/Bollette gas A2A. Chiave di idempotenza: fornitore + numero bolletta. La prima riga della nota è il titolo della voce in «Da controllare».",
+  "cartellaPdf": "~/Documents/Bollette gas A2A",
+  "bollette": [
+    {
+      "n": 1,
+      "pdf": "111000092153.pdf.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "524515483327",
+      "emessa": "2024-12-11",
+      "scadenza": "2024-12-31",
+      "dal": "2024-09-01",
+      "al": "2024-11-30",
+      "importo": 125.0,
+      "casa": "Via Mincio",
+      "notaExtra": "Già pagata il 30/09/2026 in contanti da Mooney: 127,95 € (125,00 + 2,95 € di commissione). Da segnare pagata con «Segna pagata».",
+      "giaPagata": {
+        "il": "2026-09-30",
+        "metodo": "contanti",
+        "importo": 127.95
+      }
+    },
+    {
+      "n": 2,
+      "pdf": "199590108218.pdf.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "525503432194",
+      "emessa": "2025-03-11",
+      "scadenza": "2025-03-31",
+      "dal": "2024-12-01",
+      "al": "2025-02-28",
+      "importo": 119.0,
+      "casa": "Via Mincio"
+    },
+    {
+      "n": 3,
+      "pdf": "199880152518.pdf.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "525509003478",
+      "emessa": "2025-06-25",
+      "scadenza": "2025-07-15",
+      "dal": "2025-01-01",
+      "al": "2025-05-31",
+      "importo": 132.0,
+      "casa": "Via Mincio"
+    },
+    {
+      "n": 4,
+      "pdf": "157000154427.pdf.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "525512576426",
+      "emessa": "2025-09-10",
+      "scadenza": "2025-09-30",
+      "dal": "2025-06-01",
+      "al": "2025-08-31",
+      "importo": 123.0,
+      "casa": "Via Mincio"
+    },
+    {
+      "n": 5,
+      "pdf": "110000177322.pdf.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "525518510402",
+      "emessa": "2025-12-30",
+      "scadenza": "2026-01-19",
+      "dal": "2025-09-01",
+      "al": "2025-11-30",
+      "importo": 338.0,
+      "casa": "Via Mincio"
+    },
+    {
+      "n": 6,
+      "pdf": "126500203199.pdf.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "526504552665",
+      "emessa": "2026-03-27",
+      "scadenza": "2026-04-16",
+      "dal": "2025-12-01",
+      "al": "2026-02-28",
+      "importo": 227.0,
+      "casa": "Via Mincio"
+    },
+    {
+      "n": 7,
+      "pdf": "526502855533_2026_s.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "526502855533",
+      "emessa": "2026-02-23",
+      "scadenza": "2026-03-16",
+      "dal": "2025-12-01",
+      "al": "2026-01-31",
+      "importo": 309.0,
+      "casa": "Casa Ania"
+    },
+    {
+      "n": 8,
+      "pdf": "526505768331_2026_s.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "526505768331",
+      "emessa": "2026-04-22",
+      "scadenza": "2026-05-12",
+      "dal": "2026-02-01",
+      "al": "2026-03-31",
+      "importo": 292.0,
+      "casa": "Casa Ania"
+    },
+    {
+      "n": 9,
+      "pdf": "526507681778_2026_s.pdf",
+      "fornitore": "A2A Energia",
+      "numero": "526507681778",
+      "emessa": "2026-06-08",
+      "scadenza": "2026-06-29",
+      "dal": "2026-04-01",
+      "al": "2026-05-31",
+      "importo": 330.88,
+      "casa": "Casa Ania",
+      "notaExtra": "Bolletta di chiusura del contratto. Addebito Mediolanum: controllare se è passato."
+    },
+    {
+      "n": 10,
+      "pdf": null,
+      "fornitore": "Eni Plenitude",
+      "numero": "2632628100",
+      "emessa": "2026-08-28",
+      "scadenza": "2026-09-22",
+      "dal": "2026-06-01",
+      "al": "2026-07-31",
+      "importo": 97.04,
+      "casa": "Casa Ania",
+      "notaExtra": "Già pagata il 22/09/2026 con addebito in banca: 97,04 €. Da segnare pagata con «Segna pagata». PDF non ancora disponibile.",
+      "giaPagata": {
+        "il": "2026-09-22",
+        "metodo": "bonifico",
+        "importo": 97.04
+      }
+    }
+  ],
+  "forniture": {
+    "A2A Energia|Via Mincio": {
+      "breve": "A2A",
+      "gruppo": "Casa",
+      "ambito": "personale",
+      "riga": "Fornitura n. 7028704422 · PDR 15911211179000 · Via Mincio 36, Rozzano · intestata a Santo Granata"
+    },
+    "A2A Energia|Casa Ania": {
+      "breve": "A2A",
+      "gruppo": "Casa Ania",
+      "ambito": "azienda",
+      "riga": "Fornitura n. 210001160690 · PDR 00883200109183 · Via Liguria 26, Pieve Emanuele · intestata ad Almerico Granata · contratto chiuso a giugno 2026"
+    },
+    "Eni Plenitude|Casa Ania": {
+      "breve": "Plenitude",
+      "gruppo": "Casa Ania",
+      "ambito": "azienda",
+      "riga": "Cliente 900315419029 · Via Liguria 26, Pieve Emanuele · intestata ad Almerico Granata"
+    }
+  },
+  "totaliAttesi": {
+    "Via Mincio": 939.0,
+    "Casa Ania": 931.88
+  }
+}
