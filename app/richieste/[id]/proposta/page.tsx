@@ -47,6 +47,7 @@ import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, format
 import { chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
 import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, rigaConferma, improntaRichiesta, richiestaCambiata, testoRiscrittoAMano, type PropostaPendente } from '@/lib/richiestePendente'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
+import { pagamentoAbitualeDi, condizioneDaAbituale } from '@/lib/pagamentoAbituale'
 import { statoCondizioni } from '@/lib/condizioniProposta'
 import { testoDaRigenerare } from '@/lib/testoArchiviato'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
@@ -133,8 +134,11 @@ export default function PropostaPage() {
   const [altreProposte, setAltreProposte] = useState<RichiestaOpzione[]>([])
   // Azione rimandata finché Ania non conferma di voler perdere il testo modificato a mano
   const [azioneSospesa, setAzioneSospesa] = useState<(() => void) | null>(null)
-  // Condizioni di pagamento: NESSUNA preselezione, le sceglie Ania ogni volta.
+  // Condizioni di pagamento: le sceglie Ania ogni volta. Unica preselezione
+  // (Ania, 30/09/2026): cliente che paga di solito in contanti → «All'arrivo»
+  // già acceso, modificabile (condizioneIniziale, più sotto).
   const [condizioneTipo, setCondizioneTipo] = useState<CondizionePagamento | null>(null)
+  const preselezioneFatta = useRef(false)
   const [caparraTesto, setCaparraTesto] = useState('')          // euro digitati ("70" · "72,50")
   const [condizioneTesto, setCondizioneTesto] = useState('')    // paragrafo della personalizzata
   const [ameliaAttiva, setAmeliaAttiva] = useState(false)       // interruttore, spento di default
@@ -355,6 +359,14 @@ export default function PropostaPage() {
     )
     return (trovato ?? null) as { id?: string; rating?: string | null; vuole_ricevuta?: boolean | null; motivo_problematico?: string | null; provenienza?: string | null; struttura_nome?: string | null; notes?: string | null } | null
   }, [richiesta, clienti])
+  // «All'arrivo» già acceso per chi paga di solito in contanti (guests.pagamento_abituale)
+  const condizioneIniziale = condizioneDaAbituale(pagamentoAbitualeDi(guest as { pagamento_abituale?: string | null } | null))
+  useEffect(() => {
+    if (loading || !richiesta || inviata || preselezioneFatta.current) return
+    preselezioneFatta.current = true
+    // la proposta rimasta in attesa nel browser, se c'è, la rimette dopo (setTimeout)
+    if (condizioneIniziale) setCondizioneTipo(t => t ?? condizioneIniziale)
+  }, [loading, richiesta, inviata, condizioneIniziale])
   const soggiorni = useMemo(() => {
     if (!richiesta) return { volte: 0, ricaviCent: 0, ultimo: null }
     return soggiorniDellaPersona(
@@ -429,7 +441,7 @@ export default function PropostaPage() {
     azione()
   }
   function azzeraCondizioni() {
-    setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
+    setCondizioneTipo(condizioneIniziale); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
   }
   // La spunta di una camera: il messaggio si rifà, le condizioni restano
   function cambiaSpunta(cameraId: string) {
@@ -629,7 +641,7 @@ export default function PropostaPage() {
       setCondizioneTesto(pendente.condizioni.condizione_testo ?? '')
       setAmeliaAttiva(pendente.condizioni.amelia_alternativa)
     } else if (!inviata) {
-      setTestoModificato(null); setCondizioneTipo(null)
+      setTestoModificato(null); setCondizioneTipo(condizioneIniziale)
     }
     setPendente(null)
     setChiediConferma(false)

@@ -14,6 +14,7 @@
 // prima. Qui solo regole pure; la scrittura sta in lib/pagamentoAbitualeDati.
 // ============================================================================
 import { bonificoDelModo, type ComePaga } from './comePaga.ts'
+import type { CondizionePagamento } from './condizioniPrenotazione.ts'
 
 export type PagamentoAbituale = 'contanti' | 'bonifico'
 export const COLONNA_PAGAMENTO_ABITUALE = 'pagamento_abituale'
@@ -74,4 +75,13 @@ export function testoPagamentoAbituale(abituale: PagamentoAbituale | null): stri
   if (abituale === 'contanti') return 'paga in contanti'
   if (abituale === 'bonifico') return 'paga con bonifico'
   return null
+}
+
+/** «Come paga» della proposta nelle Richieste (Ania, 30/09/2026): lì i tasti
+ *  sono All'arrivo · Caparra · Pagamento completo · Personalizzata. Solo chi
+ *  paga di solito in contanti parte con «All'arrivo» già acceso (modificabile);
+ *  bonifico o niente: nulla acceso, come prima (caparra o pagamento completo
+ *  non si possono indovinare). */
+export function condizioneDaAbituale(abituale: PagamentoAbituale | null): CondizionePagamento | null {
+  return abituale === 'contanti' ? 'arrivo' : null
 }

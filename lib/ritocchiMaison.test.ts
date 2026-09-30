@@ -308,3 +308,21 @@ test('D4: nuovo cliente nella veste del modulo Maison, stesso salvataggio, poi l
   assert.match(p, /router\.push\(`\/clienti\/\$\{data\.id\}`\)/)
   assert.match(p, /moduloDaRicerca\(ricerca\)/)
 })
+
+test('proposta nelle Richieste (Ania, 30/09/2026): contanti → «All’arrivo» già acceso; bonifico o niente → nulla', async () => {
+  const { condizioneDaAbituale, pagamentoAbitualeDi } = await import('./pagamentoAbituale.ts')
+  assert.equal(condizioneDaAbituale(pagamentoAbitualeDi({ pagamento_abituale: 'contanti' })), 'arrivo')
+  assert.equal(condizioneDaAbituale(pagamentoAbitualeDi({ pagamento_abituale: 'bonifico' })), null)
+  assert.equal(condizioneDaAbituale(pagamentoAbitualeDi({ pagamento_abituale: null })), null)
+  assert.equal(condizioneDaAbituale(pagamentoAbitualeDi({})), null, 'senza la 0062 la colonna non c’è: come prima')
+  assert.equal(condizioneDaAbituale(pagamentoAbitualeDi(null)), null, 'cliente nuova')
+  const proposta = leggi('app/richieste/[id]/proposta/page.tsx')
+  // il cliente è quello riconosciuto di sempre (telefono, poi nome e cognome)
+  assert.match(proposta, /const condizioneIniziale = condizioneDaAbituale\(pagamentoAbitualeDi\(guest as/)
+  // una volta sola all'apertura, mai su una proposta già inviata, e senza scavalcare una scelta già fatta
+  assert.match(proposta, /if \(loading \|\| !richiesta \|\| inviata \|\| preselezioneFatta\.current\) return/)
+  assert.match(proposta, /if \(condizioneIniziale\) setCondizioneTipo\(t => t \?\? condizioneIniziale\)/)
+  // ripartendo da capo (altra soluzione, «No» a «L'hai inviata?») si torna alla stessa partenza
+  assert.match(proposta, /setCondizioneTipo\(condizioneIniziale\); setCaparraTesto\(''\)/)
+  assert.doesNotMatch(proposta, /setCondizioneTipo\(null\)/)
+})

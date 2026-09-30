@@ -56,8 +56,8 @@ const guests = [
   { id: 'aaaaaaaa-0001-4000-8000-000000000001', phone: '+39 333 000 0001', full_name: 'Ospite Finto', email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora },
   // Veste nuova della proposta (11/09/2026): una cliente che torna, con la
   // valutazione ottima e la ricevuta, per la testa del cliente e «Da controllare»
-  { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, provenienza: 'altra_struttura', struttura_nome: 'Nida', notes: 'Dorme male con i rumori: darle la camera sul cortile.', created_at: ora, updated_at: ora },
-  { id: 'aaaaaaaa-0003-4000-8000-000000000003', phone: '+39 333 000 0303', full_name: 'Rosa Archivio', email: null, rating: 'normale', vuole_ricevuta: true, motivo_problematico: null, notes: null, created_at: ora, updated_at: ora },
+  { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, provenienza: 'altra_struttura', struttura_nome: 'Nida', pagamento_abituale: 'contanti', notes: 'Dorme male con i rumori: darle la camera sul cortile.', created_at: ora, updated_at: ora },
+  { id: 'aaaaaaaa-0003-4000-8000-000000000003', phone: '+39 333 000 0303', full_name: 'Rosa Archivio', email: null, rating: 'normale', vuole_ricevuta: true, motivo_problematico: null, pagamento_abituale: 'bonifico', notes: null, created_at: ora, updated_at: ora },
 ]
 // Prenotazioni intorno a fra 10 giorni: Amelia e Ambra occupate, Allegra in
 // attesa (NON conta), Lena annullata (NON conta).
