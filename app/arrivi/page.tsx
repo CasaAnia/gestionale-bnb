@@ -37,7 +37,7 @@ import { PannelloLegenda } from '@/components/LegendaCalendario'
 import FoglioArrivo, { ALTEZZA_FOGLIO_ARRIVO_ARRIVI } from '@/components/scheda/FoglioArrivo'
 import { IconeContatto } from '@/components/scheda/TestataMaison'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
-import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
+import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero, useMac } from '@/lib/richiesteVista'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI } from '@/lib/richiesteCalendario'
 import { leggiArrivo, arrivoInScheda, navettaInScheda, TITOLO_ARRIVO } from '@/lib/arrivo'
 import { idDaParametro } from '@/lib/daControllare'
@@ -55,7 +55,7 @@ import {
 } from '@/lib/arriviSchede'
 import {
   areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, OPACITA_ARRIVATA, VOCI_LEGENDA_ARRIVI, ICONE_LEGENDA_ARRIVI,
-  VOCI_GRIGLIA_TELEFONO, BUCHI_LIBERI_VISIBILI,
+  VOCI_GRIGLIA_TELEFONO, BUCHI_LIBERI_VISIBILI, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, vistaNastro, type ModoNastro,
 } from '@/lib/calendarioMobile'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -68,8 +68,9 @@ const NAME_W_MOBILE = 66   // telefono (05/09/2026): come le Richieste, uguale i
 const NAME_W_DESKTOP = 84   // solo il nome della camera, senza numero
 const CELL_W_DESKTOP = 101
 // Selettore «Mese | 2 settimane» (stessa scelta ricordata del Calendario)
-type ModoGriglia = 'mese' | 'quindici'
-const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 31, quindici: GIORNI_QUINDICINA }   // 31: a mese si vede il mese intero (05/09/2026)
+// Dal 30/09/2026 sul telefono anche «Sett.» (giorni da 145 px, lib/calendarioMobile)
+type ModoGriglia = ModoNastro
+const COLONNE_VISIBILI = COLONNE_VISIBILI_NASTRO   // 31: a mese si vede il mese intero (05/09/2026); 14 a 2 settimane, 7 a «Sett.»
 const CHIAVE_MODO = 'ca_calendario_modo'
 const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoGriglia, string])[]
 const LARGHEZZA_MIN_COLONNA = 28
@@ -163,13 +164,16 @@ export default function Arrivi() {
   const matchedIds = useMemo(() => new Set(matches.map(m => m.id)), [matches])
   const cercando = query.trim() !== ''
   const searchAttiva = matches.length > 0
-  const [modo, setModo] = useState<ModoGriglia>('quindici')
+  const [modoScelto, setModo] = useState<ModoGriglia>('quindici')
   useEffect(() => {
     let v: string | null = null
     try { v = window.localStorage.getItem(CHIAVE_MODO) } catch { v = null }
-    const t = setTimeout(() => { if (v === 'mese' || v === 'quindici') setModo(v) }, 0)
+    const t = setTimeout(() => { const m = leggiModoNastro(v); if (m) setModo(m) }, 0)
     return () => clearTimeout(t)
   }, [])
+  // «Sett.» c'è solo sotto la larghezza del Mac (dritto o girato): dal Mac vale «2 settimane»
+  const mac = useMac()
+  const modo = vistaNastro(modoScelto, !mac)
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   const primoGiornoRef = useRef<number | null>(null)
   // Da controllare in Home (06/09/2026): ?apri=<id> → giorno di arrivo da cui far partire la griglia
@@ -182,7 +186,8 @@ export default function Arrivi() {
   // 2 settimane tutte le 14 caselle nella larghezza dello schermo, senza
   // scorrimento di lato e senza caselle a metà. Sul telefono dritto 60 px a
   // «2 settimane» e 40 a «Mese», come il Calendario.
-  const colonnaMin = isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
+  // «Sett.» anche girato: giorni da 145 px con le schede compatte (30/09/2026)
+  const colonnaMin = modo === 'settimana' ? colonnaMinTelefono(modo) : isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
   const CELL_W = larghezzaGriglia > 0
     ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
     : (isDesktop ? CELL_W_DESKTOP : 60)
@@ -293,7 +298,8 @@ export default function Arrivi() {
   // Prima casella quando si torna a oggi: 3 giorni prima di oggi a 2 settimane,
   // il 1° del mese a mese (entro i 7 giorni di storia della pagina)
   function indiceOggi(): number {
-    return modo === 'quindici' ? DAYS_BEFORE - GIORNI_PRIMA_OGGI : Math.max(0, DAYS_BEFORE - (today.getDate() - 1))
+    // a «Sett.» oggi è la prima colonna (30/09/2026)
+    return modo === 'settimana' ? DAYS_BEFORE : modo === 'quindici' ? DAYS_BEFORE - GIORNI_PRIMA_OGGI : Math.max(0, DAYS_BEFORE - (today.getDate() - 1))
   }
   function vaiAIndice(idx: number) {
     scrollRef.current?.scrollTo({ left: Math.max(0, Math.min(days.length - 1, idx)) * CELL_W, behavior: 'smooth' })
@@ -301,7 +307,7 @@ export default function Arrivi() {
   // Frecce ‹ ›: a 2 settimane spostano di UNA settimana (novità del 29/09/2026,
   // come nel Calendario), a mese vanno al 1° del mese prima/dopo (entro i 90 giorni)
   function freccia(direzione: -1 | 1) {
-    if (modo === 'quindici') { scrollRef.current?.scrollBy({ left: direzione * PASSO_FRECCE_QUINDICI * CELL_W, behavior: 'smooth' }); return }
+    if (modo !== 'mese') { scrollRef.current?.scrollBy({ left: direzione * PASSO_FRECCE_QUINDICI * CELL_W, behavior: 'smooth' }); return }
     const d = days[Math.min(days.length - 1, Math.max(0, primoVisibile))]
     const primo = new Date(d.getFullYear(), d.getMonth() + (direzione === 1 ? 1 : (d.getDate() === 1 ? -1 : 0)), 1)
     vaiAIndice(Math.round((primo.getTime() - startDate.getTime()) / 86400000))
@@ -378,7 +384,8 @@ export default function Arrivi() {
           etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0"
           pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />}
           telefono={{
-            etichetta: modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth,
+            // a «Sett.» la settimana dal primo giorno in vista («28 set – 4 ott 2026»)
+            etichetta: modo !== 'mese' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + (modo === 'settimana' ? GIORNI_SETTIMANA : GIORNI_QUINDICINA)).map(toStr)) : visibleMonth,
             pillola: <InterruttorePillola voci={VOCI_GRIGLIA_TELEFONO} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />,
           }} />
       )}
