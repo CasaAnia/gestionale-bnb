@@ -87,7 +87,7 @@ sono esempi.
 - S14 Tocco su un buco = /nuova-prenotazione?room_id=…&check_in=… (camera e arrivo già scritti); lo stesso su un giorno libero fuori dai buchi.
 - S15 Filo verde #2D6A4F verticale a tutta altezza sulla colonna di oggi.
 - S16 Filo ottone 2 px al 1° di ogni mese su tutte le righe.
-- S17 Riga «🛏 EXTRA» sotto le camere: 30 px, fili #D6CFBD da 2 px sopra e sotto, etichetta maiuscoletto 9,5 px #8A1E15 su #F8D9D6; per giorno «1/2» in #8A1E15; cella piena #D0261B col testo bianco a 2/2; riquadro tratteggiato ottone col numero dei letti tenuti; colonna di oggi crema.
+- S17 Riga «🛏 EXTRA» sotto le camere: 30 px, fili #D6CFBD da 2 px sopra e sotto, etichetta maiuscoletto 9,5 px #8A1E15 su #F8D9D6, nel carattere dei nomi delle camere (Cormorant, `var(--m-disp)`: Ania, 30/09/2026); per giorno «1/2» in #8A1E15; cella piena #D0261B col testo bianco a 2/2; riquadro tratteggiato ottone col numero dei letti tenuti; colonna di oggi crema.
 - S18 Cambio camera: la scheda che parte tagliata in obliquo in basso a destra, quella che arriva in basso a sinistra (14 px, angoli arrotondati anche lì).
 - S19 Lungo il taglio, a filo del bordo tagliato, il filo 4 px dello STESSO colore del filo sinistro (#7D9DB0, #9B8EC4, #6C9A7C, #A8894F o la tinta scelta); sulla scheda che arriva il filo obliquo sostituisce quello dritto.
 - S20 Sulle catene «⇄» davanti al nome su tutti i tratti; riga (c) «· poi Lena» sul tratto che parte e «· da Ambra» su quello che arriva; riga (d) «cambio camera» sul tratto che arriva.

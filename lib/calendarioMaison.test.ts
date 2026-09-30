@@ -409,3 +409,14 @@ test('le schede attenuate hanno sotto un fondo pieno: i fili non le attraversano
   assert.match(nastro, /'--cal-taglio': clipPath, '--cal-raggio': '0'/)
 })
 
+
+// Ania, 30/09/2026: l'etichetta «🛏 EXTRA» nel carattere dei nomi delle camere
+// (Cormorant, come nella bozza), il resto identico
+test('etichetta «🛏 EXTRA»: carattere dei nomi delle camere, grandezza e colori della bozza', async () => {
+  const { readFileSync } = await import('node:fs')
+  const css = readFileSync(new URL('../app/maison.css', import.meta.url), 'utf8')
+  const regola = css.match(/\.cal-extra \.xl \{([^}]*)\}/)?.[1] ?? ''
+  assert.match(regola, /font-family: var\(--m-disp\)/)
+  for (const p of ['font-size: 9.5px', 'letter-spacing: .08em', 'text-transform: uppercase', 'color: #8A1E15', 'background: #F8D9D6', 'border-radius: 3px', 'padding: 2px 5px', 'font-weight: 500'])
+    assert.ok(regola.includes(p), p)
+})

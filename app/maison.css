@@ -809,7 +809,7 @@ body:has(.cal) { background: var(--home-bg); }
 /* La riga «🛏 EXTRA» */
 .cal-extra { position: absolute; left: 0; display: flex; border-top: 2px solid #D6CFBD; border-bottom: 2px solid #D6CFBD; }
 .cal-camera.extra { display: grid; place-items: center; padding: 0; }
-.cal-extra .xl { font-family: var(--home-ui-font); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: #8A1E15; background: #F8D9D6; border-radius: 3px; padding: 2px 5px; font-weight: 500; }
+.cal-extra .xl { font-family: var(--m-disp); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: #8A1E15; background: #F8D9D6; border-radius: 3px; padding: 2px 5px; font-weight: 500; }
 .cal-extra-g { flex: none; height: 100%; display: flex; align-items: center; justify-content: center; gap: 3px; border-left: 1px solid #ECE8DD; font-size: 11px; color: #8A1E15; }
 .cal-extra-g.oggi { background: #F6F2EA; }
 .cal-extra-g.pieno { color: #fff; }

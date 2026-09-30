@@ -23,7 +23,7 @@ Ogni voce alla fine: **fatta** o **non fatta** con il motivo.
 - [x] F2.5 Il resto del Mac resta com'è.
 
 ## F3 · Riga dei letti in più
-- [x] F3.1 «🛏 EXTRA», «1/2», «2/2» rosso pieno, tratteggio per quelli tenuti: identica a oggi (carattere, grandezza, colori).
+- [x] F3.1 «🛏 EXTRA», «1/2», «2/2» rosso pieno, tratteggio per quelli tenuti: identica a oggi (grandezza, colori); dal 30/09/2026 (Ania) l'etichetta «🛏 EXTRA» è nel carattere dei nomi delle camere (Cormorant, `var(--m-disp)`), come nella bozza.
 
 ## F4 · «Legenda» sotto «Oggi» a 28 px
 - [x] F4.1 Fatta ora, oppure «già fatta».
