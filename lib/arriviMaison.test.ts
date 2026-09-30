@@ -127,9 +127,10 @@ test('il foglio si apre da ?apri=<id>, col nastro sul giorno prima, ed è il Fog
   assert.match(pagina, /salvaPieno=\{\{ salvando: 'Salvo\.\.\.' \}\}/)
   assert.match(pagina, /\{arrivoInScheda\(a\)\.titolo\} · Navetta: \{navettaInScheda\(a\)\.titolo\}/)
   for (const t of ['Usa come l&apos;ultima volta', "'nascondi storico'", 'Vedi storico arrivi (', 'Apri prenotazione']) assert.ok(pagina.includes(t), t)
-  // ritocchi del 29/09/2026 (B1): 756 nella scheda e nella Home, 830 negli Arrivi (il caso più lungo, misurato)
-  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO = 756/)
-  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 830/)
+  // ritocchi del 29/09/2026 (B1), rimisurati il 30/09/2026 col caso vero più lungo («Altro luogo…»)
+  // e meno aria fra le parti: 713 nella scheda e nella Home (prima 756, 825 col caso vero), 758 negli Arrivi (prima 830, 897 col caso vero)
+  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO = 713/)
+  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 758/)
   assert.match(pagina, /altezza=\{ALTEZZA_FOGLIO_ARRIVO_ARRIVI\}/)
 })
 
@@ -147,4 +148,22 @@ test('dal Mac niente legenda in riga: «LEGENDA» sotto «Oggi» apre lo stesso 
   assert.match(pagina, /\{!loading && \(\n        <div className=\{`shrink-0 flex \$\{orizzontale \? 'px-2' : isDesktop \? 'px-4' : ''\}`\}>\n          <div className="cal-lg cal-lg-staccata"/)
   assert.match(pagina, /<PannelloLegenda voci=\{VOCI_LEGENDA_ARRIVI\} icone=\{ICONE_LEGENDA_ARRIVI\}/)
   assert.doesNotMatch(pagina, /NEXT_PUBLIC_BUILD_TAG/)
+})
+
+test('foglio Arrivo (Ania, 30/09/2026): meno aria, stessi caratteri, «Storico ›» chiuso che si apre al tocco', () => {
+  const css = leggi('app/maison.css')
+  // solo margini: 8/3 fra le parti, 4 sopra le righe degli orari; nessuna grandezza di carattere o campo cambiata
+  assert.match(css, /\.mz-foglio \[data-arrivo-navetta\] \.mz-lab \{ margin: 8px 0 3px; \}/)
+  assert.match(css, /\.mz-foglio \[data-arrivo-navetta\] \.mz-g3 \{ margin-top: 4px !important; \}/)
+  assert.match(css, /\.mz-foglio \[data-arrivo-navetta\] \[data-stima="fascia"\] > \.mz-lab \{ white-space: nowrap; \}/)
+  const regole = css.match(/\.mz-foglio \[data-arrivo-navetta\][^}]*\}/g) ?? []
+  assert.ok(regole.length >= 4)
+  for (const r of regole) assert.doesNotMatch(r, /font-size|height|padding/, r)
+  assert.match(leggi('components/maison/ArrivoNavettaMaison.tsx'), /<div data-stima=\{fascia \? 'fascia' : 'ora'\} style=\{\{ gridColumn: 'span 2' \}\}>/)
+  const pagina = leggi('app/arrivi/page.tsx')
+  assert.match(pagina, /data-apri-storico aria-expanded=\{storicoAperto\} onClick=\{\(\) => setStoricoAperto\(a => !a\)\}/)
+  assert.match(pagina, /Storico <span aria-hidden/)
+  assert.match(pagina, /\{storicoAperto && <div className="dentro">/)
+  // ogni foglio riparte chiuso
+  assert.equal((pagina.match(/setStoricoAperto\(false\)/g) ?? []).length, 2)
 })

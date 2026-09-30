@@ -44,16 +44,19 @@ import { nomeConAltri } from '@/lib/guestName'
 import { COSA_SALVATA } from '@/lib/salvatoMaison'
 
 export { TITOLO_ARRIVO }
-/** L'altezza del foglio: quella del caso più lungo, «Arrivo a…» un luogo
- *  (Centrale) con la fascia oraria, la stima in struttura e la navetta con
- *  l'autista e il prelievo, + 24 px + «Annulla · Salva» (ritocchi del
- *  29/09/2026, B1: misurata a 390 px, 756). Nella scheda e nella Home. */
-export const ALTEZZA_FOGLIO_ARRIVO = 756
+/** L'altezza del foglio: quella del caso più lungo, «Arrivo a…» «Altro
+ *  luogo…» (il campo del luogo scritto a mano) con la fascia oraria, la stima
+ *  in struttura e la navetta con l'autista e il prelievo, + 24 px + «Annulla ·
+ *  Salva». Il 29/09/2026 era 756 ma misurata su Centrale: con «Altro luogo…»
+ *  il contenuto era più lungo e scorreva. Dal 30/09/2026 (Ania) solo meno
+ *  aria fra le parti (app/maison.css), caratteri, campi e tasti invariati:
+ *  misurata a 390 px, 713. Nella scheda e nella Home. */
+export const ALTEZZA_FOGLIO_ARRIVO = 713
 /** Negli Arrivi il foglio ha in più la testa col nome e i cerchi, il riassunto,
- *  la riga dello storico, «Chiedi orario · Apri chat · Apri prenotazione» e
- *  «Salva» pieno: lo stesso caso più lungo misura 830 px, più di quanto sta
- *  su un telefono da 844 (il foglio si ferma al 92% e scorre dentro). */
-export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 830
+ *  la riga chiusa «Storico ›» (dal 30/09/2026: si apre al tocco), «Chiedi orario
+ *  · Apri chat · Apri prenotazione» e «Salva» pieno: lo stesso caso più lungo
+ *  misura 758 px (prima 897), sotto il 92% di un telefono da 844 (776). */
+export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 758
 
 export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChiudi, onSalvato, testa, sopra, sotto, azioni, salvaPieno, veloChiaro, larghezzaDesktop, dati = 'arrivo', altezza = ALTEZZA_FOGLIO_ARRIVO }: {
   /** prima era il sottotitolo; dalla veste «Maison» il sottotitolo è «Camera · Arrivo e navetta» */

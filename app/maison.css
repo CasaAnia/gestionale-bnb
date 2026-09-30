@@ -260,6 +260,17 @@ body:has(.mz-home) { background: var(--home-bg); }
 .mz-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 24px; flex: none; }
 .mz-foot .tot { font-size: 12px; color: var(--m-mut); flex: 1 1 auto; min-width: 0; }
 .mz-foot .acts { display: flex; gap: 18px; align-items: center; margin-left: auto; flex: none; }
+/* Il foglio «Arrivo e navetta» (Ania, 30/09/2026): solo meno aria fra le parti
+   (caratteri, campi e tasti invariati), così il caso più lungo sta sul telefono
+   coi tasti 24 px sotto. Nella fascia la stima prende due colonne, come con
+   «Ora precisa», e la sua etichetta sta su una riga. */
+.mz-foglio [data-arrivo-navetta] .mz-lab { margin: 8px 0 3px; }
+.mz-foglio [data-arrivo-navetta] .mz-g3 .mz-lab { margin-top: 0; }
+.mz-foglio [data-arrivo-navetta] .mz-g3 { margin-top: 4px !important; }
+.mz-foglio [data-arrivo-navetta] [data-stima="fascia"] > .mz-lab { white-space: nowrap; }
+.mz-foglio [data-arrivo-navetta] [data-aiuto-stima] { margin-top: 1px !important; }
+.mz[data-foglio-maison="arrivo-arrivi"] .cal-fa-st { margin-top: 8px; }
+.mz[data-foglio-maison="arrivo-arrivi"] .cal-fa-cta { margin-top: 8px; }
 .mz-cta { font-family: var(--m-ui); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: #F6F2EA; background: var(--m-ink); padding: 9px 16px; border: 0; border-radius: 0; min-height: 36px; font-weight: 500; white-space: nowrap; text-decoration: none !important; }
 .mz-cta:disabled { opacity: .45; }
 .mz-cta.mat { background: var(--m-mat); }
@@ -867,6 +878,10 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-fa-st { font-size: 12.5px; color: var(--m-mut); margin-top: 12px; line-height: 1.6; }
 .cal-fa-st b { font-weight: 500; color: var(--m-ink); }
 .cal-fa-st .mz-lnk { margin-left: 2px; }
+.cal-fa-st .cal-fa-st-apri { margin-left: 0; }
+.cal-fa-st .cal-fa-st-apri span { display: inline-block; margin-left: 4px; transition: transform .15s ease; }
+.cal-fa-st .cal-fa-st-apri span.aperto { transform: rotate(90deg); }
+.cal-fa-st .dentro { margin-top: 8px; }
 .cal-fa-st .righe { margin-top: 6px; padding-top: 6px; border-top: 1px solid #DDD3C2; }
 .cal-fa-st .righe p { margin: 0 0 3px; font-size: 12px; color: var(--m-ink); }
 .cal-fa-st .righe p b { font-weight: 600; }

@@ -43,7 +43,7 @@ export default function ArrivoNavettaMaison({ arrivo, onArrivo }: { arrivo: Arri
   // «A Linate»; nella fascia «Dalle» e «Alle»
   const etichettaOra = fascia ? 'Dalle' : arrivo.tipo === 'luogo' && luogo ? `A ${luogo}` : arrivo.tipo === 'luogo' ? 'Sul posto' : 'In struttura'
   const stima = piano.stima && (
-    <div style={fascia ? undefined : { gridColumn: 'span 2' }}>
+    <div data-stima={fascia ? 'fascia' : 'ora'} style={{ gridColumn: 'span 2' }}>
       <span className="mz-lab">{ETICHETTA_STIMA}</span>
       <span className="mz-fld" style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <input type="text" inputMode="numeric" maxLength={5} placeholder="--:--" data-campo="struttura-da" aria-label="In struttura, dalle" value={arrivo.stimaDa}
