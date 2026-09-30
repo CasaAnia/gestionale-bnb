@@ -12,7 +12,7 @@
 // camere occupate oggi, soggiorni da incassare. Contano solo le prenotazioni
 // confermate/completate: in_attesa e annullate mai. Nessun import di Supabase.
 // ============================================================================
-import { cent, prenotazioneValida, type CameraStat, type FuoriServizio, type PagamentoStat, type PrenotazioneStat } from './tipi.ts'
+import { cent, identitaSoggiorno, prenotazioneValida, type CameraStat, type FuoriServizio, type PagamentoStat, type PrenotazioneStat } from './tipi.ts'
 import { nottiNellIntervallo, nottiTra, spostaGiorni } from './periodo.ts'
 import { giorniVendibiliCamera } from './fuoriServizio.ts'
 
@@ -137,14 +137,18 @@ export function camereOccupate(giorno: string, prenotazioni: PrenotazioneStat[])
 
 export type DaIncassare = { id: string; chiave: string; nomi: string; dovutoCent: number; ricevutoCent: number; residuoCent: number }
 
-// Soggiorni (group_id) con movimenti registrati ma non ancora saldati: residuo
-// sopra i 50 centesimi. I segmenti di un cambio camera sono un unico soggiorno.
+// Soggiorni con movimenti registrati ma non ancora saldati: residuo sopra i 50
+// centesimi. Un soggiorno è la PRENOTAZIONE (identitaSoggiorno: prenotazione_id,
+// poi group_id, poi la riga), come nel conto della scheda: il pagamento sta
+// intero sulla prenotazione anche se è registrato su una sola camera (regola
+// fissa n. 9). Col solo group_id una camera aggiunta alla prenotazione faceva
+// conto a sé (Dario Barone, 30/09/2026: «resta 630 €» su un conto saldato).
 export function daIncassare(prenotazioni: PrenotazioneStat[], pagamenti: PagamentoStat[]): DaIncassare[] {
   const perPrenotazione = new Map<string, number>()
   for (const p of pagamenti) perPrenotazione.set(p.booking_id, (perPrenotazione.get(p.booking_id) ?? 0) + cent(p.amount))
   const gruppi = new Map<string, PrenotazioneStat[]>()
   for (const b of prenotazioni.filter(prenotazioneValida)) {
-    const k = b.group_id || b.id
+    const k = identitaSoggiorno(b)
     if (!gruppi.has(k)) gruppi.set(k, [])
     gruppi.get(k)!.push(b)
   }

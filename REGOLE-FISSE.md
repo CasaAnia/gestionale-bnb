@@ -141,6 +141,16 @@ Ambra e Amelia, fino alla notte del 10 set», «la nota tace quando non serve»,
 n. 9: il pagamento non si divide fra le camere, e la scheda mostra fin dove
 arriva» (sui sorgenti di `lib/pagamentiDati.ts`, `ContoScheda` e la scheda).
 
+Anche fuori dalla scheda (Ania, 30/09/2026, caso Dario Barone: la Home
+diceva «resta 630 €» su un conto saldato perché Allegra, camera aggiunta,
+aveva un group_id diverso da Amelia): la Home («Da incassare», partenze,
+incassati oggi), il verde del calendario e i controlli delle statistiche
+mettono insieme le camere per PRENOTAZIONE (`identitaSoggiorno`:
+prenotazione_id, poi group_id, poi la riga), mai col solo group_id.
+Test: `lib/soldiPerPrenotazione.test.ts` → il caso di Dario e la guardia
+«REGOLA FISSA n. 9: i conti dei soldi raggruppano per prenotazione, mai per
+il solo group_id».
+
 ## 10. Quando c'è da decidere, prima e dopo nella STESSA immagine
 
 Ogni volta che Ania deve scegliere fra due modi di fare una cosa, le due

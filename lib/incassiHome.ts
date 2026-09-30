@@ -6,7 +6,7 @@
 // lib/statistiche.daIncassare (stessa regola di prima, la somma nei numeri
 // in cima è la sua): qui si aggiungono solo le parole per la veste nuova.
 // ============================================================================
-import { daIncassare, cent, type PagamentoStat, type PrenotazioneStat } from './statistiche/index.ts'
+import { daIncassare, cent, identitaSoggiorno, type PagamentoStat, type PrenotazioneStat } from './statistiche/index.ts'
 import { nomeConAltri } from './guestName.ts'
 import { periodoCompatto, giornoMese } from './dateItaliane.ts'
 import { comePagaInParole } from './comePaga.ts'
@@ -40,7 +40,8 @@ export type VoceIncasso = {
 }
 
 const breve = (nome: string | null | undefined) => String(nome ?? '').split(' ').slice(-1)[0]
-const chiaveDi = (b: { id: string; group_id?: string | null }) => b.group_id || b.id
+// La stessa chiave di «Da incassare»: la prenotazione intera (regola fissa n. 9)
+const chiaveDi = identitaSoggiorno
 const valida = (b: PrenotazioneIncasso) => b.status === 'confermata' || b.status === 'completata'
 
 /** «Partita oggi», «Partita il 25 set», «In casa», «Arriva il 2 ott» */

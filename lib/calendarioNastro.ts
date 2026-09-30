@@ -10,20 +10,22 @@
 // stesse schede, e i conti devono essere gli stessi.
 // ============================================================================
 import { prezzoPrenotazione } from './prezzoNotti.ts'
+import { identitaSoggiorno } from './statistiche/tipi.ts'
 import { buildChangeGroups, type ChangeGroups } from './roomChanges.ts'
 
-type Riga = { id: string; room_id: string; group_id?: string | null; check_in: string; check_out: string; total_amount?: number | string | null; rooms?: unknown; [k: string]: unknown }
+type Riga = { id: string; room_id: string; group_id?: string | null; prenotazione_id?: string | null; check_in: string; check_out: string; total_amount?: number | string | null; rooms?: unknown; [k: string]: unknown }
 type Camera = { id: string; name: string }
 
 /**
  * Notti coperte dagli acconti per prenotazione (−1 = tutte). Nei soggiorni con
  * cambio camera i soldi ricevuti "scorrono" lungo tutta la catena in ordine di
  * data, qualunque sia il segmento su cui l'acconto è stato registrato.
+ * Un soggiorno è la prenotazione intera (regola fissa n. 9), non il group_id.
  */
 export function nottiPagate<T extends Riga>(bookings: T[], acconti: Record<string, number>, camere: Camera[]): Record<string, number> {
   const map: Record<string, number> = {}
   const groups: Record<string, T[]> = {}
-  bookings.forEach(b => { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) })
+  bookings.forEach(b => { const k = identitaSoggiorno(b); (groups[k] = groups[k] || []).push(b) })
   Object.values(groups).forEach(segs => {
     let money = segs.reduce((s, b) => s + (acconti[b.id] || 0), 0)
     if (money <= 0) return

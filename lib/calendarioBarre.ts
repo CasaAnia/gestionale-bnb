@@ -7,6 +7,7 @@
 import { lettiPoolPrenotazione } from './lettiAggiuntivi.ts'
 import { coloreLettiPerGiorno } from './calendarioLetti.ts'
 import { giorniTra } from './richiesteCalendario.ts'
+import { identitaSoggiorno } from './statistiche/tipi.ts'
 
 export const COLORE_PRENOTAZIONE = '#7D9DB0' // blu — paga all'arrivo
 export const COLORE_BONIFICO = '#9B8EC4'     // viola — bonifico in attesa
@@ -22,6 +23,7 @@ export type PrenotazioneBarra = {
   room_id: string
   guest_id?: string | null
   group_id?: string | null
+  prenotazione_id?: string | null
   check_in: string
   check_out: string
   status: string
@@ -48,10 +50,11 @@ const notti = (b: { check_in: string; check_out: string }) =>
 
 // Notti coperte dagli acconti per prenotazione (-1 = tutte). Nei soggiorni con
 // cambio camera i soldi "scorrono" lungo tutta la catena in ordine di data.
+// Un soggiorno è la prenotazione intera (regola fissa n. 9), non il group_id.
 export function nottiPagate(bookings: PrenotazioneBarra[], acconti: Record<string, number>): Record<string, number> {
   const map: Record<string, number> = {}
   const groups: Record<string, PrenotazioneBarra[]> = {}
-  bookings.forEach(b => { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) })
+  bookings.forEach(b => { const k = identitaSoggiorno(b); (groups[k] = groups[k] || []).push(b) })
   Object.values(groups).forEach(segs => {
     let money = segs.reduce((s, b) => s + (acconti[b.id] || 0), 0)
     if (money <= 0) return

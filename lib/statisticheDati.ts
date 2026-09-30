@@ -185,7 +185,7 @@ export async function leggiDatiHome(da: string, a: string, oggi: string): Promis
   const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ric.errore ?? fs.errore
   if (errore) return { data: null, errore }
   // R5: gli ID si leggono a BLOCCHI (mai un taglio silenzioso a 500)
-  const perBlocchi = (colonna: 'id' | 'group_id', ids: string[]) => leggiPrenotazioniPerBlocchi(colonna, ids, colonne, 'caricare le prenotazioni da incassare')
+  const perBlocchi = (colonna: 'id' | 'group_id' | 'prenotazione_id', ids: string[]) => leggiPrenotazioniPerBlocchi(colonna, ids, colonne, 'caricare le prenotazioni da incassare')
   const idsMese = new Set(p.data!.map(b => b.id))
   const idsFuori = [...new Set(pag.data!.map(x => x.booking_id))].filter(id => !idsMese.has(id))
   let fuori: PrenotazioneSconto[] = []
@@ -195,13 +195,17 @@ export async function leggiDatiHome(da: string, a: string, oggi: string): Promis
     fuori = r.data!
   }
   // I segmenti di un soggiorno con movimenti possono stare fuori dal mese: si
-  // ricompongono i gruppi toccati, così «Da incassare» vede il soggiorno intero
-  const gruppi = new Set([...p.data!, ...fuori].filter(b => pag.data!.some(x => x.booking_id === b.id)).map(b => b.group_id).filter(Boolean) as string[])
+  // ricompongono i gruppi e le prenotazioni toccati, così «Da incassare» vede
+  // la prenotazione intera, anche le camere senza pagamenti (regola fissa n. 9)
+  const toccate = [...p.data!, ...fuori].filter(b => pag.data!.some(x => x.booking_id === b.id))
+  const gruppi = new Set(toccate.map(b => b.group_id).filter(Boolean) as string[])
+  const prenotazioniId = new Set(toccate.map(b => b.prenotazione_id).filter(Boolean) as string[])
   let segmenti: PrenotazioneSconto[] = []
-  if (gruppi.size > 0) {
-    const r = await perBlocchi('group_id', [...gruppi])
+  for (const [colonna, valori] of [['group_id', gruppi], ['prenotazione_id', prenotazioniId]] as const) {
+    if (valori.size === 0) continue
+    const r = await perBlocchi(colonna, [...valori])
     if (r.errore) return { data: null, errore: r.errore }
-    segmenti = r.data!
+    segmenti = [...segmenti, ...r.data!]
   }
   const visti = new Set<string>()
   const conMovimenti = [...p.data!, ...fuori, ...segmenti].filter(b => (visti.has(b.id) ? false : (visti.add(b.id), true)))

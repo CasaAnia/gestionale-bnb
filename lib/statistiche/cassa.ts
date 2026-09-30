@@ -7,12 +7,12 @@
 // due contributi restano DISTINTI (registrati / presunti) e le incoerenze fra
 // `bookings.pagato` e le righe reali vengono segnalate, mai corrette.
 // ============================================================================
-import { cent, prenotazioneValida, type PagamentoStat, type PrenotazioneStat, type SpesaStat } from './tipi.ts'
+import { cent, identitaSoggiorno, prenotazioneValida, type PagamentoStat, type PrenotazioneStat, type SpesaStat } from './tipi.ts'
 import { nelMese } from './periodo.ts'
 
 export type Incoerenza = {
   tipo: 'pagato_senza_righe' | 'pagato_ma_incompleto' | 'saldato_ma_non_segnato' | 'pagamenti_oltre_il_totale' | 'pagamento_senza_prenotazione'
-  soggiorno: string           // group_id oppure id
+  soggiorno: string           // la prenotazione (identitaSoggiorno)
   totaleCent: number
   pagatoCent: number
   nomi?: string
@@ -23,7 +23,7 @@ type Soggiorno = { chiave: string; segmenti: PrenotazioneStat[]; totaleCent: num
 function soggiorni(prenotazioni: PrenotazioneStat[]): Soggiorno[] {
   const gruppi = new Map<string, PrenotazioneStat[]>()
   for (const b of prenotazioni.filter(prenotazioneValida)) {
-    const k = b.group_id || b.id
+    const k = identitaSoggiorno(b) // la prenotazione intera: regola fissa n. 9
     if (!gruppi.has(k)) gruppi.set(k, [])
     gruppi.get(k)!.push(b)
   }
