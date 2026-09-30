@@ -63,30 +63,24 @@ test('RigaPeriodo dal telefono: periodo a sinistra in Cormorant 20 su una riga (
   assert.doesNotMatch(css, /\.cal-nav \{/)
 })
 
-test('Calendario, Arrivi e Richieste passano la riga del telefono a RigaPeriodo, con la pillola fra le frecce', () => {
+test('Calendario, Arrivi e Richieste passano la fascia della data a RigaPeriodo (telefono e Mac, 30/09/2026)', () => {
   for (const file of ['app/calendario/page.tsx', 'app/arrivi/page.tsx', 'components/richieste/NastroRichieste.tsx']) {
     const src = leggi(file)
     assert.match(src, /<RigaPeriodo /, file)
-    assert.match(src, /telefono=\{\{/, `${file}: manca la riga del telefono`)
-    assert.match(src, /pillola=\{[^}]*<InterruttorePillola /, file)
+    assert.match(src, /fascia=\{\{ scelta: modo, onScegli: cambiaModo, dati: '[^']+' \}\}/, `${file}: manca la fascia della data`)
+    assert.doesNotMatch(src, /telefono=\{\{/, `${file}: la riga del telefono di prima è tornata`)
     assert.doesNotMatch(src, /className="cal-nav /, `${file}: la riga vecchia del telefono è tornata`)
   }
 })
 
 // ── Ritocchi «Maison» del 29/09/2026, punto A2 ─────────────────────────────
 // Dal 30/09/2026 (vista «Sett.») tre parti a 4 × 7 ciascuna
-test('A2: la pillola del telefono è piccola (9,5 px, 4 × 7) e dice «2 sett.» e «Sett.»; dal Mac «2 settimane»', async () => {
+test('la pillola della fascia è piccola (9,5 px, 5 × 9) e dice «Mese», «2 sett.» e «Sett.» (30/09/2026, telefono e Mac)', async () => {
   const css = leggi('app/maison.css')
-  assert.match(css, /\.riga-periodo-tel \.cal-pill button span \{ font-size: 9\.5px; padding: 4px 7px; \}/)
-  const { VOCI_GRIGLIA_TELEFONO } = await import('./calendarioMobile.ts')
-  assert.deepEqual(VOCI_GRIGLIA_TELEFONO.map(v => v[1]), ['Mese', '2 sett.', 'Sett.'])
-  for (const file of ['app/calendario/page.tsx', 'app/arrivi/page.tsx', 'components/richieste/NastroRichieste.tsx']) {
-    const src = leggi(file)
-    // la pillola del telefono usa le voci corte, quella del Mac le voci di sempre
-    assert.match(src, /telefono=\{\{[\s\S]*?<InterruttorePillola voci=\{VOCI_GRIGLIA_TELEFONO\}/, file)
-    assert.match(src, /pillola=\{<InterruttorePillola voci=\{VOCI_GRIGLIA\} [^>]*-mac"/, file)
-    assert.match(src, /\['quindici', '2 settimane'\]/, `${file}: dal Mac resta «2 settimane»`)
-  }
+  assert.match(css, /\.riga-fascia \.cal-pill button span \{ font-size: 9\.5px; padding: 5px 9px; \}/)
+  const { VOCE_MESE, VOCI_SETTIMANE } = await import('./calendarioMobile.ts')
+  assert.deepEqual(VOCE_MESE.map(v => v[1]), ['Mese'])
+  assert.deepEqual(VOCI_SETTIMANE.map(v => v[1]), ['2 sett.', 'Sett.'])
 })
 
 test('A2 (rivisto il 30/09/2026 con la pillola a tre parti): il periodo sta in Cormorant 20 px su una riga; a cavallo d’anno 16 px; frecce ‹ · pillola · › come prima', async () => {

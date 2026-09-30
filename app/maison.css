@@ -726,6 +726,31 @@ body:has(.cal) { background: var(--home-bg); }
    a 21 non ci sta «28 apr – 10 mag 2026»); a cavallo d'anno 16 (a 17 non ci sta) */
 .riga-periodo-tel .cal-pill button span { font-size: 9.5px; padding: 4px 7px; }
 .riga-periodo-tel .per.due-anni { font-size: 16px; }
+/* LA FASCIA DELLA DATA (Ania, 30/09/2026, versione E di
+   docs/design/fascia-data-riferimento.html): Calendario, Arrivi e Richieste,
+   telefono e Mac uguali. A destra una colonna di due righe centrate fra loro,
+   8 px fra l'una e l'altra: sopra «MESE» da solo, sotto «‹ 2 SETT. | SETT. ›»
+   con le frecce a 6 px; la pillola a 9,5 px con 5 × 9 di spazio. A sinistra il
+   periodo con l'anno in Cormorant, centrato nello spazio che resta, su una
+   riga: la grandezza più grande a cui il periodo più lungo ci sta, uguale per
+   tutti i periodi (misurata col Cormorant vero, vedi il riscontro); a cavallo
+   d'anno più piccola, perché lì non ci starebbe. La fascia si alza quanto
+   serve: 10 sopra, 12 sotto. */
+.riga-fascia { display: flex; align-items: center; gap: 8px; padding: 10px 12px 12px; border-bottom: 1px solid var(--cal-filo, #E8E3DA); margin-top: 8px; }
+.riga-fascia .per { flex: 1; min-width: 0; text-align: center; font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: var(--fascia-per, 24px); font-weight: 500; line-height: 1.1; color: #241F1A; white-space: nowrap; overflow: hidden; }
+.riga-fascia .per.due-anni { font-size: var(--fascia-per-due-anni, 18px); }
+.riga-fascia .col { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: none; }
+.riga-fascia .riga2 { display: flex; align-items: center; gap: 6px; }
+.riga-fascia .cal-pill button span { font-size: 9.5px; padding: 5px 9px; }
+.riga-fascia .ar { position: relative; width: 20px; text-align: center; font-size: 18px; line-height: 1; color: #241F1A; background: none; border: 0; padding: 0; flex: none; }
+.riga-fascia .ar::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+.riga-fascia .ar:disabled { opacity: .3; cursor: default; }
+/* Misurate col Cormorant vero su tutti i periodi del 2026 e del 2027: a 390 px
+   il più largo dentro lo stesso anno è «27 apr – 10 mag 2026» (200 px su 201) →
+   25 px; a cavallo d'anno «28 dic 2027 – 10 gen 2028» → 20 px (a 25 non ci
+   sta). Dal Mac, partendo da 40, ci stanno tutti già a 40. */
+:root { --fascia-per: 25px; --fascia-per-due-anni: 20px; }
+@media (min-width: 1024px) { :root { --fascia-per: calc(40px / var(--zoom-pagina, 1)); --fascia-per-due-anni: calc(40px / var(--zoom-pagina, 1)); } }
 .cal-pill { display: inline-flex; border: 1px solid #C9BFA8; border-radius: 999px; overflow: hidden; }
 .cal-pill button { display: inline-flex; align-items: center; padding: 10px 0; margin: -10px 0; background: none; border: 0; }
 .cal-pill button span { display: block; padding: 5px 9px; font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--m-ink); white-space: nowrap; line-height: 1.2; }

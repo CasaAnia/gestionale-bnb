@@ -47,11 +47,12 @@ export const BUCO = { bordo: '#D5CCBB', testo: '#A89E8C', piu: '#C9BFA8' } as co
  *  stesso la nuova prenotazione con camera e giorno; per tornare ai riquadri
  *  basta rimettere `true`. */
 export const BUCHI_LIBERI_VISIBILI: boolean = false
-/** La pillola della riga del periodo sul telefono (punto A2): «2 sett.» al
- *  posto di «2 settimane», perché il periodo a sinistra stia più grande. Dal
- *  Mac resta «2 settimane». Dal 30/09/2026 una terza parte, «Sett.»: la vista
- *  coi giorni larghi, solo sul telefono (docs/design/calendario-settimana-riferimento.html). */
-export const VOCI_GRIGLIA_TELEFONO = [['mese', 'Mese'], ['quindici', '2 sett.'], ['settimana', 'Sett.']] as const
+/** Le viste nella fascia della data (Ania, 30/09/2026, versione E di
+ *  docs/design/fascia-data-riferimento.html): «MESE» da solo sopra, «2 SETT. |
+ *  SETT.» sotto fra le frecce («2 sett.» dai ritocchi A2, «Sett.» da
+ *  docs/design/calendario-settimana-riferimento.html). Telefono e Mac uguali. */
+export const VOCE_MESE = [['mese', 'Mese']] as const
+export const VOCI_SETTIMANE = [['quindici', '2 sett.'], ['settimana', 'Sett.']] as const
 /** L'ottone scuro della riga dell'arrivo */
 export const OTTONE_SCURO = '#7a5f2c'
 
@@ -106,17 +107,15 @@ export const VOCI_LEGENDA_ARRIVI: VoceLegenda[] = [
 ]
 export const ICONE_LEGENDA_ARRIVI = 'Sulla scheda: orario grande (o «?»), icone e nome, poi luogo · mezzo · navetta con autista e prelievo. Icone: 🔒 esclusiva · ⭐ ottimo · 🧾 ricevuta · 🛏 letto in più · ⇄ cambio camera · 🌐 dal sito'
 
-// ── LE VISTE DEL NASTRO: «Mese», «2 settimane» e, solo sul telefono, «Sett.» ──
+// ── LE VISTE DEL NASTRO: «Mese», «2 settimane» e «Sett.» ──
 // «Sett.» (Ania, 30/09/2026) è lo stesso nastro di «2 settimane» coi giorni
 // larghi: a 60 px la scheda di UNA notte è larga 54 e nome, ospiti e arrivo si
-// tagliano; a 145 si legge tutta. Dal Mac non c'è: lì vale «2 settimane».
+// tagliano; a 145 si legge tutta. Dalla sera del 30/09/2026 anche dal Mac
+// (Ania: «il Mac è come il telefono»), sempre coi giorni da 145 px.
 export type ModoNastro = 'mese' | 'quindici' | 'settimana'
 /** Il testo ricordato nel browser → la vista (null se non è una delle tre) */
 export const leggiModoNastro = (v: string | null | undefined): ModoNastro | null =>
   v === 'mese' || v === 'quindici' || v === 'settimana' ? v : null
-/** La vista che si disegna: «Sett.» dal Mac (dove la pillola ha due parti) vale «2 settimane» */
-export const vistaNastro = (modo: ModoNastro, telefono: boolean): ModoNastro =>
-  modo === 'settimana' && !telefono ? 'quindici' : modo
 /** Quante colonne entrano nella larghezza del riquadro (sul telefono dritto conta il minimo sotto) */
 export const COLONNE_VISIBILI_NASTRO: Record<ModoNastro, number> = { mese: 31, quindici: 14, settimana: 7 }
 /** Quanti giorni dice il periodo e di quanti si spostano le frecce in «Sett.» */
@@ -127,6 +126,12 @@ export const GIORNI_SETTIMANA = 7
 export const GIORNO_SETT_PX = 145
 export const GIORNO_TELEFONO = { quindici: 60, mese: 40, settimana: GIORNO_SETT_PX } as const
 export const colonnaMinTelefono = (modo: ModoNastro) => GIORNO_TELEFONO[modo]
+/** La larghezza del giorno: a «Sett.» sempre GIORNO_SETT_PX (telefono e Mac);
+ *  altrimenti almeno il minimo, allargata a riempire le colonne visibili */
+export function larghezzaGiorno(modo: ModoNastro, larghezza: number, colonnaMin: number, colonne: number): number {
+  if (modo === 'settimana') return GIORNO_SETT_PX
+  return colonnaMin === 0 ? larghezza / colonne : Math.max(colonnaMin, Math.floor(larghezza / colonne))
+}
 // Frecce ‹ ›: a «2 settimane» e a «Sett.» UNA settimana (novità del 29/09/2026), a «Mese» il 1° del mese
 export const PASSO_FRECCE_QUINDICI = 7
 export const etichettaFreccia = (modo: ModoNastro, verso: -1 | 1) =>

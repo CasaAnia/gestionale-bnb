@@ -37,12 +37,14 @@ test('larghezza del giorno sul telefono: 60 px a «2 settimane», 40 a «Mese»,
 })
 
 test('la riga di navigazione: l’interruttore di sempre nella veste Maison, periodo in Cormorant', () => {
-  assert.match(pagina, /<InterruttorePillola voci=\{VOCI_GRIGLIA\}[^>]*maison \/>/)
+  // dal 30/09/2026 le pillole stanno nella fascia della data (components/RigaPeriodo)
+  assert.match(pagina, /fascia=\{\{ scelta: modo, onScegli: cambiaModo, dati: 'modo-griglia' \}\}/)
+  assert.match(leggi('components/RigaPeriodo.tsx'), /<InterruttorePillola voci=\{VOCI_SETTIMANE\}[^>]*maison \/>/)
   const pillola = leggi('components/InterruttorePillola.tsx')
   assert.match(pillola, /className=\{`cal-pill \$\{className\}`\}/)
   const css = leggi('app/maison.css')
   assert.match(css, /\.cal-pill button\.on span \{ background: var\(--m-ink\); color: #F6F2EA; \}/)
-  assert.match(css, /\.riga-periodo-tel \.per \{ font-family: var\(--font-cormorant\)[^}]*font-size: 20px;/) // 24 dai ritocchi del 29/09/2026 (A2), 20 con la pillola a tre parti (30/09/2026)
+  assert.match(css, /\.riga-fascia \.per \{[^}]*font-family: var\(--font-cormorant\)[^}]*font-size: var\(--fascia-per, 24px\);/) // la fascia della data (30/09/2026)
 })
 
 // ── Le schede (pezzo 4) ─────────────────────────────────────────────────────

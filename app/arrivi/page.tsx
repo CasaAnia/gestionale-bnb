@@ -26,18 +26,16 @@ import { matchPrenotazione } from '@/lib/ricerca'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
 import RigaPeriodo from '@/components/RigaPeriodo'
-import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import { sottotitoloArrivi } from '@/lib/testaMac'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
-import InterruttorePillola from '@/components/InterruttorePillola'
 import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro } from '@/components/calendario/Nastro'
 import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
 import { PannelloLegenda } from '@/components/LegendaCalendario'
 import FoglioArrivo, { ALTEZZA_FOGLIO_ARRIVO_ARRIVI } from '@/components/scheda/FoglioArrivo'
 import { IconeContatto } from '@/components/scheda/TestataMaison'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
-import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero, useMac } from '@/lib/richiesteVista'
+import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI } from '@/lib/richiesteCalendario'
 import { leggiArrivo, arrivoInScheda, navettaInScheda, TITOLO_ARRIVO } from '@/lib/arrivo'
 import { idDaParametro } from '@/lib/daControllare'
@@ -55,7 +53,7 @@ import {
 } from '@/lib/arriviSchede'
 import {
   areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, OPACITA_ARRIVATA, VOCI_LEGENDA_ARRIVI, ICONE_LEGENDA_ARRIVI,
-  VOCI_GRIGLIA_TELEFONO, BUCHI_LIBERI_VISIBILI, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, vistaNastro, type ModoNastro,
+  BUCHI_LIBERI_VISIBILI, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, larghezzaGiorno, type ModoNastro,
 } from '@/lib/calendarioMobile'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -72,7 +70,6 @@ const CELL_W_DESKTOP = 101
 type ModoGriglia = ModoNastro
 const COLONNE_VISIBILI = COLONNE_VISIBILI_NASTRO   // 31: a mese si vede il mese intero (05/09/2026); 14 a 2 settimane, 7 a «Sett.»
 const CHIAVE_MODO = 'ca_calendario_modo'
-const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoGriglia, string])[]
 const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 90
 const DAYS_BEFORE = 7
@@ -171,9 +168,8 @@ export default function Arrivi() {
     const t = setTimeout(() => { const m = leggiModoNastro(v); if (m) setModo(m) }, 0)
     return () => clearTimeout(t)
   }, [])
-  // «Sett.» c'è solo sotto la larghezza del Mac (dritto o girato): dal Mac vale «2 settimane»
-  const mac = useMac()
-  const modo = vistaNastro(modoScelto, !mac)
+  // «Sett.» anche dal Mac, coi giorni da 145 px (Ania, 30/09/2026 sera)
+  const modo = modoScelto
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   const primoGiornoRef = useRef<number | null>(null)
   // Da controllare in Home (06/09/2026): ?apri=<id> → giorno di arrivo da cui far partire la griglia
@@ -189,7 +185,7 @@ export default function Arrivi() {
   // «Sett.» anche girato: giorni da 145 px con le schede compatte (30/09/2026)
   const colonnaMin = modo === 'settimana' ? colonnaMinTelefono(modo) : isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
   const CELL_W = larghezzaGriglia > 0
-    ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
+    ? larghezzaGiorno(modo, larghezzaGriglia - NAME_W, colonnaMin, COLONNE_VISIBILI[modo])
     : (isDesktop ? CELL_W_DESKTOP : 60)
   const ROW_H = CORSIA_H
   const RULER_H = isDesktop && !orizzontale ? RULER_H_DESKTOP : RULER_H_MOBILE
@@ -354,11 +350,6 @@ export default function Arrivi() {
   const larghezzaTesto = (da: number, a: number) => Math.max(0, parteInVista(da, a) - 16 - FILO_SINISTRO)
 
   const aperta = popup ? arrivi.find(b => b.id === popup.id) ?? null : null
-  // Dal Mac il periodo per esteso (RigaPeriodo): «26 settembre – 9 ottobre 2026», a mese «Settembre 2026»
-  const giorniMac = days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)
-  const periodoMac = modo === 'quindici'
-    ? periodoEsteso(giorniMac[0], giorniMac[giorniMac.length - 1])
-    : meseEsteso(toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]))
 
   return (
     <div className="maison cal flex flex-col" data-senza-sottolinea data-arrivi-maison>
@@ -377,17 +368,13 @@ export default function Arrivi() {
 
       {/* Dal telefono il nastro va da bordo a bordo, come il Calendario */}
       <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : isDesktop ? 'mx-4' : ''} overflow-hidden`}>
-      {/* La riga del periodo comune (components/RigaPeriodo, 29/09/2026): dal Mac per esteso,
-          dal telefono (novità 14a) il periodo in Cormorant 20 e ‹ · pillola · › attaccati */}
+      {/* La fascia della data (components/RigaPeriodo, 30/09/2026): telefono e Mac
+          uguali, periodo con l'anno a sinistra, «MESE» sopra «‹ 2 SETT. | SETT. ›» */}
       {!loading && (
-        <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
+        <RigaPeriodo etichetta={modo !== 'mese' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + (modo === 'settimana' ? GIORNI_SETTIMANA : GIORNI_QUINDICINA)).map(toStr)) : visibleMonth}
+          onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
           etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0"
-          pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />}
-          telefono={{
-            // a «Sett.» la settimana dal primo giorno in vista («28 set – 4 ott 2026»)
-            etichetta: modo !== 'mese' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + (modo === 'settimana' ? GIORNI_SETTIMANA : GIORNI_QUINDICINA)).map(toStr)) : visibleMonth,
-            pillola: <InterruttorePillola voci={VOCI_GRIGLIA_TELEFONO} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />,
-          }} />
+          fascia={{ scelta: modo, onScegli: cambiaModo, dati: 'modo-griglia' }} />
       )}
 
       {/* Dal Mac niente barra di scorrimento visibile sotto la griglia: si scorre con due dita, con le frecce e con i mesi */}

@@ -508,14 +508,15 @@ test('il selettore Reale/Presunta è lo stesso «Mese | 2 settimane» del Calend
   const vista = readFileSync(new URL('../components/richieste/InterruttoreVista.tsx', import.meta.url), 'utf8')
   assert.match(vista, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
   assert.match(vista, /<InterruttorePillola voci=\{VOCI\}/)
+  // dal 30/09/2026 «Mese» e «2 sett. | Sett.» stanno nella fascia della data
+  // (components/RigaPeriodo), una sola per Calendario, Arrivi e Richieste
+  const riga = readFileSync(new URL('../components/RigaPeriodo.tsx', import.meta.url), 'utf8')
+  assert.match(riga, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
+  assert.match(riga, /<InterruttorePillola voci=\{VOCE_MESE\}/)
+  assert.match(riga, /<InterruttorePillola voci=\{VOCI_SETTIMANE\}/)
   const calendario = readFileSync(new URL('../app/calendario/page.tsx', import.meta.url), 'utf8')
-  assert.match(calendario, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
-  assert.match(calendario, /<InterruttorePillola voci=\{VOCI_GRIGLIA\}/)
-  assert.match(calendario, /VOCI_GRIGLIA = \[\['mese', 'Mese'\], \['quindici', '2 settimane'\]\]/)
-  // e anche il nastro delle Richieste, che era la terza copia
   const calRichieste = readFileSync(new URL('../components/richieste/NastroRichieste.tsx', import.meta.url), 'utf8')
-  assert.match(calRichieste, /<InterruttorePillola voci=\{VOCI_GRIGLIA\}/)
-  assert.match(calRichieste, /VOCI_GRIGLIA = \[\['mese', 'Mese'\], \['quindici', '2 settimane'\]\]/)
+  for (const src of [calendario, calRichieste]) assert.match(src, /fascia=\{\{ scelta: modo, onScegli: cambiaModo/)
   // nessuno dei tre si ridisegna per conto suo
   for (const [nome, testo] of [['il Calendario', calendario], ['il calendario delle Richieste', calRichieste]] as const) {
     assert.equal(/rounded-full border p-0\.5/.test(testo), false, `${nome} ridisegna la pillola per conto suo`)

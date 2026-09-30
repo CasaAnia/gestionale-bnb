@@ -34,16 +34,15 @@ import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione
 import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro, SchedaNastro } from '@/components/calendario/Nastro'
 import { SchedaPrenotazione, SchedaTenuta } from '@/components/calendario/SchedaPrenotazione'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
-import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI, RIGA_QUALSIASI } from '@/lib/richiesteCalendario'
 import { CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, FILO_SINISTRO, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco } from '@/lib/calendarioSchede'
-import { areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_LEGENDA, ICONE_LEGENDA, VOCI_GRIGLIA_TELEFONO, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, vistaNastro, type ModoNastro } from '@/lib/calendarioMobile'
+import { areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_LEGENDA, ICONE_LEGENDA, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, larghezzaGiorno, type ModoNastro } from '@/lib/calendarioMobile'
 import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { barreTenute, barrePerCamera, testoTenuta, type RichiestaTenuta, type BarraTenuta } from '@/lib/calendarioOpzioni'
 import { schedeRichieste, righeSchedaRichieste, TINTA_RICHIESTA, type RichiestaNastro, type SchedaRichieste } from '@/lib/richiesteNastro'
 import { eAperta, type Richiesta } from '@/lib/richieste'
-import { useMac, type Vista } from '@/lib/richiesteVista'
+import { type Vista } from '@/lib/richiesteVista'
 import { hrefScheda } from '@/lib/provenienzaScheda'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']   // l'ordine del Calendario
@@ -59,7 +58,6 @@ export type ModoCalendario = ModoNastro
 const COLONNE_VISIBILI = COLONNE_VISIBILI_NASTRO   // 31 a mese, 14 a 2 settimane, 7 a «Sett.»
 // La scelta «Mese | 2 settimane» delle Richieste, ricordata nel browser come prima
 const CHIAVE_MODO = 'ca_richieste_calendario_modo'
-const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoCalendario, string])[]
 const VOCI_VISTA = [['reale', 'Reale'], ['presunta', 'Presunta']] as const satisfies readonly (readonly [Vista, string])[]
 const LARGHEZZA_MIN_COLONNA = 28
 // Le richieste guardano avanti: un mese prima di oggi, più di un anno dopo
@@ -115,9 +113,8 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
     const t = setTimeout(() => { const m = leggiModoNastro(v); if (m) setModo(m) }, 0)
     return () => clearTimeout(t)
   }, [])
-  // «Sett.» c'è solo sotto la larghezza del Mac (dritto o girato): dal Mac vale «2 settimane»
-  const mac = useMac()
-  const modo = vistaNastro(modoScelto, !mac)
+  // «Sett.» anche dal Mac, coi giorni da 145 px (Ania, 30/09/2026 sera)
+  const modo = modoScelto
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   const [primoVisibile, setPrimoVisibile] = useState(DAYS_BEFORE)
   const [colonnaSinistra, setColonnaSinistra] = useState(DAYS_BEFORE)
@@ -133,7 +130,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   // «Sett.» anche girato: giorni da 145 px con le schede compatte (30/09/2026)
   const colonnaMin = modo === 'settimana' ? colonnaMinTelefono(modo) : desktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
   const CELL_W = larghezzaGriglia > 0
-    ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
+    ? larghezzaGiorno(modo, larghezzaGriglia - NAME_W, colonnaMin, COLONNE_VISIBILI[modo])
     : (desktop ? CELL_W_DESKTOP : 60)
   const RULER_H = desktop && !orizzontale ? RULER_H_DESKTOP : RULER_H_MOBILE
 
@@ -249,7 +246,6 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   const larghezzaTesto = (da: number, a: number) => Math.max(0, parteInVista(da, a) - 16 - FILO_SINISTRO)
   const giorniQuindici = days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)
   const meseVisibile = toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)
-  const periodoMac = modo === 'quindici' ? periodoEsteso(giorniQuindici[0], giorniQuindici[giorniQuindici.length - 1]) : meseEsteso(meseVisibile)
   // a «Sett.» la settimana dal primo giorno in vista («28 set – 4 ott 2026»)
   const periodoTelefono = modo === 'settimana' ? etichettaPeriodo(giorniQuindici.slice(0, GIORNI_SETTIMANA)) : modo === 'quindici' ? etichettaPeriodo(giorniQuindici) : visibleMonth
   const bordo = orizzontale ? 'px-2' : desktop ? 'px-4' : ''
@@ -282,12 +278,11 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
     <div className="flex flex-col" data-nastro-richieste data-senza-sottolinea>
       {/* Dal telefono il nastro va da bordo a bordo, come nel Calendario */}
       <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : desktop ? 'mx-4' : ''} overflow-hidden`}>
-        {/* La riga del periodo comune (components/RigaPeriodo): dal Mac per esteso,
-            dal telefono (novità 14a) il periodo in Cormorant 20 e ‹ · pillola · › attaccati */}
-        <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
+        {/* La fascia della data (components/RigaPeriodo, 30/09/2026): telefono e Mac
+            uguali, periodo con l'anno a sinistra, «MESE» sopra «‹ 2 SETT. | SETT. ›» */}
+        <RigaPeriodo etichetta={periodoTelefono} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
           etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0"
-          pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-calendario-mac" maison />}
-          telefono={{ etichetta: periodoTelefono, pillola: <InterruttorePillola voci={VOCI_GRIGLIA_TELEFONO} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-calendario" maison /> }} />
+          fascia={{ scelta: modo, onScegli: cambiaModo, dati: 'modo-calendario' }} />
         {/* «VISTA · Reale | Presunta», allineata a destra, col filo sotto */}
         <div className="ric-vista shrink-0" data-riga-vista>
           <span className="k">Vista</span>

@@ -22,16 +22,14 @@ import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese } from '@/lib/schedaPrenotazione'
 import TestaPagina from '@/components/TestaPagina'
 import RigaPeriodo from '@/components/RigaPeriodo'
-import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
-import InterruttorePillola from '@/components/InterruttorePillola'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
-import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero, useMac } from '@/lib/richiesteVista'
+import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { giornoDaParametro } from '@/lib/daControllare'
 import { PannelloLegenda } from '@/components/LegendaCalendario'
-import { CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_GRIGLIA_TELEFONO, BUCHI_LIBERI_VISIBILI, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, vistaNastro, type ModoNastro } from '@/lib/calendarioMobile'
+import { CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, BUCHI_LIBERI_VISIBILI, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, larghezzaGiorno, type ModoNastro } from '@/lib/calendarioMobile'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import {
   barreTenute, barrePerCamera, lettiTenutiPerNotte, testoTenuta, comeDovevaPagare,
@@ -71,7 +69,6 @@ const MESI_CLICCABILI = 12       // riga sottile dei mesi: da quello corrente in
 type ModoGriglia = ModoNastro
 const COLONNE_VISIBILI = COLONNE_VISIBILI_NASTRO   // 31: a mese si vede il mese intero (05/09/2026); 14 a 2 settimane, 7 a «Sett.»
 const CHIAVE_MODO = 'ca_calendario_modo'
-const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoGriglia, string])[]
 const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
@@ -184,9 +181,8 @@ export default function Calendario() {
     const t = setTimeout(() => { const m = leggiModoNastro(v); if (m) setModo(m) }, 0)
     return () => clearTimeout(t)
   }, [])
-  // «Sett.» c'è solo sotto la larghezza del Mac (dritto o girato): dal Mac vale «2 settimane»
-  const mac = useMac()
-  const modo = vistaNastro(modoScelto, !mac)
+  // «Sett.» anche dal Mac, coi giorni da 145 px (Ania, 30/09/2026 sera)
+  const modo = modoScelto
   // Larghezza del riquadro (per calcolare le colonne): misurata sul contenitore che scorre
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   // Primo giorno da tenere in vista quando cambiano le colonne (cambio di modo)
@@ -223,7 +219,7 @@ export default function Calendario() {
   // Senza minimo (telefono girato a mese) la colonna NON si arrotonda: così
   // in vista ci sono esattamente 31 caselle, non 31 e qualcosa (Ania, 05/09/2026)
   const CELL_W = larghezzaGriglia > 0
-    ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
+    ? larghezzaGiorno(modo, larghezzaGriglia - NAME_W, colonnaMin, COLONNE_VISIBILI[modo])
     : (isDesktop ? CELL_W_DESKTOP : 60)
   const ROW_H = CORSIA_H
   const RULER_H = isDesktop && !orizzontale ? RULER_H_DESKTOP : RULER_H_MOBILE
@@ -428,9 +424,6 @@ export default function Calendario() {
   // Striscia dei mesi (condivisa con Arrivi e Richieste) e mese del primo giorno in vista
   const mesi = mesiCliccabili(today, MESI_CLICCABILI)
   const meseVisibile = toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)
-  // Dal Mac il periodo per esteso (RigaPeriodo): «26 settembre – 9 ottobre 2026», a mese «Settembre 2026»
-  const giorniMac = days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)
-  const periodoMac = modo === 'quindici' ? periodoEsteso(giorniMac[0], giorniMac[giorniMac.length - 1]) : meseEsteso(meseVisibile)
 
   const vaiARef = useRef(vaiA)
   useEffect(() => {
@@ -728,13 +721,11 @@ export default function Calendario() {
       <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : isDesktop ? 'mx-4' : ''} overflow-hidden`}>
       {!loading && (
         <>
-          {/* La riga del periodo comune (components/RigaPeriodo, 29/09/2026): dal Mac il
-              periodo per esteso a sinistra, ‹ · Mese | 2 settimane · › a destra; dal
-              telefono (novità 14a) il periodo in Cormorant 20 e ‹ · pillola · › attaccati */}
-          <RigaPeriodo etichetta={periodoMac} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
+          {/* La fascia della data (components/RigaPeriodo, 30/09/2026): telefono e Mac
+              uguali, periodo con l'anno a sinistra, «MESE» sopra «‹ 2 SETT. | SETT. ›» */}
+          <RigaPeriodo etichetta={etichettaVista} onPrec={() => freccia(-1)} onSucc={() => freccia(1)}
             etichettaPrec={etichettaFreccia(modo, -1)} etichettaSucc={etichettaFreccia(modo, 1)} className="shrink-0 mt-2"
-            pillola={<InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia-mac" maison />}
-            telefono={{ etichetta: etichettaVista, pillola: <InterruttorePillola voci={VOCI_GRIGLIA_TELEFONO} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison /> }} />
+            fascia={{ scelta: modo, onScegli: cambiaModo, dati: 'modo-griglia' }} />
         </>
       )}
 

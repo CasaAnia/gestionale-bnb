@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { periodoAScavalloDAnno } from '@/lib/periodoEsteso'
+import InterruttorePillola from '@/components/InterruttorePillola'
+import { VOCE_MESE, VOCI_SETTIMANE, type ModoNastro } from '@/lib/calendarioMobile'
 
 // ============================================================================
 // LA RIGA DEL PERIODO (Ania, 29/09/2026), una sola per tutte le pagine con
@@ -28,9 +30,19 @@ import { periodoAScavalloDAnno } from '@/lib/periodoEsteso'
 // Vista «Sett.» (Ania, 30/09/2026): la pillola del telefono ha tre parti,
 // «Mese | 2 sett. | Sett.», 4 × 7 ciascuna; con lei il periodo scende a 20 px
 // (a 21 «28 apr – 10 mag 2026» non sta più), a cavallo d'anno a 16.
+//
+// LA FASCIA DELLA DATA (Ania, 30/09/2026, versione E di
+// docs/design/fascia-data-riferimento.html), per le pagine che passano
+// `fascia` (Calendario, Arrivi, Richieste), UGUALE dal telefono e dal Mac:
+// a destra una colonna di due righe centrate fra loro, sopra il bottone
+// singolo «MESE» e 8 px sotto «‹ 2 SETT. | SETT. ›» (frecce attaccate a
+// 6 px); a sinistra il periodo con l'anno in Cormorant, centrato nello
+// spazio che resta, su una riga, la grandezza più grande a cui il periodo
+// più lungo ci sta (misure in app/maison.css, .riga-fascia). Statistiche e
+// Spese tengono la riga di prima.
 // ============================================================================
 
-export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, etichettaSucc, succDisabilitato = false, pillola, onEtichetta, titoloEtichetta, telefono, className = '' }: {
+export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, etichettaSucc, succDisabilitato = false, pillola, onEtichetta, titoloEtichetta, telefono, fascia, className = '' }: {
   etichetta: string
   onPrec: () => void
   onSucc: () => void
@@ -44,8 +56,25 @@ export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, 
   titoloEtichetta?: string
   /** la riga del telefono: il periodo col mese abbreviato e la sua pillola */
   telefono?: { etichetta: string; pillola?: ReactNode }
+  /** la fascia della data (Calendario, Arrivi, Richieste): telefono e Mac uguali */
+  fascia?: { scelta: ModoNastro; onScegli: (m: ModoNastro) => void; dati: string }
   className?: string
 }) {
+  if (fascia) {
+    return (
+      <div data-riga-periodo-fascia data-riga-navigazione data-senza-sottolinea className={`riga-fascia ${className}`}>
+        <span className={`per ${periodoAScavalloDAnno(etichetta) ? 'due-anni' : ''}`}>{etichetta}</span>
+        <div className="col">
+          <InterruttorePillola voci={VOCE_MESE} scelta={fascia.scelta} onScegli={fascia.onScegli} nome="Vista a mese" dati={`${fascia.dati}-mese`} maison />
+          <span className="riga2">
+            <button type="button" className="ar" onClick={onPrec} aria-label={etichettaPrec}>‹</button>
+            <InterruttorePillola voci={VOCI_SETTIMANE} scelta={fascia.scelta} onScegli={fascia.onScegli} nome="Vista a settimane" dati={fascia.dati} maison />
+            <button type="button" className="ar" onClick={onSucc} aria-label={etichettaSucc} disabled={succDisabilitato}>›</button>
+          </span>
+        </div>
+      </div>
+    )
+  }
   return (
     <>
       <div data-riga-periodo data-senza-sottolinea className={`riga-periodo hidden lg:flex ${className}`}>
