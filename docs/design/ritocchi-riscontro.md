@@ -65,3 +65,36 @@ Schermate a 390 px (accanto a questo file):
 - R1 fatta. R2 fatta.
 - R3 vedi CONSEGNA-ATTIVA: fatta solo la parte in lettura, se l'accesso al sito c'era.
 - R4 vedi CONSEGNA-ATTIVA.
+
+## Seguito del 30/09/2026 — i due punti «non fatti»
+
+**1 · Foglio Arrivo — FATTO** (commit d8ec75b, cc8fe1a). Misure a 390 × 844 con
+`scripts/revisioni/schermata.mjs` (a foglio fermo: nel pannello dell'app le
+misure prese durante l'animazione di salita vengono più basse). Il caso più
+lungo vero è «Arrivo a…» + «Altro luogo…» (il campo scritto a mano) + fascia
++ stima + autista + prelievo, non Centrale come il 29/09.
+- Scheda e Home: il contenuto chiedeva 825 px in un foglio da 756 (il prelievo
+  restava nascosto) → **713 px**, tutto dentro, «Annulla · Salva» 24 px sotto.
+- Arrivi: 897 px in uno schermo che ne dà 776 → **729 px**, almeno 40 px sotto
+  il 92% dello schermo.
+- Come: solo meno aria (etichette 16/6 → 8/3, righe degli orari 10 → 4,
+  storico e «Salva» degli Arrivi 12 → 8); caratteri, campi e tasti invariati.
+  Nella fascia la stima prende due colonne come con «Ora precisa» e la sua
+  etichetta sta su una riga (approvato da Ania). Negli Arrivi, scelta di Ania:
+  via «Apri chat» (uguale al cerchio WhatsApp della testa), la riga è «Chiedi
+  orario · Storico › · Apri prenotazione» e lo storico si apre al tocco.
+- Parti dinamiche che non si possono fissare (se crescono il foglio scorre
+  dentro, i tasti restano fermi): lo storico aperto (lungo quanti soggiorni ha
+  la cliente), l'avviso d'errore dopo un salvataggio fallito, un nome molto
+  lungo nel titolo della scheda (negli Arrivi è tagliato coi puntini), il
+  riassunto degli Arrivi se va su due righe.
+- Schermate: `ritocchi-390-foglio-arrivo-prima-dopo.png` (scheda, caso più
+  lungo e In struttura) e `ritocchi-390-arrivi-prima-dopo.png`.
+
+**2 · «Come paga» della proposta nelle Richieste — FATTO** (commit 5ca54c0).
+Cliente con «paga di solito con: contanti» → «All'arrivo» già acceso,
+modificabile; bonifico o niente → nulla acceso, come prima. Il cliente della
+richiesta si trova come sempre (lib/clienteCheTorna): prima per telefono
+(solo le cifre), altrimenti per nome e cognome; se non c'è, niente acceso.
+Finché la proposta 0062 non è applicata la colonna non esiste e non si
+accende nulla. Schermata: `ritocchi-390-proposta-contanti.png`.
