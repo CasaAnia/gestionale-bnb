@@ -28,8 +28,9 @@ test('frecce: a «2 settimane» una settimana (7 giorni), a «Mese» il 1° del 
   assert.match(pagina, /etichettaSucc=\{etichettaFreccia\(modo, 1\)\}/)
 })
 
-test('larghezza del giorno sul telefono: 60 px a «2 settimane», 40 a «Mese»', () => {
-  assert.deepEqual(GIORNO_TELEFONO, { quindici: 60, mese: 40 })
+test('larghezza del giorno sul telefono: 60 px a «2 settimane», 40 a «Mese», 145 a «Sett.» (30/09/2026)', () => {
+  assert.deepEqual(GIORNO_TELEFONO, { quindici: 60, mese: 40, settimana: 145 })
+  assert.equal(colonnaMinTelefono('settimana'), 145)
   assert.equal(colonnaMinTelefono('quindici'), 60)
   assert.equal(colonnaMinTelefono('mese'), 40)
   assert.match(pagina, /colonnaMinTelefono\(modo\)/)

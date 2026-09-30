@@ -105,13 +105,33 @@ export const VOCI_LEGENDA_ARRIVI: VoceLegenda[] = [
 ]
 export const ICONE_LEGENDA_ARRIVI = 'Sulla scheda: orario grande (o «?»), icone e nome, poi luogo · mezzo · navetta con autista e prelievo. Icone: 🔒 esclusiva · ⭐ ottimo · 🧾 ricevuta · 🛏 letto in più · ⇄ cambio camera · 🌐 dal sito'
 
-// Larghezza del giorno sul telefono dritto (come oggi): 60 px a «2 settimane», 40 a «Mese»
-export const GIORNO_TELEFONO = { quindici: 60, mese: 40 } as const
-export const colonnaMinTelefono = (modo: 'quindici' | 'mese') => GIORNO_TELEFONO[modo]
-// Frecce ‹ ›: a «2 settimane» UNA settimana (novità del 29/09/2026), a «Mese» il 1° del mese
+// ── LE VISTE DEL NASTRO: «Mese», «2 settimane» e, solo sul telefono, «Sett.» ──
+// «Sett.» (Ania, 30/09/2026) è lo stesso nastro di «2 settimane» coi giorni
+// larghi: a 60 px la scheda di UNA notte è larga 54 e nome, ospiti e arrivo si
+// tagliano; a 145 si legge tutta. Dal Mac non c'è: lì vale «2 settimane».
+export type ModoNastro = 'mese' | 'quindici' | 'settimana'
+/** Il testo ricordato nel browser → la vista (null se non è una delle tre) */
+export const leggiModoNastro = (v: string | null | undefined): ModoNastro | null =>
+  v === 'mese' || v === 'quindici' || v === 'settimana' ? v : null
+/** La vista che si disegna: «Sett.» dal Mac (dove la pillola ha due parti) vale «2 settimane» */
+export const vistaNastro = (modo: ModoNastro, telefono: boolean): ModoNastro =>
+  modo === 'settimana' && !telefono ? 'quindici' : modo
+/** Sotto questa larghezza (px) si è «sul telefono»: la stessa di lg:hidden della riga del periodo */
+export const LARGHEZZA_MAC = 1024
+/** Quante colonne entrano nella larghezza del riquadro (sul telefono dritto conta il minimo sotto) */
+export const COLONNE_VISIBILI_NASTRO: Record<ModoNastro, number> = { mese: 31, quindici: 14, settimana: 7 }
+/** Quanti giorni dice il periodo e di quanti si spostano le frecce in «Sett.» */
+export const GIORNI_SETTIMANA = 7
+
+// Larghezza del giorno sul telefono dritto (come oggi): 60 px a «2 settimane», 40 a «Mese»;
+// a «Sett.» GIORNO_SETT_PX, UN numero solo per provare un'altra misura (anche in orizzontale)
+export const GIORNO_SETT_PX = 145
+export const GIORNO_TELEFONO = { quindici: 60, mese: 40, settimana: GIORNO_SETT_PX } as const
+export const colonnaMinTelefono = (modo: ModoNastro) => GIORNO_TELEFONO[modo]
+// Frecce ‹ ›: a «2 settimane» e a «Sett.» UNA settimana (novità del 29/09/2026), a «Mese» il 1° del mese
 export const PASSO_FRECCE_QUINDICI = 7
-export const etichettaFreccia = (modo: 'quindici' | 'mese', verso: -1 | 1) =>
-  modo === 'quindici' ? (verso === -1 ? 'Una settimana prima' : 'Una settimana dopo') : (verso === -1 ? 'Mese precedente' : 'Mese successivo')
+export const etichettaFreccia = (modo: ModoNastro, verso: -1 | 1) =>
+  modo !== 'mese' ? (verso === -1 ? 'Una settimana prima' : 'Una settimana dopo') : (verso === -1 ? 'Mese precedente' : 'Mese successivo')
 
 // Altezza minima dell'area di tocco (Apple: 44 pt). La barra resta com'è;
 // l'area la include e sporge sopra e sotto in parti uguali.
