@@ -70,3 +70,14 @@ export function useSchermoIntero(): void {
     return () => { delete document.body.dataset.schermoIntero }
   }, [])
 }
+// Il Mac (30/09/2026): dalla stessa larghezza a cui la riga del periodo passa
+// da quella del telefono a quella del Mac (lg, 1024 px). Sotto, dritto o
+// girato, il nastro ha anche la vista «Sett.» (lib/calendarioMobile).
+export const MEDIA_MAC = '(min-width: 1024px)'
+export function useMac(): boolean {
+  return useSyncExternalStore(
+    cb => { const mq = window.matchMedia(MEDIA_MAC); mq.addEventListener('change', cb); return () => mq.removeEventListener('change', cb) },
+    () => window.matchMedia(MEDIA_MAC).matches,
+    () => false,
+  )
+}

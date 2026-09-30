@@ -27,11 +27,11 @@ import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
 import InterruttorePillola from '@/components/InterruttorePillola'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
-import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
+import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero, useMac } from '@/lib/richiesteVista'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { giornoDaParametro } from '@/lib/daControllare'
 import { PannelloLegenda } from '@/components/LegendaCalendario'
-import { CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_GRIGLIA_TELEFONO, BUCHI_LIBERI_VISIBILI } from '@/lib/calendarioMobile'
+import { CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_GRIGLIA_TELEFONO, BUCHI_LIBERI_VISIBILI, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, vistaNastro, type ModoNastro } from '@/lib/calendarioMobile'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import {
   barreTenute, barrePerCamera, lettiTenutiPerNotte, testoTenuta, comeDovevaPagare,
@@ -67,8 +67,9 @@ const MESI_CLICCABILI = 12       // riga sottile dei mesi: da quello corrente in
 // Selettore «Mese | 2 settimane» come nelle Richieste: qui cambia la larghezza
 // delle colonne (30 o 14 giorni nella larghezza del riquadro), lo scorrimento
 // continuo su tutto l'anno resta. La scelta è ricordata nel browser.
-type ModoGriglia = 'mese' | 'quindici'
-const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 31, quindici: GIORNI_QUINDICINA }   // 31: a mese si vede il mese intero (05/09/2026)
+// Dal 30/09/2026 sul telefono anche «Sett.» (giorni da 145 px, lib/calendarioMobile)
+type ModoGriglia = ModoNastro
+const COLONNE_VISIBILI = COLONNE_VISIBILI_NASTRO   // 31: a mese si vede il mese intero (05/09/2026); 14 a 2 settimane, 7 a «Sett.»
 const CHIAVE_MODO = 'ca_calendario_modo'
 const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoGriglia, string])[]
 const LARGHEZZA_MIN_COLONNA = 28
@@ -176,13 +177,16 @@ export default function Calendario() {
   // Il primo giorno INTERO in vista (per tenere il testo delle schede lunghe dentro la parte che si vede)
   const [colonnaSinistra, setColonnaSinistra] = useState(DAYS_BEFORE)
   // Modo della griglia dal Mac (mese / 2 settimane), letto dal browser dopo il primo disegno
-  const [modo, setModo] = useState<ModoGriglia>('quindici')
+  const [modoScelto, setModo] = useState<ModoGriglia>('quindici')
   useEffect(() => {
     let v: string | null = null
     try { v = window.localStorage.getItem(CHIAVE_MODO) } catch { v = null }
-    const t = setTimeout(() => { if (v === 'mese' || v === 'quindici') setModo(v) }, 0)
+    const t = setTimeout(() => { const m = leggiModoNastro(v); if (m) setModo(m) }, 0)
     return () => clearTimeout(t)
   }, [])
+  // «Sett.» c'è solo sotto la larghezza del Mac (dritto o girato): dal Mac vale «2 settimane»
+  const mac = useMac()
+  const modo = vistaNastro(modoScelto, !mac)
   // Larghezza del riquadro (per calcolare le colonne): misurata sul contenitore che scorre
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   // Primo giorno da tenere in vista quando cambiano le colonne (cambio di modo)
@@ -214,7 +218,8 @@ export default function Calendario() {
   // 2 settimane tutte le 14 caselle nella larghezza dello schermo, senza
   // scorrimento di lato e senza caselle a metà (colonne da ~20 px a mese: i
   // numeri restano leggibili, i nomi sulle barre si riducono a una lettera).
-  const colonnaMin = isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
+  // «Sett.» anche girato: giorni da 145 px con le schede compatte (30/09/2026)
+  const colonnaMin = modo === 'settimana' ? colonnaMinTelefono(modo) : isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
   // Senza minimo (telefono girato a mese) la colonna NON si arrotonda: così
   // in vista ci sono esattamente 31 caselle, non 31 e qualcosa (Ania, 05/09/2026)
   const CELL_W = larghezzaGriglia > 0
@@ -399,7 +404,8 @@ export default function Calendario() {
   // Prima casella quando si torna a oggi: 3 giorni prima di oggi a 2 settimane
   // (come le Richieste), il 1° del mese a mese. Caselle intere, mai a metà.
   function primaCasellaOggi(): string {
-    return modo === 'quindici' ? inizioQuindicina(todayStr) : `${todayStr.slice(0, 7)}-01`
+    // a «Sett.» oggi è la prima colonna (30/09/2026)
+    return modo === 'settimana' ? todayStr : modo === 'quindici' ? inizioQuindicina(todayStr) : `${todayStr.slice(0, 7)}-01`
   }
   function vaiAOggi() { vaiAData(primaCasellaOggi(), 0) }
   function scorriDiGiorni(n: number) {
@@ -408,14 +414,15 @@ export default function Calendario() {
   // Frecce ‹ ›: a 2 settimane spostano di UNA settimana (novità del 29/09/2026,
   // prima 14 giorni), a mese vanno al 1° del mese prima/dopo
   function freccia(direzione: -1 | 1) {
-    if (modo === 'quindici') { scorriDiGiorni(direzione * PASSO_FRECCE_QUINDICI); return }
+    if (modo !== 'mese') { scorriDiGiorni(direzione * PASSO_FRECCE_QUINDICI); return }
     const d = days[Math.min(days.length - 1, Math.max(0, primoVisibile))]
     const primo = new Date(d.getFullYear(), d.getMonth() + (direzione === 1 ? 1 : (d.getDate() === 1 ? -1 : 0)), 1)
     vaiAData(toStr(primo), 0)
   }
   // Etichetta al centro della riga di navigazione, come nelle Richieste
-  const etichettaVista = modo === 'quindici'
-    ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr))
+  // a «Sett.» la settimana dal primo giorno in vista («28 set – 4 ott 2026»)
+  const etichettaVista = modo !== 'mese'
+    ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + (modo === 'settimana' ? GIORNI_SETTIMANA : GIORNI_QUINDICINA)).map(toStr))
     : visibleMonth
   // I 12 mesi cliccabili: da quello corrente in avanti, con l'anno quando cambia
   // Striscia dei mesi (condivisa con Arrivi e Richieste) e mese del primo giorno in vista

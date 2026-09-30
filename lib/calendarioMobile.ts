@@ -49,8 +49,9 @@ export const BUCO = { bordo: '#D5CCBB', testo: '#A89E8C', piu: '#C9BFA8' } as co
 export const BUCHI_LIBERI_VISIBILI: boolean = false
 /** La pillola della riga del periodo sul telefono (punto A2): «2 sett.» al
  *  posto di «2 settimane», perché il periodo a sinistra stia più grande. Dal
- *  Mac resta «2 settimane». */
-export const VOCI_GRIGLIA_TELEFONO = [['mese', 'Mese'], ['quindici', '2 sett.']] as const
+ *  Mac resta «2 settimane». Dal 30/09/2026 una terza parte, «Sett.»: la vista
+ *  coi giorni larghi, solo sul telefono (docs/design/calendario-settimana-riferimento.html). */
+export const VOCI_GRIGLIA_TELEFONO = [['mese', 'Mese'], ['quindici', '2 sett.'], ['settimana', 'Sett.']] as const
 /** L'ottone scuro della riga dell'arrivo */
 export const OTTONE_SCURO = '#7a5f2c'
 
@@ -116,8 +117,6 @@ export const leggiModoNastro = (v: string | null | undefined): ModoNastro | null
 /** La vista che si disegna: «Sett.» dal Mac (dove la pillola ha due parti) vale «2 settimane» */
 export const vistaNastro = (modo: ModoNastro, telefono: boolean): ModoNastro =>
   modo === 'settimana' && !telefono ? 'quindici' : modo
-/** Sotto questa larghezza (px) si è «sul telefono»: la stessa di lg:hidden della riga del periodo */
-export const LARGHEZZA_MAC = 1024
 /** Quante colonne entrano nella larghezza del riquadro (sul telefono dritto conta il minimo sotto) */
 export const COLONNE_VISIBILI_NASTRO: Record<ModoNastro, number> = { mese: 31, quindici: 14, settimana: 7 }
 /** Quanti giorni dice il periodo e di quanti si spostano le frecce in «Sett.» */

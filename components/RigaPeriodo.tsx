@@ -24,6 +24,10 @@ import { periodoAScavalloDAnno } from '@/lib/periodoEsteso'
 // stesso anno) sta su una riga a 390 px (misurata: da 24 in giù, sta già a
 // 24). A cavallo d'anno («28 dic 2026 – 10 gen 2027») a 24 non sta: lì 20 px,
 // la più grande che ci sta.
+//
+// Vista «Sett.» (Ania, 30/09/2026): la pillola del telefono ha tre parti,
+// «Mese | 2 sett. | Sett.», 4 × 7 ciascuna; con lei il periodo scende a 20 px
+// (a 21 «28 apr – 10 mag 2026» non sta più), a cavallo d'anno a 16.
 // ============================================================================
 
 export default function RigaPeriodo({ etichetta, onPrec, onSucc, etichettaPrec, etichettaSucc, succDisabilitato = false, pillola, onEtichetta, titoloEtichetta, telefono, className = '' }: {

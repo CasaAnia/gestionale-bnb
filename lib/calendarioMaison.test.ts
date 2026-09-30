@@ -42,7 +42,7 @@ test('la riga di navigazione: l’interruttore di sempre nella veste Maison, per
   assert.match(pillola, /className=\{`cal-pill \$\{className\}`\}/)
   const css = leggi('app/maison.css')
   assert.match(css, /\.cal-pill button\.on span \{ background: var\(--m-ink\); color: #F6F2EA; \}/)
-  assert.match(css, /\.riga-periodo-tel \.per \{ font-family: var\(--font-cormorant\)[^}]*font-size: 24px;/) // 24 dai ritocchi del 29/09/2026 (A2)
+  assert.match(css, /\.riga-periodo-tel \.per \{ font-family: var\(--font-cormorant\)[^}]*font-size: 20px;/) // 24 dai ritocchi del 29/09/2026 (A2), 20 con la pillola a tre parti (30/09/2026)
 })
 
 // ── Le schede (pezzo 4) ─────────────────────────────────────────────────────
