@@ -38,12 +38,12 @@ import { periodoEsteso, meseEsteso } from '@/lib/periodoEsteso'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI, RIGA_QUALSIASI } from '@/lib/richiesteCalendario'
 import { CORSIA_H, SCHEDA_H, SCHEDA_TOP, ARIA_SCHEDA, FILO_SINISTRO, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco } from '@/lib/calendarioSchede'
-import { areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_LEGENDA, ICONE_LEGENDA, VOCI_GRIGLIA_TELEFONO } from '@/lib/calendarioMobile'
+import { areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_LEGENDA, ICONE_LEGENDA, VOCI_GRIGLIA_TELEFONO, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, vistaNastro, type ModoNastro } from '@/lib/calendarioMobile'
 import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { barreTenute, barrePerCamera, testoTenuta, type RichiestaTenuta, type BarraTenuta } from '@/lib/calendarioOpzioni'
 import { schedeRichieste, righeSchedaRichieste, TINTA_RICHIESTA, type RichiestaNastro, type SchedaRichieste } from '@/lib/richiesteNastro'
 import { eAperta, type Richiesta } from '@/lib/richieste'
-import type { Vista } from '@/lib/richiesteVista'
+import { useMac, type Vista } from '@/lib/richiesteVista'
 import { hrefScheda } from '@/lib/provenienzaScheda'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']   // l'ordine del Calendario
@@ -54,8 +54,9 @@ const RULER_H_DESKTOP = 26
 const NAME_W_MOBILE = 66
 const NAME_W_DESKTOP = 84
 const CELL_W_DESKTOP = 101
-export type ModoCalendario = 'mese' | 'quindici'
-const COLONNE_VISIBILI: Record<ModoCalendario, number> = { mese: 31, quindici: GIORNI_QUINDICINA }
+// Dal 30/09/2026 sul telefono anche «Sett.» (giorni da 145 px, lib/calendarioMobile)
+export type ModoCalendario = ModoNastro
+const COLONNE_VISIBILI = COLONNE_VISIBILI_NASTRO   // 31 a mese, 14 a 2 settimane, 7 a «Sett.»
 // La scelta «Mese | 2 settimane» delle Richieste, ricordata nel browser come prima
 const CHIAVE_MODO = 'ca_richieste_calendario_modo'
 const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoCalendario, string])[]
@@ -107,13 +108,16 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
 }) {
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [modo, setModo] = useState<ModoCalendario>('quindici')
+  const [modoScelto, setModo] = useState<ModoCalendario>('quindici')
   useEffect(() => {
     let v: string | null = null
     try { v = window.localStorage.getItem(CHIAVE_MODO) } catch { v = null }
-    const t = setTimeout(() => { if (v === 'mese' || v === 'quindici') setModo(v) }, 0)
+    const t = setTimeout(() => { const m = leggiModoNastro(v); if (m) setModo(m) }, 0)
     return () => clearTimeout(t)
   }, [])
+  // «Sett.» c'è solo sotto la larghezza del Mac (dritto o girato): dal Mac vale «2 settimane»
+  const mac = useMac()
+  const modo = vistaNastro(modoScelto, !mac)
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   const [primoVisibile, setPrimoVisibile] = useState(DAYS_BEFORE)
   const [colonnaSinistra, setColonnaSinistra] = useState(DAYS_BEFORE)
@@ -126,7 +130,8 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
 
   const colonnaLarga = desktop && !orizzontale
   const NAME_W = colonnaLarga ? NAME_W_DESKTOP : NAME_W_MOBILE
-  const colonnaMin = desktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
+  // «Sett.» anche girato: giorni da 145 px con le schede compatte (30/09/2026)
+  const colonnaMin = modo === 'settimana' ? colonnaMinTelefono(modo) : desktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
   const CELL_W = larghezzaGriglia > 0
     ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
     : (desktop ? CELL_W_DESKTOP : 60)
@@ -171,7 +176,8 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   }, [])
   // Prima casella: a 2 settimane 3 giorni prima di oggi, a mese il 1° del mese (come Calendario e Arrivi)
   function indiceOggi(): number {
-    return modo === 'quindici' ? DAYS_BEFORE - GIORNI_PRIMA_OGGI : Math.max(0, DAYS_BEFORE - (today.getDate() - 1))
+    // a «Sett.» oggi è la prima colonna (30/09/2026)
+    return modo === 'settimana' ? DAYS_BEFORE : modo === 'quindici' ? DAYS_BEFORE - GIORNI_PRIMA_OGGI : Math.max(0, DAYS_BEFORE - (today.getDate() - 1))
   }
   // La pagina chiede di andare su una richiesta (ricerca, riga dell'elenco)
   useEffect(() => {
@@ -192,7 +198,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   }
   // Frecce ‹ ›: a 2 settimane una settimana, a mese il 1° del mese prima/dopo (come il Calendario)
   function freccia(direzione: -1 | 1) {
-    if (modo === 'quindici') { scrollRef.current?.scrollBy({ left: direzione * PASSO_FRECCE_QUINDICI * CELL_W, behavior: 'smooth' }); return }
+    if (modo !== 'mese') { scrollRef.current?.scrollBy({ left: direzione * PASSO_FRECCE_QUINDICI * CELL_W, behavior: 'smooth' }); return }
     const d = days[Math.min(days.length - 1, Math.max(0, primoVisibile))]
     const primo = new Date(d.getFullYear(), d.getMonth() + (direzione === 1 ? 1 : (d.getDate() === 1 ? -1 : 0)), 1)
     vaiAIndice(Math.round((primo.getTime() - startDate.getTime()) / 86400000))
@@ -244,7 +250,8 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   const giorniQuindici = days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)
   const meseVisibile = toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)
   const periodoMac = modo === 'quindici' ? periodoEsteso(giorniQuindici[0], giorniQuindici[giorniQuindici.length - 1]) : meseEsteso(meseVisibile)
-  const periodoTelefono = modo === 'quindici' ? etichettaPeriodo(giorniQuindici) : visibleMonth
+  // a «Sett.» la settimana dal primo giorno in vista («28 set – 4 ott 2026»)
+  const periodoTelefono = modo === 'settimana' ? etichettaPeriodo(giorniQuindici.slice(0, GIORNI_SETTIMANA)) : modo === 'quindici' ? etichettaPeriodo(giorniQuindici) : visibleMonth
   const bordo = orizzontale ? 'px-2' : desktop ? 'px-4' : ''
 
   // La scheda tratteggiata di una o più richieste
