@@ -588,13 +588,11 @@ export default function Arrivi() {
             )}
             // Memoria: "arriviamo come sempre" — cosa significa davvero.
             // Solo consultazione: niente viene compilato da solo.
-            // Dal 30/09/2026 (Ania) chiuso in una riga «Storico ›»: il foglio sta sul telefono coi tasti fermi
-            sotto={(_, onArrivo) => precedenti.length > 0 && (
+            // Dal 30/09/2026 (Ania) chiuso: si apre da «Storico ›» fra i comandi in fondo,
+            // così il foglio sta sul telefono coi tasti fermi
+            sotto={(_, onArrivo) => precedenti.length > 0 && storicoAperto && (
               <div className="cal-fa-st" data-storico-arrivi>
-                <button type="button" className="mz-lnk q cal-fa-st-apri" data-apri-storico aria-expanded={storicoAperto} onClick={() => setStoricoAperto(a => !a)}>
-                  Storico <span aria-hidden className={storicoAperto ? 'aperto' : ''}>›</span>
-                </button>
-                {storicoAperto && <div className="dentro">
+                <div className="dentro">
                 {ultimoConOra ? (
                   <>Ultimo arrivo registrato: <b>{dataIt(ultimoConOra.check_in)} — {ultimoConOra.check_in_time}</b>{navettaTxt(ultimoConOra)}{' · '}
                     <button type="button" className="mz-lnk" onClick={() => onArrivo(leggiArrivo(ultimoConOra))}>Usa come l&apos;ultima volta</button>{' · '}</>
@@ -616,11 +614,16 @@ export default function Arrivi() {
                     ))}
                   </div>
                 )}
-                </div>}
+                </div>
               </div>
             )}
             azioni={<>
               {wa && <BottoniOrario wa={wa} maison />}
+              {precedenti.length > 0 && (
+                <button type="button" className="mz-lnk q cal-fa-st-apri" data-apri-storico aria-expanded={storicoAperto} onClick={() => setStoricoAperto(a => !a)}>
+                  Storico <span aria-hidden className={storicoAperto ? 'aperto' : ''}>›</span>
+                </button>
+              )}
               <button type="button" className="mz-lnk q" onClick={() => router.push(hrefScheda(popup.id, 'arrivi'))}>Apri prenotazione</button>
             </>}
             salvaPieno={{ salvando: 'Salvo...' }} />

@@ -53,10 +53,10 @@ export { TITOLO_ARRIVO }
  *  misurata a 390 px, 713. Nella scheda e nella Home. */
 export const ALTEZZA_FOGLIO_ARRIVO = 713
 /** Negli Arrivi il foglio ha in più la testa col nome e i cerchi, il riassunto,
- *  la riga chiusa «Storico ›» (dal 30/09/2026: si apre al tocco), «Chiedi orario
- *  · Apri chat · Apri prenotazione» e «Salva» pieno: lo stesso caso più lungo
- *  misura 758 px (prima 897), sotto il 92% di un telefono da 844 (776). */
-export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 758
+ *  «Chiedi orario · Storico › · Apri prenotazione» (dal 30/09/2026: lo storico
+ *  si apre al tocco, via «Apri chat») e «Salva» pieno: lo stesso caso più lungo
+ *  misura 729 px (prima 897): 40 px e più sotto il 92% di un telefono da 844. */
+export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 729
 
 export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChiudi, onSalvato, testa, sopra, sotto, azioni, salvaPieno, veloChiaro, larghezzaDesktop, dati = 'arrivo', altezza = ALTEZZA_FOGLIO_ARRIVO }: {
   /** prima era il sottotitolo; dalla veste «Maison» il sottotitolo è «Camera · Arrivo e navetta» */

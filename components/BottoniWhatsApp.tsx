@@ -35,17 +35,15 @@ export function BottoneWhatsApp({ href, numero, testo, etichetta, pieno, tipo }:
 }
 
 // La coppia «Chiedi orario» + «Apri chat» per un arrivo (Home e pannello Arrivi)
-// Veste «Maison» (foglio degli Arrivi, 29/09/2026): le due azioni in
-// maiuscoletto sottolineato come le altre del foglio; stessi link e stessa apertura
+// Veste «Maison» (foglio degli Arrivi, 29/09/2026): l'azione in maiuscoletto
+// sottolineato come le altre del foglio; stesso link e stessa apertura. Dal
+// 30/09/2026 (Ania) solo «Chiedi orario»: «Apri chat» faceva la stessa cosa del
+// cerchio WhatsApp nella testa del foglio, e al suo posto c'è «Storico ›».
 export function BottoniOrario({ wa, maison = false }: { wa: LinkWhatsApp; maison?: boolean }) {
   if (maison) {
     return (
-      <>
-        <a href={wa.href} target="_blank" rel="noopener noreferrer" data-whatsapp="chiedi-orario" className="mz-lnk"
-          onClick={e => { e.preventDefault(); openWhatsApp(wa.numero, wa.testo) }}>{ETICHETTA_CHIEDI_ORARIO}</a>
-        <a href={waHrefTesto(wa.numero, '')} target="_blank" rel="noopener noreferrer" data-whatsapp="apri-chat" className="mz-lnk q"
-          onClick={e => { e.preventDefault(); openWhatsApp(wa.numero, '') }}>{ETICHETTA_APRI_CHAT}</a>
-      </>
+      <a href={wa.href} target="_blank" rel="noopener noreferrer" data-whatsapp="chiedi-orario" className="mz-lnk"
+        onClick={e => { e.preventDefault(); openWhatsApp(wa.numero, wa.testo) }}>{ETICHETTA_CHIEDI_ORARIO}</a>
     )
   }
   return (

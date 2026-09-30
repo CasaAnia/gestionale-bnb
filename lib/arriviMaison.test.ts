@@ -128,9 +128,9 @@ test('il foglio si apre da ?apri=<id>, col nastro sul giorno prima, ed è il Fog
   assert.match(pagina, /\{arrivoInScheda\(a\)\.titolo\} · Navetta: \{navettaInScheda\(a\)\.titolo\}/)
   for (const t of ['Usa come l&apos;ultima volta', "'nascondi storico'", 'Vedi storico arrivi (', 'Apri prenotazione']) assert.ok(pagina.includes(t), t)
   // ritocchi del 29/09/2026 (B1), rimisurati il 30/09/2026 col caso vero più lungo («Altro luogo…»)
-  // e meno aria fra le parti: 713 nella scheda e nella Home (prima 756, 825 col caso vero), 758 negli Arrivi (prima 830, 897 col caso vero)
+  // e meno aria fra le parti: 713 nella scheda e nella Home (prima 756, 825 col caso vero), 729 negli Arrivi (prima 830, 897 col caso vero)
   assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO = 713/)
-  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 758/)
+  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 729/)
   assert.match(pagina, /altezza=\{ALTEZZA_FOGLIO_ARRIVO_ARRIVI\}/)
 })
 
@@ -150,7 +150,7 @@ test('dal Mac niente legenda in riga: «LEGENDA» sotto «Oggi» apre lo stesso 
   assert.doesNotMatch(pagina, /NEXT_PUBLIC_BUILD_TAG/)
 })
 
-test('foglio Arrivo (Ania, 30/09/2026): meno aria, stessi caratteri, «Storico ›» chiuso che si apre al tocco', () => {
+test('foglio Arrivo (Ania, 30/09/2026): meno aria, stessi caratteri; negli Arrivi «Chiedi orario · Storico › · Apri prenotazione»', () => {
   const css = leggi('app/maison.css')
   // solo margini: 8/3 fra le parti, 4 sopra le righe degli orari; nessuna grandezza di carattere o campo cambiata
   assert.match(css, /\.mz-foglio \[data-arrivo-navetta\] \.mz-lab \{ margin: 8px 0 3px; \}/)
@@ -163,7 +163,12 @@ test('foglio Arrivo (Ania, 30/09/2026): meno aria, stessi caratteri, «Storico �
   const pagina = leggi('app/arrivi/page.tsx')
   assert.match(pagina, /data-apri-storico aria-expanded=\{storicoAperto\} onClick=\{\(\) => setStoricoAperto\(a => !a\)\}/)
   assert.match(pagina, /Storico <span aria-hidden/)
-  assert.match(pagina, /\{storicoAperto && <div className="dentro">/)
+  assert.match(pagina, /sotto=\{\(_, onArrivo\) => precedenti\.length > 0 && storicoAperto && \(/)
+  // «Storico ›» fra i comandi, al posto di «Apri chat» (uguale al cerchio WhatsApp della testa)
+  assert.match(pagina, /\{wa && <BottoniOrario wa=\{wa\} maison \/>\}\s*\{precedenti\.length > 0 && \(\s*<button type="button" className="mz-lnk q cal-fa-st-apri"/)
+  const bottoni = leggi('components/BottoniWhatsApp.tsx')
+  const maison = bottoni.slice(bottoni.indexOf('if (maison)'), bottoni.indexOf('if (maison)') + 400)
+  assert.ok(maison.includes('chiedi-orario') && !maison.includes('apri-chat'), 'nel foglio Maison niente «Apri chat»')
   // ogni foglio riparte chiuso
   assert.equal((pagina.match(/setStoricoAperto\(false\)/g) ?? []).length, 2)
 })
