@@ -15,9 +15,12 @@ import { STATI_APERTI } from './richieste'
 import { STATI_LETTI } from './statisticheDati'
 import {
   daControllareHome, periodoDaControllare, tabellaRinviiAssente, finoADomani, TABELLA_RINVII, AVVISO_RINVII_NON_DISPONIBILI,
-  type Eccezione, type Rinvio, type RichiestaDC, type PrenotazioneDC,
+  GIORNI_AVVISO_FATTURE, STATI_FATTURA_DA_PAGARE,
+  type Eccezione, type Rinvio, type RichiestaDC, type PrenotazioneDC, type FatturaDC,
 } from './daControllare'
-import type { PagamentoStat, DocumentoStat } from './statistiche/tipi'
+import type { PagamentoStat } from './statistiche/tipi'
+import { spostaGiorni } from './statistiche/periodo'
+import { NOMI_CATEGORIA_COMMISSIONE, type ClienteFattura } from './fatturaPagata'
 
 export const MESSAGGIO_NON_RIESCO = 'Non riesco a controllare, riprova'
 
@@ -26,7 +29,7 @@ export type StatoDaControllareHome =
   | { stato: 'errore'; errore: string }
   | { stato: 'pronto'; eccezioni: Eccezione[]; rinviiDisponibili: boolean; oggi: string }
 
-type Dati = { oggi: string; richieste: RichiestaDC[]; prenotazioni: PrenotazioneDC[]; pagamenti: PagamentoStat[]; documenti: DocumentoStat[]; rinvii: Rinvio[]; rinviiDisponibili: boolean }
+type Dati = { oggi: string; richieste: RichiestaDC[]; prenotazioni: PrenotazioneDC[]; pagamenti: PagamentoStat[]; documenti: FatturaDC[]; rinvii: Rinvio[]; rinviiDisponibili: boolean }
 
 const due = (n: number) => String(n).padStart(2, '0')
 const oggiLocale = () => { const d = new Date(); return `${d.getFullYear()}-${due(d.getMonth() + 1)}-${due(d.getDate())}` }
@@ -82,10 +85,12 @@ function leggiPagamenti() {
     .select('booking_id, amount, paid_on').order('paid_on', { ascending: true }).range(offset, offset + limite - 1))
 }
 
-// Solo le fatture da pagare già scadute (sola lettura di family_documents)
-function leggiFattureScadute(oggi: string) {
-  return pagine<DocumentoStat>('controllare le fatture', (offset, limite) => supabase.from('family_documents')
-    .select('id, kind, status, due_date, doc_total, supplier').eq('kind', 'fattura').eq('status', 'approvata_da_pagare').lt('due_date', oggi)
+// Le bollette/fatture non pagate con la scadenza passata o entro 7 giorni
+// (Ania, 30/09/2026), col PDF e il gruppo della bozza (sola lettura)
+function leggiFattureDaPagare(oggi: string) {
+  return pagine<FatturaDC>('controllare le bollette', (offset, limite) => supabase.from('family_documents')
+    .select('id, kind, status, due_date, doc_total, supplier, note, invoice_number, family_receipts(storage_path, page_order), family_draft_expenses(group_id, status)')
+    .eq('kind', 'fattura').in('status', [...STATI_FATTURA_DA_PAGARE]).lte('due_date', spostaGiorni(oggi, GIORNI_AVVISO_FATTURE))
     .order('due_date', { ascending: true }).range(offset, offset + limite - 1))
 }
 
@@ -104,7 +109,7 @@ async function leggiTutto(oggi: string): Promise<Esito<Dati>> {
   const { da, a } = periodoDaControllare(oggi)
   // Le pulizie non si leggono qui (11/09/2026): stanno in «Pulizie di oggi», che
   // legge cleanings una volta sola per i numeri, la striscia e la lista.
-  const [ric, pren, pag, doc, rin] = await Promise.all([leggiRichieste(), leggiPrenotazioni(da, a), leggiPagamenti(), leggiFattureScadute(oggi), leggiRinvii(oggi)])
+  const [ric, pren, pag, doc, rin] = await Promise.all([leggiRichieste(), leggiPrenotazioni(da, a), leggiPagamenti(), leggiFattureDaPagare(oggi), leggiRinvii(oggi)])
   const errore = ric.errore ?? pren.errore ?? pag.errore ?? doc.errore ?? rin.errore
   if (errore) return { data: null, errore }
   return { data: { oggi, richieste: ric.data!, prenotazioni: pren.data!, pagamenti: pag.data!, documenti: doc.data!, rinvii: rin.data!.rinvii, rinviiDisponibili: rin.data!.disponibili }, errore: null }
@@ -175,4 +180,33 @@ export function useDaControllare(): StatoDaControllareHome & { ricarica: () => v
   }, [])
   const ricarica = useCallback(() => { void ricaricaDaControllare(true) }, [])
   return { ...stato, ricarica, rimanda: rimandaVoce }
+}
+
+// «Segna pagata» sulle bollette (30/09/2026): il client vero per
+// lib/fatturaPagata (RPC della 0020 e, se si è pagato di più, la spesa della
+// commissione nello stesso gruppo). Dopo il salvataggio la Home rilegge.
+export const clienteFattura: ClienteFattura = {
+  rpc: (nome, argomenti) => supabase.rpc(nome, argomenti),
+  async categoriaCommissione(gruppoId) {
+    const { data, error } = await supabase.from('family_categories').select('id, name').eq('group_id', gruppoId).in('name', [...NOMI_CATEGORIA_COMMISSIONE])
+    if (error) return { id: null, error }
+    const righe = (data ?? []) as { id: string; name: string }[]
+    const scelta = NOMI_CATEGORIA_COMMISSIONE.map(n => righe.find(r => r.name === n)).find(Boolean)
+    return { id: scelta?.id ?? null, error: null }
+  },
+  async commissioneGiaRegistrata(nota) {
+    const { data, error } = await supabase.from('family_expenses').select('id').eq('notes', nota).limit(1)
+    return { esiste: (data?.length ?? 0) > 0, error }
+  },
+  inserisciSpesa: riga => supabase.from('family_expenses').insert(riga),
+}
+
+// Il PDF della bolletta: URL firmato per un'ora (il bucket è privato)
+export async function urlPdf(percorso: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage.from('scontrini').createSignedUrl(percorso, 3600)
+    return error ? null : data?.signedUrl ?? null
+  } catch {
+    return null
+  }
 }

@@ -271,19 +271,36 @@ test('arrivi: arrivo di oggi o domani senza orario → alta; con orario o cambio
 })
 
 // ── Fatture ────────────────────────────────────────────────────────────────
-test('fatture: scaduta e da pagare compare; in scadenza oggi, pagata o scontrino no', () => {
+test('bollette/fatture da pagare (30/09/2026): scadute o entro 7 giorni, in revisione o approvate; pagate, scontrini e senza scadenza no', () => {
   const out = eccezioniFatture([
     { id: 'f1', kind: 'fattura', status: 'approvata_da_pagare', due_date: '2026-09-10', doc_total: 95.5, supplier: 'Enel' },
     { id: 'f2', kind: 'fattura', status: 'approvata_da_pagare', due_date: '2026-09-15', doc_total: 300 },
     { id: 'f3', kind: 'fattura', status: 'confermato', due_date: '2026-09-01', doc_total: 220 },
     { id: 'f4', kind: 'scontrino', status: 'approvata_da_pagare', due_date: '2026-09-01', doc_total: 12 },
     { id: 'f5', kind: 'fattura', status: 'approvata_da_pagare', due_date: null, doc_total: 50 },
+    { id: 'b1', kind: 'fattura', status: 'in_revisione', due_date: '2025-03-31', doc_total: 119, supplier: 'A2A Energia', invoice_number: '525503432194',
+      note: 'Bolletta gas A2A · Via Mincio\nBolletta n. 525503432194 · periodo 01/12/2024–28/02/2025',
+      family_receipts: [{ storage_path: '2026-09-30/t-p1.pdf', page_order: 1 }], family_draft_expenses: [{ group_id: 'casa', status: 'da_controllare' }] },
+    { id: 'b2', kind: 'fattura', status: 'in_revisione', due_date: '2026-09-22', doc_total: 330.88, supplier: 'A2A Energia', note: 'Bolletta gas A2A · Casa Ania' },
+    { id: 'b3', kind: 'fattura', status: 'in_revisione', due_date: '2026-09-23', doc_total: 10, note: 'Bolletta gas A2A · Casa Ania' },
+    { id: 'b4', kind: 'fattura', status: 'scartato', due_date: '2026-09-01', doc_total: 10 },
   ], OGGI)
-  assert.deepEqual(out.map(e => e.chiave), ['fattura:f1'])
-  assert.equal(out[0].titolo, 'Enel · 95,50 € · scaduta il 10 set')
-  assert.equal(out[0].motivo, 'Scadenza passata e fattura non pagata')
-  assert.deepEqual(out[0].destinazione, { tipo: 'fattura', documentoId: 'f1' })
-  assert.equal(out[0].urgenza, 'normale')
+  // dalla scadenza più vecchia; il 22 (oggi + 7) sì, il 23 no
+  assert.deepEqual(out.map(e => e.chiave), ['fattura:b1', 'fattura:f1', 'fattura:f2', 'fattura:b2'])
+  assert.equal(out[0].titolo, 'Bolletta gas A2A · Via Mincio · 119,00 € · scaduta il 31/03/2025')
+  assert.equal(out[0].etichetta, 'Bolletta da pagare')
+  assert.equal(out[0].bottone, 'Segna pagata')
+  assert.equal(out[0].motivo, 'Scadenza passata, non ancora pagata')
+  assert.deepEqual(out[0].fattura, { documentoId: 'b1', stato: 'in_revisione', importoCent: 11900, nome: 'Bolletta gas A2A · Via Mincio', numero: '525503432194',
+    gruppoId: 'casa', pdf: '2026-09-30/t-p1.pdf', dataTesto: 'scaduta il 31/03/2025', scaduta: true })
+  assert.equal(out[1].titolo, 'Enel · 95,50 € · scaduta il 10/09/2026')
+  assert.equal(out[1].etichetta, 'Fattura da pagare')
+  assert.equal(out[1].fattura?.pdf, null)
+  assert.equal(out[2].titolo, 'Fattura · 300,00 € · scade oggi')
+  assert.equal(out[2].fattura?.scaduta, false)
+  assert.equal(out[3].titolo, 'Bolletta gas A2A · Casa Ania · 330,88 € · scade il 22/09/2026')
+  assert.equal(out[3].motivo, 'Da pagare entro 7 giorni')
+  assert.ok(out.every(e => e.urgenza === 'normale' && !e.rimandabile))
 })
 
 // ── Rinvii, ordine, testi ──────────────────────────────────────────────────
@@ -300,9 +317,9 @@ test('rinvii: una richiesta rimandata sparisce finché oggi < fino_a e riappare 
 })
 
 // Requisito del 07/09/2026: sezioni nell'ordine richieste → arrivi →
-// pagamenti → fatture → calendario in fondo; dentro la sezione l'ordine resta
-// quello della sua regola (ordinamento stabile).
-test('ordine: richieste, arrivi, pagamenti, fatture, calendario in fondo; dentro la sezione l\'ordine di arrivo resta', () => {
+// pagamenti → calendario; le bollette DOPO tutte le voci esistenti (Ania,
+// 30/09/2026). Dentro la sezione l'ordine resta quello della sua regola.
+test('ordine: richieste, arrivi, pagamenti, calendario, bollette in fondo; dentro la sezione l\'ordine di arrivo resta', () => {
   const out = ordinaEccezioni([
     ecc('f', 'fattura', 'normale', '2026-08-01'),
     ecc('c', 'calendario', 'normale', '2026-10-01'),
@@ -312,7 +329,7 @@ test('ordine: richieste, arrivi, pagamenti, fatture, calendario in fondo; dentro
     ecc('p2', 'pagamento', 'normale', '2026-09-01'),
     ecc('r1', 'richiesta', 'alta', '2026-09-30'),
   ])
-  assert.deepEqual(out.map(e => e.chiave), ['r2', 'r1', 'a', 'p1', 'p2', 'f', 'c'])
+  assert.deepEqual(out.map(e => e.chiave), ['r2', 'r1', 'a', 'p1', 'p2', 'c', 'f'])
 })
 
 test('ordine delle richieste: durata decrescente; a parità arrivo passato, poi scaduta, poi in scadenza più vicina, poi in attesa più vecchia', () => {
@@ -349,10 +366,10 @@ test('testi: striscia, conteggi per tipo con singolare/plurale, riga «tutto a p
   assert.equal(rigaConteggi([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('p2', 'pagamento', 'normale', OGGI)]), '2 richieste aperte · 1 arrivo senza orario · 2 pagamenti · 1 sovrapposizione')
   assert.deepEqual(conteggiPerTipo(lista), [{ tipo: 'richiesta', n: 2 }, { tipo: 'pagamento', n: 1 }, { tipo: 'calendario', n: 1 }])
   // Dall'11/09/2026 le pulizie non sono più un tipo di «Da controllare»
-  assert.equal(rigaAPosto(lista), 'Arrivi di oggi e domani e fatture: tutto a posto')
-  assert.equal(rigaAPosto([ecc('a', 'arrivo', 'alta', OGGI)]), 'Richieste, pagamenti, fatture e calendario: tutto a posto')
+  assert.equal(rigaAPosto(lista), 'Arrivi di oggi e domani e bollette: tutto a posto')
+  assert.equal(rigaAPosto([ecc('a', 'arrivo', 'alta', OGGI)]), 'Richieste, pagamenti, calendario e bollette: tutto a posto')
   assert.equal(rigaAPosto([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('f', 'fattura', 'normale', OGGI)]), null)
-  assert.equal(rigaAPosto([]), 'Richieste, arrivi di oggi e domani, pagamenti, fatture e calendario: tutto a posto')
+  assert.equal(rigaAPosto([]), 'Richieste, arrivi di oggi e domani, pagamenti, calendario e bollette: tutto a posto')
 })
 
 test('destinazioni: ogni bottone porta al punto esatto', () => {
@@ -386,7 +403,7 @@ test('insieme: tutte le regole, rinvii applicati, ordine delle sezioni; stato vu
     rinvii: [{ chiave: 'richiesta:rimandata', fino_a: '2026-09-16' }],
   }
   const out = daControllareHome(stato)
-  // Ordine del 07/09/2026: richieste (durata: «ferma» 20–25 = 5 notti, «scaduta» 22–25 = 3), arrivi, pagamenti, fatture, calendario in fondo
+  // Ordine: richieste (durata: «ferma» 20–25 = 5 notti, «scaduta» 22–25 = 3), arrivi, pagamenti, calendario, bollette in fondo (30/09/2026)
   assert.deepEqual(out.map(e => e.chiave), [
     'richiesta:ferma',
     'richiesta:scaduta',
@@ -394,11 +411,11 @@ test('insieme: tutte le regole, rinvii applicati, ordine delle sezioni; stato vu
     'arrivo:dom',
     'pagamento:a',                // arriva oggi e non è saldato (dall'11/09/2026)
     'pagamento:vecchio',
-    'fattura:f1',
     'sovrapposizione:a:d',
+    'fattura:f1',
   ])
   assert.equal(titoloStriscia(out), '8 cose da controllare')
-  assert.equal(rigaConteggi(out), '2 richieste aperte · 2 arrivi senza orario · 2 pagamenti · 1 fattura scaduta · 1 sovrapposizione')
+  assert.equal(rigaConteggi(out), '2 richieste aperte · 2 arrivi senza orario · 2 pagamenti · 1 sovrapposizione · 1 bolletta da pagare')
   assert.equal(rigaAPosto(out), null)   // ogni tipo ha almeno una voce
   assert.deepEqual(daControllareHome({ oggi: OGGI, adesso: ADESSO, richieste: [], prenotazioni: [], pagamenti: [], documenti: [] }), [])
 })

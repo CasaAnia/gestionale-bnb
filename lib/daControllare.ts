@@ -21,7 +21,10 @@ import { chiavePrenotazione } from './prenotazioneUnica.ts'
 //  Calendario due prenotazioni confermate sulla stessa camera nella stessa
 //             notte; letti aggiuntivi oltre i 2 del pool nella stessa notte.
 //  Arrivi     arrivo di domani senza orario.
-//  Fatture    scadenza passata e non pagata (approvata_da_pagare).
+//  Fatture    bollette/fatture non pagate (in revisione o approvate da
+//             pagare) con la scadenza passata o entro 7 giorni (Ania,
+//             30/09/2026): «Segna pagata» apre il foglio, «Apri PDF» il file.
+//             In fondo, dopo tutte le altre voci, dalla scadenza più vecchia.
 //  Pulizie    NON stanno qui (Ania, 11/09/2026): le pulizie della giornata si
 //             vedono e si spuntano tutte insieme in «Pulizie di oggi», SOPRA
 //             questa sezione — «due stanze sopra e tre sotto è confusionale».
@@ -37,6 +40,7 @@ import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, ty
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
 import { leggiArrivo, orarioIgnoto } from './arrivo.ts'
 import { EXTRA_BED_MAX } from './tariffe.ts'
+import { dataItaliana } from './dateItaliane.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { whatsappRichiestaOrario, waHrefTesto } from './messaggiWhatsApp.ts'
 import { stessaPersona } from './clienteCheTorna.ts'
@@ -76,6 +80,14 @@ export type Eccezione = {
   // Arrivi (06/09/2026, scelta di Ania): l'ospite ha la navetta confermata ma
   // manca ancora l'orario → la Home aggiunge « · navetta» in ottone al motivo
   navetta?: boolean
+  // Bollette (30/09/2026): la parola in cima al posto del tipo, e i dati del
+  // foglio «Segna pagata». `dataTesto` è la coda del titolo («scaduta il
+  // 31/03/2025»): la Home la colora di mattone quando `scaduta`.
+  etichetta?: string
+  fattura?: {
+    documentoId: string; stato: string; importoCent: number; nome: string; numero: string | null
+    gruppoId: string | null; pdf: string | null; dataTesto: string; scaduta: boolean
+  }
 }
 export type LinkWhatsAppEccezione = { href: string; numero: string; testo: string; principale: boolean }
 
@@ -117,8 +129,17 @@ export type StatoDaControllare = {
   richieste: RichiestaDC[]
   prenotazioni: PrenotazioneDC[]
   pagamenti: PagamentoStat[]
-  documenti: DocumentoStat[]
+  documenti: FatturaDC[]
   rinvii?: Rinvio[]
+}
+
+// Il documento come lo legge la Home: con la nota (la prima riga è il nome
+// della bolletta), il numero, il PDF e il gruppo della bozza
+export type FatturaDC = DocumentoStat & {
+  note?: string | null
+  invoice_number?: string | null
+  family_receipts?: { storage_path: string | null; page_order?: number | null }[] | null
+  family_draft_expenses?: { group_id: string | null; status?: string | null }[] | null
 }
 
 const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
@@ -449,18 +470,47 @@ export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): E
 export const PAROLA_NAVETTA = 'navetta'
 
 // ── Fatture ─────────────────────────────────────────────────────────────────
-// Stessa regola di lib/spese/fatture.scadute (stato derivato: approvata_da_pagare
-// + scadenza superata), letta qui senza toccare lib/spese.
-export function eccezioniFatture(documenti: DocumentoStat[], oggi: string): Eccezione[] {
+// Bollette e fatture non ancora pagate (Ania, 30/09/2026): in revisione o
+// approvate da pagare, con la scadenza passata o entro GIORNI_AVVISO_FATTURE.
+// Spariscono da sole quando sono pagate (stato «confermato»).
+export const GIORNI_AVVISO_FATTURE = 7
+export const STATI_FATTURA_DA_PAGARE = ['in_revisione', 'approvata_da_pagare'] as const
+const euroFattura = (c: number) => `${(c / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+
+/** «Bolletta gas A2A · Via Mincio» (prima riga della nota), altrimenti il fornitore. */
+export function nomeFattura(d: Pick<FatturaDC, 'note' | 'supplier'>): string {
+  const prima = (d.note ?? '').split('\n')[0].trim()
+  if (/^Bolletta\b/.test(prima)) return prima
+  return d.supplier?.trim() || 'Fattura'
+}
+
+/** «scaduta il 31/03/2025» · «scade oggi» · «scade il 05/10/2026» */
+export function scadenzaFattura(due: string, oggi: string): { testo: string; scaduta: boolean } {
+  if (due < oggi) return { testo: `scaduta il ${dataItaliana(due)}`, scaduta: true }
+  if (due === oggi) return { testo: 'scade oggi', scaduta: false }
+  return { testo: `scade il ${dataItaliana(due)}`, scaduta: false }
+}
+
+export function eccezioniFatture(documenti: FatturaDC[], oggi: string): Eccezione[] {
+  const limite = spostaGiorni(oggi, GIORNI_AVVISO_FATTURE)
   return documenti
-    .filter(d => d.kind === 'fattura' && d.status === 'approvata_da_pagare' && !!d.due_date && d.due_date < oggi)
+    .filter(d => d.kind === 'fattura' && (STATI_FATTURA_DA_PAGARE as readonly string[]).includes(d.status) && !!d.due_date && d.due_date <= limite)
     .sort((a, b) => a.due_date!.localeCompare(b.due_date!))
-    .map(d => ({
-      chiave: `fattura:${d.id}`, tipo: 'fattura' as const, urgenza: 'normale' as const, data: d.due_date!,
-      titolo: `${d.supplier?.trim() || 'Fattura'}${d.doc_total != null ? ` · ${euroTesto(cent(d.doc_total))}` : ''} · scaduta il ${giornoBreve(d.due_date!)}`,
-      motivo: 'Scadenza passata e fattura non pagata',
-      bottone: 'Apri fattura', destinazione: { tipo: 'fattura' as const, documentoId: d.id }, rimandabile: false,
-    }))
+    .map(d => {
+      const nome = nomeFattura(d)
+      const importoCent = cent(d.doc_total)
+      const { testo, scaduta } = scadenzaFattura(d.due_date!, oggi)
+      const pdf = [...(d.family_receipts ?? [])].sort((a, b) => (a.page_order ?? 1) - (b.page_order ?? 1))[0]?.storage_path ?? null
+      const bozza = (d.family_draft_expenses ?? []).find(b => b.status !== 'scartata' && b.group_id)
+      return {
+        chiave: `fattura:${d.id}`, tipo: 'fattura' as const, urgenza: 'normale' as const, data: d.due_date!,
+        titolo: `${nome}${d.doc_total != null ? ` · ${euroFattura(importoCent)}` : ''} · ${testo}`,
+        motivo: scaduta ? 'Scadenza passata, non ancora pagata' : `Da pagare entro ${GIORNI_AVVISO_FATTURE} giorni`,
+        bottone: 'Segna pagata', destinazione: { tipo: 'fattura' as const, documentoId: d.id }, rimandabile: false,
+        etichetta: /^Bolletta\b/.test(nome) ? 'Bolletta da pagare' : 'Fattura da pagare',
+        fattura: { documentoId: d.id, stato: d.status, importoCent, nome, numero: d.invoice_number ?? null, gruppoId: bozza?.group_id ?? null, pdf, dataTesto: testo, scaduta },
+      }
+    })
 }
 
 // ── Insieme, rinvii e ordine ────────────────────────────────────────────────
@@ -471,10 +521,11 @@ export function applicaRinvii(eccezioni: Eccezione[], rinvii: Rinvio[] | undefin
   return eccezioni.filter(e => !(e.rimandabile && nascoste.has(e.chiave)))
 }
 
-// Ordine delle sezioni (07/09/2026): richieste, arrivi, pagamenti, fatture,
-// calendario in fondo. Dentro ogni sezione resta l'ordine deciso dalla sua
-// regola (ordinamento stabile).
-const ORDINE_TIPI: TipoEccezione[] = ['richiesta', 'arrivo', 'pagamento', 'fattura', 'calendario']
+// Ordine delle sezioni (07/09/2026): richieste, arrivi, pagamenti,
+// calendario; le bollette da pagare DOPO tutte le voci esistenti (Ania,
+// 30/09/2026). Dentro ogni sezione resta l'ordine deciso dalla sua regola
+// (ordinamento stabile).
+const ORDINE_TIPI: TipoEccezione[] = ['richiesta', 'arrivo', 'pagamento', 'calendario', 'fattura']
 
 export function ordinaEccezioni(eccezioni: Eccezione[]): Eccezione[] {
   return [...eccezioni].sort((a, b) => ORDINE_TIPI.indexOf(a.tipo) - ORDINE_TIPI.indexOf(b.tipo))
@@ -500,7 +551,7 @@ const CONTEGGIO: Record<TipoEccezione, [string, string]> = {
   richiesta: ['richiesta aperta', 'richieste aperte'],
   arrivo: ['arrivo senza orario', 'arrivi senza orario'],
   pagamento: ['pagamento', 'pagamenti'],
-  fattura: ['fattura scaduta', 'fatture scadute'],
+  fattura: ['bolletta da pagare', 'bollette da pagare'],
   calendario: ['sovrapposizione', 'sovrapposizioni'],
 }
 
@@ -520,7 +571,7 @@ export function titoloStriscia(eccezioni: Eccezione[]): string {
 }
 
 const A_POSTO: Record<TipoEccezione, string> = {
-  calendario: 'Calendario', richiesta: 'Richieste', pagamento: 'Pagamenti', arrivo: 'Arrivi di oggi e domani', fattura: 'Fatture',
+  calendario: 'Calendario', richiesta: 'Richieste', pagamento: 'Pagamenti', arrivo: 'Arrivi di oggi e domani', fattura: 'Bollette',
 }
 function elenco(voci: string[]): string {
   if (voci.length <= 1) return voci.join('')

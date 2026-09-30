@@ -26,6 +26,10 @@ import { preparaMancatoArrivo } from './mancato-arrivo-db-finto.mjs'
 //   Richieste   «Carla Conti» in attesa da 3 giorni; «Dario Deluca» proposta scaduta 5 ore fa (alta, WhatsApp ghost);
 //               «Franca Fabbri» in attesa da 1 ora → no; «Gino Galli» confermata → no
 //   Fatture     «Enel» 95,50 € scaduta il O−5; «Iren» in scadenza O+10 → no
+//   Bollette    (30/09/2026) «Bolletta gas A2A · Via Mincio» 127,00 € scaduta O−40 col PDF,
+//               «Bolletta gas A2A · Casa Ania» 330,88 € in scadenza O+3 senza PDF;
+//               «Segna pagata» → finte conferma_fattura_pagata/paga_fattura, la commissione
+//               in family_expenses IN MEMORIA; GET /finto/errore-fattura?on=1 fa fallire la RPC
 //   Tre numeri  arrivi oggi 1 («Arriva Oggi»), partenze oggi 1 («Parte Oggi»), camere occupate stanotte 2 su 4 (Amelia, Allegra)
 //   Striscia    oggi «✓» (Ambra fatta, Allegra pronta per l'arrivo), domani «1» (parte «Arriva Oggi» da Allegra)
 //   Biancheria  cleanings POST e biancheria_recuperata (upsert) IN MEMORIA (06/09/2026);
@@ -213,7 +217,17 @@ richieste[1].provenienza = 'altra_struttura'; richieste[1].struttura_nome = 'Nid
 const family_documents = [
   { id: 'ffffffff-0001-4000-8000-000000000001', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 95.5, supplier: 'Enel', invoice_number: '123', document_date: O(-30), due_date: O(-5), upload_ambito: 'azienda', error_message: null, note: null, doc_total_derivato: false, created_at: ora },
   { id: 'ffffffff-0002-4000-8000-000000000002', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 40, supplier: 'Iren', invoice_number: '456', document_date: O(-10), due_date: O(10), upload_ambito: 'azienda', error_message: null, note: null, doc_total_derivato: false, created_at: ora },
+  { id: 'ffffffff-0003-4000-8000-000000000003', kind: 'fattura', status: 'in_revisione', doc_total: 127, supplier: 'A2A Energia', invoice_number: '525503432194', document_date: O(-60), due_date: O(-40), upload_ambito: 'personale', error_message: null, note: 'Bolletta gas A2A · Via Mincio\nBolletta n. 525503432194', doc_total_derivato: false, created_at: ora },
+  { id: 'ffffffff-0004-4000-8000-000000000004', kind: 'fattura', status: 'in_revisione', doc_total: 330.88, supplier: 'A2A Energia', invoice_number: '526507681778', document_date: O(-20), due_date: O(3), upload_ambito: 'azienda', error_message: null, note: 'Bolletta gas A2A · Casa Ania\nBolletta di chiusura', doc_total_derivato: false, created_at: ora },
 ]
+const family_receipts = [{ id: 'ffffffff-r003-4000-8000-000000000003', document_id: 'ffffffff-0003-4000-8000-000000000003', storage_path: '2026-09-30/finto-p1.pdf', page_order: 1 }]
+const family_draft_expenses = [
+  { id: 'ffffffff-d003-4000-8000-000000000003', document_id: 'ffffffff-0003-4000-8000-000000000003', group_id: 'gggggggg-casa', status: 'da_controllare' },
+  { id: 'ffffffff-d004-4000-8000-000000000004', document_id: 'ffffffff-0004-4000-8000-000000000004', group_id: 'gggggggg-casa-ania', status: 'da_controllare' },
+]
+const family_categories = [{ id: 'cat-servizi', group_id: 'gggggggg-casa', name: 'Servizi' }, { id: 'cat-commissioni', group_id: 'gggggggg-casa-ania', name: 'Commissioni' }]
+const family_expenses = []
+let erroreFattura = false
 const da_controllare_rinvii = []
 // Recupero biancheria (06/09/2026): tabella IN MEMORIA, upsert per cleaning_id;
 // GET /finto/senza-biancheria?on=1 la fa sparire (PGRST205) per provare «Non salvato, riprova»
@@ -291,8 +305,10 @@ async function sincronizzaPulizie() {
 await sincronizzaPulizie()
 let errorePrimaPulizia = false, letturaIncompleta = false, perdiRispostaTempo = false
 
-const tabelle = { mancato_arrivo_operazioni, rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture, biancheria_recuperata, pulizie_timer, pulizie_fuori_camera }
+const tabelle = { mancato_arrivo_operazioni, rooms, guests, bookings, payments, cleanings, richieste, family_documents, family_receipts, family_draft_expenses, family_categories, family_expenses, da_controllare_rinvii, strutture, biancheria_recuperata, pulizie_timer, pulizie_fuori_camera }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
+// relazioni uno-a-molti (le righe figlie puntano al documento): family_receipts(…), family_draft_expenses(…)
+const chiaveFiglia = { family_receipts: 'document_id', family_draft_expenses: 'document_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
 function confronta(valore, op, atteso) {
@@ -329,6 +345,7 @@ function applicaSelect(riga, select) {
     const m = p.match(/^(\w+)\((.*)\)$/)
     if (m) {
       const [, tab, cols] = m
+      if (chiaveFiglia[tab]) { out[tab] = (tabelle[tab] || []).filter(x => x[chiaveFiglia[tab]] === riga.id).map(x => applicaSelect(x, cols)); continue }
       const fk = chiaveEsterna[tab]
       const collegata = (tabelle[tab] || []).find(x => x.id === riga[fk])
       out[tab] = collegata ? applicaSelect(collegata, cols) : null
@@ -454,6 +471,24 @@ const finto = createServer(async (req, res) => {
     letturaIncompleta = false
     return (req.headers.accept || '').includes('vnd.pgrst.object') ? rispondi(res, 406, { code: 'PGRST116', message: 'nessuna riga' }) : rispondi(res, 200, [], { 'Content-Range': '*/0' })
   }
+  // Bollette (30/09/2026): «Segna pagata» e «Apri PDF»
+  if (url.pathname === '/finto/errore-fattura') { erroreFattura = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreFattura }) }
+  if ((url.pathname === '/rest/v1/rpc/conferma_fattura_pagata' || url.pathname === '/rest/v1/rpc/paga_fattura') && req.method === 'POST') {
+    const corpo = await leggiCorpo(req)
+    if (erroreFattura) return rispondi(res, 400, { code: 'P0001', message: 'errore simulato sul pagamento della fattura' })
+    const d = family_documents.find(x => x.id === corpo.p_document_id)
+    if (!d) return rispondi(res, 400, { code: 'P0001', message: 'Documento inesistente' })
+    d.status = 'confermato'
+    console.log(`[finto supabase] ${url.pathname.split('/').pop()}: ${d.supplier} ${d.doc_total} € pagata il ${corpo.p_data_pagamento} (${corpo.p_payment_method})`)
+    return rispondi(res, 200, ['spesa-finta'])
+  }
+  if (url.pathname === '/rest/v1/family_expenses' && req.method === 'POST') {
+    const corpo = await leggiCorpo(req)
+    family_expenses.push(...(Array.isArray(corpo) ? corpo : [corpo]).map(r => ({ id: `spesa-${family_expenses.length + 1}`, ...r })))
+    console.log(`[finto supabase] spesa: ${JSON.stringify(corpo)}`)
+    return rispondi(res, 201, null)
+  }
+  if (url.pathname.startsWith('/storage/v1/object/sign/scontrini/')) return rispondi(res, 200, { signedURL: '/storage/v1/object/public/finto.pdf' })
   if (url.pathname === '/auth/v1/token') return rispondi(res, 200, sessione())
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)
   if (url.pathname === '/auth/v1/logout') return rispondi(res, 204)
