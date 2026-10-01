@@ -353,6 +353,7 @@ async function sincronizzaPulizie() {
 }
 await sincronizzaPulizie()
 let errorePrimaPulizia = false, letturaIncompleta = false, perdiRispostaTempo = false
+let perdiOrari = null, contaPatch = 0, perdiPrezzi = null
 
 const tabelle = { mancato_arrivo_operazioni, rooms, guests, bookings, payments, cleanings, richieste, family_documents, family_receipts, family_draft_expenses, family_categories, family_expenses, da_controllare_rinvii, strutture, biancheria_recuperata, pulizie_timer, pulizie_fuori_camera, prezzi_lavanderia }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
@@ -482,6 +483,10 @@ const finto = createServer(async (req, res) => {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle prenotazioni di oggi', details: null, hint: null })
   }
   if (url.pathname === '/finto/perdi-risposta-pulizia') { perdiRispostaPulizia = true; return rispondi(res, 200, { pronto: true }) }
+  // Rilievi di Codex (01/10/2026): GET /finto/perdi-orari?n=1&modo=scritto|non → la n-esima PATCH di bookings
+  // da qui in poi perde la risposta (dopo aver scritto, o senza scrivere); /finto/perdi-prezzi?modo=scritto|non idem per i prezzi
+  if (url.pathname === '/finto/perdi-orari') { perdiOrari = Number(url.searchParams.get('n') || 1) > 0 ? { n: Number(url.searchParams.get('n') || 1), modo: url.searchParams.get('modo') || 'scritto' } : null; contaPatch = 0; return rispondi(res, 200, perdiOrari) }
+  if (url.pathname === '/finto/perdi-prezzi') { perdiPrezzi = url.searchParams.get('modo') === 'no' ? null : url.searchParams.get('modo') || 'scritto'; return rispondi(res, 200, { perdiPrezzi }) }
   // Guasti del collaudo: prima della scrittura, lettura incompleta dopo, risposta persa sui tempi
   if (url.pathname === '/finto/errore-prima-pulizia') { errorePrimaPulizia = true; return rispondi(res, 200, { pronto: true }) }
   if (url.pathname === '/finto/lettura-incompleta') { letturaIncompleta = true; return rispondi(res, 200, { pronto: true }) }
@@ -517,6 +522,9 @@ const finto = createServer(async (req, res) => {
   }
   if (url.pathname === '/rest/v1/prezzi_lavanderia' && dbPulizie && process.env.FINTO_0064 === '1' && req.method !== 'GET') {
     const corpo = req.method === 'DELETE' ? [{ pezzo: (url.searchParams.get('pezzo') || '').replace(/^eq\./, ''), prezzo: null }] : await leggiCorpo(req)
+    // «non» resta attivo (anche sulle ripetizioni automatiche del browser) finché non si disarma con modo=no
+    const modoPerdita = perdiPrezzi; if (perdiPrezzi !== 'non') perdiPrezzi = null
+    if (modoPerdita === 'non') { console.log('[finto supabase] prezzi: risposta persa senza scrivere'); res.destroy(); return }
     try {
       for (const r of Array.isArray(corpo) ? corpo : [corpo]) {
         if (r.prezzo === null) await dbPulizie.query('delete from prezzi_lavanderia where pezzo=$1', [r.pezzo])
@@ -524,6 +532,7 @@ const finto = createServer(async (req, res) => {
       }
       const righe = (await dbPulizie.query('select pezzo, prezzo::float as prezzo, aggiornato_at from prezzi_lavanderia')).rows
       prezzi_lavanderia.splice(0, prezzi_lavanderia.length, ...righe)
+      if (modoPerdita === 'scritto') { console.log('[finto supabase] prezzi: scritto, risposta persa'); res.destroy(); return }
       return rispondi(res, 201, righe)
     } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message }) }
   }
@@ -604,7 +613,11 @@ const finto = createServer(async (req, res) => {
     const id = (url.searchParams.get('id') || '').replace(/^eq\./, '')
     const riga = bookings.find(x => x.id === id)
     if (!riga) return rispondi(res, 200, [])
-    Object.assign(riga, corpo)
+    // «non»: dalla n-esima in poi nessuna scrittura arriva (anche le ripetizioni
+    // automatiche del browser), finché non si disarma con n=0
+    const perdi = perdiOrari && (perdiOrari.modo === 'non' ? ++contaPatch >= perdiOrari.n : ++contaPatch === perdiOrari.n)
+    if (!(perdi && perdiOrari.modo === 'non')) Object.assign(riga, corpo)
+    if (perdi) { console.log(`[finto supabase] PATCH bookings ${id}: risposta persa (${perdiOrari.modo === 'non' ? 'senza scrivere' : 'scritta'})`); if (perdiOrari.modo !== 'non') perdiOrari = null; res.destroy(); return }
     return rispondi(res, 200, [riga])
   }
   // Richieste: Riapri / Rifiuta (06/09/2026) → PATCH in memoria sulla riga indicata da ?id=eq.<id>
