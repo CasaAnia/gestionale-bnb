@@ -219,7 +219,7 @@ export default function Arrivi() {
     const outgoing = new Set<string>()
     const incoming = new Set<string>()
     const poi: Record<string, string> = {}, da: Record<string, string> = {}
-    changeGroups.edges.forEach(e => {
+    changeGroups.roomChangeEdges.forEach(e => {
       outgoing.add(e.fromId); incoming.add(e.toId)
       poi[e.fromId] = roomNameById[arrivi.find(b => b.id === e.toId)?.room_id ?? ''] ?? ''
       da[e.toId] = roomNameById[arrivi.find(b => b.id === e.fromId)?.room_id ?? ''] ?? ''
@@ -446,7 +446,7 @@ export default function Arrivi() {
                     const isSelected = isMultiRoom && selectedGroupId === chainKey
                     const isWebPending = daConfermareDalSito(booking)
                     // L'arrivo è uno solo: il tratto che arriva da un cambio camera prende il colore del primo tratto
-                    const origine = hasIncoming ? arrivi.find(b => b.id === primoTratto(booking.id, changeGroups.edges)) ?? booking : booking
+                    const origine = changeGroups.edges.some(e => e.toId === booking.id) ? arrivi.find(b => b.id === primoTratto(booking.id, changeGroups.edges)) ?? booking : booking
                     const arrivo = leggiArrivo(origine)
                     const stato = statoArrivo(arrivo)
                     const tinta = tintaArrivo(stato, isWebPending)

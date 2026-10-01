@@ -1,4 +1,5 @@
 'use client'
+import { ospitiSoggiorno, periodoOspitiTesto } from '@/lib/ospitiSoggiorno'
 import { riepilogoPeriodi } from '@/lib/periodiPrenotazione'
 import { chiavePrenotazione, filtroPrenotazione, periodiCamera, leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, haCamereParallele, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import { conInizialiONull } from '@/lib/maiuscole'
@@ -257,7 +258,10 @@ Casa Ania`
   // Blocco camera/bagno/link condiviso da conferma e modifica
   const cameraBlock = `${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nLa sua camera:\n${roomLink}` : ''}`
 
-  const dateSoggiorno = isGruppo
+  const ospitiVariabili = type === 'conferma' ? ospitiSoggiorno(segmenti) : null
+  const dateSoggiorno = ospitiVariabili
+    ? `Check-in: *${cinF}* (dalle 15:00 alle 20:00)\nCheck-out: *${coutF}* (entro le 10:00)\nNotti: *${notti}*\n\n*OSPITI DURANTE IL SOGGIORNO*\n${ospitiVariabili.map(p => `*${periodoOspitiTesto(p)}*: ${p.persone} ${p.persone === 1 ? 'persona' : 'persone'}`).join('\n')}\n\nCamera: ${roomFull}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}${roomLink ? `\n\nLa sua camera:\n${roomLink}` : ''}`
+    : isGruppo
     ? `${intestazioneSegmenti}\n${segmenti.map((s, i) => `${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*\nCheck-in: *${formatDateIT(s.check_in)}* (dalle 15:00 alle 20:00)\nCheck-out: *${formatDateIT(s.check_out)}* (entro le 10:00)\n${Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)} ${Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000) === 1 ? 'notte' : 'notti'} · ${Number(s.num_guests) || 1} ${(Number(s.num_guests) || 1) === 1 ? 'ospite' : 'ospiti'}`).join('\n\n')}\n\nNotti: *${notti}* (complessive in struttura)`
     : `Check-in: *${cinF}* (dalle 15:00 alle 20:00)\nCheck-out: *${coutF}* (entro le 10:00)\nNotti: *${notti}*\nOspiti: ${ospiti}\n${cameraBlock}`
 

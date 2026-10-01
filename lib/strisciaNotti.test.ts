@@ -735,3 +735,17 @@ test('una sola notte a 1 in matrimoniale non si perde accanto a una notte in 2',
     .sort((a, z) => a.check_in.localeCompare(z.check_in))
   assert.deepEqual(righe.map(r => [r.check_in, r.num_guests]), [['2026-10-01', 2], ['2026-10-02', 1]])
 })
+
+test('Maria Rosaria: cambio persone 2→1 conserva Lena nel piano e alla riapertura', () => {
+  const originali = [seg('maria', LENA, '2026-10-11', '2026-10-18', {price_per_night:80,total_amount:560})]
+  let notti = nottiDaSegmenti(originali)
+  for (const giorno of ['12','13','14','15','16','17']) notti = cambiaOspitiNotte(notti, `2026-10-${giorno}`, 1, contesto())
+  const piano = pianoNotti(notti, originali, contesto())
+  assert.equal(piano.errore, null)
+  const salvate = [...piano.aggiorna.map(x => ({...originali.find(s=>s.id===x.id)!,...x.campi})), ...piano.crea.map((x,i)=>({...x,id:`nuova-${i}`,status:'confermata',rooms:LENA}))]
+  assert.equal(salvate.length,2)
+  assert.ok(salvate.every(s=>s.room_id===LENA.id))
+  const riaperte=nottiDaSegmenti(salvate)
+  assert.deepEqual(riaperte.map(n=>n.persone),[2,1,1,1,1,1,1])
+  assert.equal(cambiCamera(riaperte),0)
+})

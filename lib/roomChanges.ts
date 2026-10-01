@@ -17,7 +17,9 @@ export function chainClipPath(cutLeft: boolean, cutRight: boolean): string {
 
 export type ChangeGroups = {
   chainKeyOf: Record<string, string>
+  // Tutte le continuazioni: servono a non contare nuovi arrivi/partenze.
   edges: ChangeEdge[]
+  roomChangeEdges: ChangeEdge[]
 }
 
 export function buildChangeGroups(bookings: any[]): ChangeGroups {
@@ -67,6 +69,7 @@ export function buildChangeGroups(bookings: any[]): ChangeGroups {
 
   const chainKeyOf: Record<string, string> = {}
   const edges: ChangeEdge[] = []
+  const roomChangeEdges: ChangeEdge[] = []
 
   components.forEach(idxs => {
     if (idxs.length < 2) return
@@ -75,13 +78,20 @@ export function buildChangeGroups(bookings: any[]): ChangeGroups {
     const hasExplicitLink = sorted.some(b => b.group_id && explicitGroupIds.has(b.group_id))
     if (!hasChange && !hasExplicitLink) return
     const key = `chain-${[...sorted.map(b => b.id)].sort()[0]}`
-    sorted.forEach(b => { chainKeyOf[b.id] = key })
+    if (hasChange) sorted.forEach(b => { chainKeyOf[b.id] = key })
     for (let i = 0; i < sorted.length - 1; i++) {
-      edges.push({ fromId: sorted[i].id, toId: sorted[i + 1].id })
+      const from = sorted[i], to = sorted[i + 1]
+      const edge = { fromId: from.id, toId: to.id }
+      if (from.room_id !== to.room_id) {
+        edges.push(edge)
+        roomChangeEdges.push(edge)
+      } else if (from.check_out === to.check_in) {
+        edges.push(edge)
+      }
     }
   })
 
-  return { chainKeyOf, edges }
+  return { chainKeyOf, edges, roomChangeEdges }
 }
 
 // Spostamenti (cambi camera) la cui data di arrivo nella nuova camera cade in una delle date indicate
@@ -91,7 +101,7 @@ export function getUpcomingRoomChanges(
   roomNameById: Record<string, string>,
   dates: string[]
 ): { id: string; guest: string; fromRoom: string; toRoom: string; date: string }[] {
-  const { edges } = buildChangeGroups(bookings)
+  const { roomChangeEdges: edges } = buildChangeGroups(bookings)
   const byId = new Map(bookings.map(b => [b.id, b]))
   const moves = edges
     .map(e => {

@@ -11,6 +11,7 @@
 // DA FARE quando quel file torna libero: cancellare la funzione da lì e
 // importarla da qui, così il testo resta scritto in un posto solo.
 // ============================================================================
+import { ospitiSoggiorno, periodoOspitiTesto } from './ospitiSoggiorno.ts'
 import { riepilogoPeriodi } from './periodiPrenotazione.ts'
 import { comePagaSalvato } from './comePaga.ts'
 import { nomeOspite, nomePerMessaggio, salutoOspite } from './guestName.ts'
@@ -51,7 +52,7 @@ export const MESSAGGIO_ANNULLAMENTO = { tipo: 'annullamento' as TipoMessaggio, l
 // i campi che le due copie leggono davvero, il resto passa senza vincoli.
 export type CameraMessaggio = CameraTariffa & { name?: string | null; bathroom_type?: string | null; bathroom_note?: string | null }
 export type RigaMessaggio = {
-  id: string; prenotazione_id?: string | null; group_id?: string | null
+  id: string; room_id?: string | null; prenotazione_id?: string | null; group_id?: string | null
   check_in: string; check_out: string; status?: string | null
   num_guests?: number | string | null; price_per_night?: number | string | null
   extra_bed_dates?: string[] | null; extra_bed_total?: number | string | null; total_amount?: number | string | null
@@ -200,7 +201,10 @@ Casa Ania`
   // Blocco camera/bagno/link condiviso da conferma e modifica
   const cameraBlock = `${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nLa sua camera:\n${roomLink}` : ''}`
 
-  const dateSoggiorno = isGruppo
+  const ospitiVariabili = type === 'conferma' ? ospitiSoggiorno(segmenti) : null
+  const dateSoggiorno = ospitiVariabili
+    ? `Check-in: *${cinF}* (dalle 15:00 alle 20:00)\nCheck-out: *${coutF}* (entro le 10:00)\nNotti: *${notti}*\n\n*OSPITI DURANTE IL SOGGIORNO*\n${ospitiVariabili.map(p => `*${periodoOspitiTesto(p)}*: ${p.persone} ${p.persone === 1 ? 'persona' : 'persone'}`).join('\n')}\n\nCamera: ${roomFull}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}${roomLink ? `\n\nLa sua camera:\n${roomLink}` : ''}`
+    : isGruppo
     ? `${intestazioneSegmenti}\n${segmenti.map((s, i) => `${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*\nCheck-in: *${formatDateIT(s.check_in)}* (dalle 15:00 alle 20:00)\nCheck-out: *${formatDateIT(s.check_out)}* (entro le 10:00)\n${Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)} ${Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000) === 1 ? 'notte' : 'notti'} · ${Number(s.num_guests) || 1} ${(Number(s.num_guests) || 1) === 1 ? 'ospite' : 'ospiti'}`).join('\n\n')}\n\nNotti: *${notti}* (complessive in struttura)`
     : `Check-in: *${cinF}* (dalle 15:00 alle 20:00)\nCheck-out: *${coutF}* (entro le 10:00)\nNotti: *${notti}*\nOspiti: ${ospiti}\n${cameraBlock}`
 

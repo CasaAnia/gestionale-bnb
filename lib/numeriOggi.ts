@@ -122,7 +122,7 @@ export function cambiCameraPerGiorno(prenotazioni: { id: string; room_id: string
   const valide = prenotazioni.filter(b => !b.status || prenotazioneValida(b as Parameters<typeof prenotazioneValida>[0]))
   const perId = new Map(valide.map(b => [b.id, b]))
   const out: Record<string, number> = {}
-  for (const e of buildChangeGroups(valide).edges) {
+  for (const e of buildChangeGroups(valide).roomChangeEdges) {
     const a = perId.get(e.toId)
     if (!a) continue
     out[a.check_in] = (out[a.check_in] ?? 0) + 1

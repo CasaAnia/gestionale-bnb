@@ -125,11 +125,11 @@ test('righe del riepilogo costi: dettaglio per notte solo se la tariffa cambia, 
   // salvata nel modo nuovo: 80 + resto 10, totale 170
   const mista = { ...pren(LENA, 3, ['2026-09-14']), price_per_night: 80, extra_bed_total: 10, total_amount: 170, rooms }
   const r = righeCostiSegmenti([mista], false)
-  assert.deepEqual(r.righe, [{ label: 'Camera Lena – Tripla (1 notte in 2 a 80,00 €, 1 notte in 3 a 90,00 €)', amount: 170 }])
+  assert.deepEqual(r.righe, [{ label: 'Camera Lena – Tripla (1 notte in 2 × 80,00 €)', amount: 80 }, { label: 'Camera Lena – Tripla (1 notte in 3 × 90,00 €)', amount: 90 }])
   assert.equal(r.totale, 170)
   // stesso segmento nella proposta (persone esplicite, formato «80 €»)
   const proposta = { check_in: '2026-09-13', check_out: '2026-09-15', price_per_night: 80, extra_bed: true, extra_bed_total: 10, num_guests: 3, persone_notti: [2, 3], extra_bed_dates: [], rooms }
-  assert.deepEqual(righeCostiSegmenti([proposta], false, n => `${n} €`).righe, [{ label: 'Camera Lena – Tripla (1 notte in 2 a 80 €, 1 notte in 3 a 90 €)', amount: 170 }])
+  assert.deepEqual(righeCostiSegmenti([proposta], false, n => `${n} €`).righe, [{ label: 'Camera Lena – Tripla (1 notte in 2 × 80 €)', amount: 80 }, { label: 'Camera Lena – Tripla (1 notte in 3 × 90 €)', amount: 90 }])
   // uniforme: invariato (Lena a 3 una riga tutto compreso, Ambra a 3 letto a parte)
   const lena3 = { ...pren(LENA, 3, G2), price_per_night: 90, extra_bed_total: 0, total_amount: 180, rooms }
   assert.deepEqual(righeCostiSegmenti([lena3], false).righe, [{ label: 'Camera Lena – Tripla (2 notti × 90,00 €)', amount: 180 }])
