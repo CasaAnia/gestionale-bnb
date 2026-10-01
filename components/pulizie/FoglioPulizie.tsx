@@ -19,7 +19,7 @@ import type { Salvataggio } from '@/components/maison/SalvatoMaison'
 export const ALTEZZA_FOGLI_PULIZIE = 690
 export const DISTANZA_TASTI_DAL_FONDO = 96
 
-export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande = 30, dati, onChiudi, salvato, onFineSalvato, azione, onAzione, salvando = false, disabilitato = false, testoAnnulla = 'Annulla', testoSalvando = 'Salvo…', children }: {
+export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande = 30, dati, onChiudi, onAnnulla, salvato, onFineSalvato, azione, onAzione, salvando = false, disabilitato = false, mattone = false, testoAnnulla = 'Annulla', testoSalvando = 'Salvo…', children }: {
   eyebrow: string
   titolo: string
   /** a destra del titolo: «fatta oggi», «giovedì 1 ottobre»… */
@@ -30,6 +30,10 @@ export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande =
   grande?: 28 | 30
   dati: string
   onChiudi: () => void
+  /** «Annulla» quando non chiude il foglio (la domanda di «Togli» torna alla correzione) */
+  onAnnulla?: () => void
+  /** l'azione in mattone (togliere una pulizia) */
+  mattone?: boolean
   salvato?: Salvataggio | null
   onFineSalvato?: () => void
   azione: string
@@ -49,8 +53,8 @@ export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande =
         {sotto && <p className="pul-su">{sotto}</p>}
       </div>}
       piede={<div className="pul-tasti" data-piede-foglio>
-        <button type="button" data-annulla-foglio onClick={onChiudi} disabled={salvando}>{testoAnnulla}</button>
-        <button type="button" className="p" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>
+        <button type="button" data-annulla-foglio onClick={onAnnulla ?? onChiudi} disabled={salvando}>{testoAnnulla}</button>
+        <button type="button" className={mattone ? 'p mat' : 'p'} data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>
       </div>}>
       {children}
     </FoglioMaison>

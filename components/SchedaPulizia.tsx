@@ -9,7 +9,11 @@ import FoglioPulizie, { ALTEZZA_FOGLI_PULIZIE } from './pulizie/FoglioPulizie'
 import type { Salvataggio } from './maison/SalvatoMaison'
 import { COSA_SALVATA } from '@/lib/salvatoMaison'
 import { apriSelettore } from './nuova/CampoData'
-import { MESI_BREVI } from '@/lib/dateItaliane'
+import { MESI_BREVI, MESI_LUNGHI } from '@/lib/dateItaliane'
+import { useParte0064 } from '@/lib/schema0064Dati'
+import { oraBreve, oraPerSql } from '@/lib/schema0064'
+import { oraSegnata, romaDi, oraTesto } from '@/lib/giornataPulizie'
+import { ritoccaPulizia } from '@/lib/ritoccaPulizia'
 import { supabase } from '@/lib/supabase'
 import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
 import { inviaOperazionePulizia } from '@/lib/pulizieServizio'
@@ -42,14 +46,18 @@ type Bozza = {
   data: string; assetto: AssettoPulizia; assettoDaConfermare: boolean; federeScelte: boolean
   recuperi: PezziPulizie | null; senzaMisura: SenzaMisura; minuti: number | null
   versione: string | null; versioneRecupero: string | null
+  /** correzione: l'ora a schermo («9:02») e quella da cui si parte */
+  ora: string | null; oraIniziale: string | null
 }
 
-export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId, onChiudi, onSalvato }: {
+export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId, onChiudi, onSalvato, onTolta }: {
   camera: string                       // nome breve («Amelia»)
   pulizia: Decisione                   // da confermare (senza id) o già confermata
   booking?: PrenotazionePulizie | null // assente: si legge dal database (Home)
   oggi: string; ultimaId: string | null
   onChiudi: () => void; onSalvato?: (r: RispostaPulizia) => void
+  /** dopo «togli»: la pulizia non c'è più */
+  onTolta?: (id: string) => void
   /** non più usati dal foglio (il timer della camera sta nella scheda della pagina); restano per chi li passa */
   nomeCamera?: (bookingId: string) => string | null; onVaiA?: (chiave: string) => void
 }) {
@@ -64,6 +72,10 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   const [salvato, setSalvato] = useState<(Salvataggio & { risposta: RispostaPulizia }) | null>(null)
   // «Cambia» dei letti preparati e il campo dei minuti, aperti al tocco
   const [cambiaLetti, setCambiaLetti] = useState(false)
+  // «Segnata per sbaglio · togli» e l'ora corretta a mano: solo con la proposta 0064
+  const oraPulizia0064 = useParte0064('oraPulizia')
+  const conRitocchi = correzione && oraPulizia0064.stato === 'si'
+  const [chiediTogli, setChiediTogli] = useState(false)
   const [scriviMinuti, setScriviMinuti] = useState(false)
   const blocco = useRef(false)
   const timer = useTimerPulizie()
@@ -93,7 +105,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
       if (!correzione) {
         const assetto = proposta ?? riserva
         // Riquadri a zero (01/10/2026): confermare senza toccarne nessuno vuol dire «niente recuperato»
-        if (viva) setBozza({ data: oggi, assetto, assettoDaConfermare: !proposta, federeScelte: !(assetto.matrimoniali && assetto.ospiti === 1), recuperi: pezziVuoti(), senzaMisura: NESSUNO, minuti: null, versione: null, versioneRecupero: null })
+        if (viva) setBozza({ data: oggi, assetto, assettoDaConfermare: !proposta, federeScelte: !(assetto.matrimoniali && assetto.ospiti === 1), recuperi: pezziVuoti(), senzaMisura: NESSUNO, minuti: null, versione: null, versioneRecupero: null, ora: null, oraIniziale: null })
         return
       }
       const [c, r] = await Promise.all([
@@ -108,7 +120,8 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
       const assetto = salvato ?? proposta ?? riserva
       setBozza({ data: riga.data_effettiva || riga.data_prevista, assetto, assettoDaConfermare: !salvato, federeScelte: !!salvato || !(assetto.matrimoniali && assetto.ospiti === 1),
         recuperi: rec?.pezzi ?? null, senzaMisura: rec?.senzaMisura ?? NESSUNO, minuti: riga.minuti ?? null,
-        versione: riga.aggiornata_at ?? null, versioneRecupero: r.righe[0]?.updated_at ?? null })
+        versione: riga.aggiornata_at ?? null, versioneRecupero: r.righe[0]?.updated_at ?? null,
+        ...(o => ({ ora: o, oraIniziale: o }))((m => m === null ? null : oraTesto(m))(oraSegnata(riga as Parameters<typeof oraSegnata>[0], romaDi))) })
     }
     apri().catch(() => { if (viva) setErrore('Non riesco a rileggere questa pulizia. Chiudi e riprova.') })
     return () => { viva = false }
@@ -186,9 +199,34 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
       // Rilettura completa: la risposta deve coincidere con quanto inviato e con il database.
       const verifica = await verificaSalvataggio(esito.risposta, { data: bozza.data, assetto, minuti: bozza.minuti, recupero })
       if (verifica) { setErrore(verifica); return }
+      // L'ora corretta a mano (0064): un secondo passo, con la versione appena riletta
+      if (conRitocchi && bozza.ora && bozza.ora !== bozza.oraIniziale) {
+        const o = await ritoccaPulizia({ azione: 'ora', cleaning_id: esito.risposta.pulizia.id!, versione: (esito.risposta.pulizia as { aggiornata_at?: string | null }).aggiornata_at ?? null, ora: oraPerSql(bozza.ora) })
+        if (o.errore) { setErrore(`Letti, recuperi e minuti sono salvati; l’ora no: ${o.errore}`); return }
+      }
       setSalvato({ cosa: COSA_SALVATA.pulizia(camera), quando: new Date(), risposta: esito.risposta })
     } finally { blocco.current = false; setSalvando(false) }
   }
+
+  async function togli() {
+    if (!bozza || blocco.current || !pulizia.id) return
+    blocco.current = true; setSalvando(true); setErrore('')
+    try {
+      const e = await ritoccaPulizia({ azione: 'togli', cleaning_id: pulizia.id, versione: bozza.versione })
+      if (e.errore) { setErrore(e.errore); return }
+      setSalvato({ cosa: `Pulizia tolta · ${camera}`, quando: new Date(), risposta: null as unknown as RispostaPulizia })
+    } finally { blocco.current = false; setSalvando(false) }
+  }
+
+  // La domanda di «togli»: stesso foglio, tasti «Annulla» (torna alla correzione) e «Togli»
+  if (chiediTogli) return <FoglioPulizie dati="recupero" eyebrow={eyebrow} titolo={camera} destra={<>pulita il {dataCorta(bozza.data)}</>}
+    onChiudi={onChiudi} onAnnulla={() => { setChiediTogli(false); setErrore('') }} mattone azione="Togli" onAzione={() => void togli()} salvando={salvando} disabilitato={!!salvato}
+    salvato={salvato} onFineSalvato={() => { onTolta?.(pulizia.id!); ricaricaNumeriOggiOvunque(); void ricaricaDaControllare(); onChiudi() }}>
+    <div data-domanda-togli>
+      <p className="pul-togli">{domandaTogli(camera, bozza.data)}<small>{SPIEGA_TOGLI}</small></p>
+      {errore && <p role="alert" className="pul-errore">{errore}</p>}
+    </div>
+  </FoglioPulizie>
 
   const a = bozza.assetto
   const tile = ([k, label]: [keyof PezziPulizie, string]) => {
@@ -203,12 +241,16 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   const preparati = totalePezzi(dotazione)
   // «fatta oggi» / «fatta il 30 set»: la parola sottolineata apre il calendario
   const giornoFatta = <span className="relative inline-block">
-    <button type="button" className="u" data-data-scritta>{bozza.data === oggi ? 'oggi' : dataCorta(bozza.data)}</button>
+    <button type="button" className="u" data-data-scritta>{bozza.data === oggi && !correzione ? 'oggi' : dataCorta(bozza.data)}</button>
     <input aria-label="Fatta il" type="date" max={oggi} value={bozza.data} onChange={e => setBozza({ ...bozza, data: e.target.value })}
       onClick={e => apriSelettore(e.currentTarget)} style={{ position: 'absolute', inset: '-10px -6px', width: 'calc(100% + 12px)', opacity: 0, cursor: 'pointer' }} />
   </span>
   return <FoglioPulizie dati="recupero" eyebrow={eyebrow} titolo={camera}
-    destra={correzione ? <>pulita il {giornoFatta}</> : <>fatta {giornoFatta}</>}
+    destra={correzione ? <>pulita il {giornoFatta}{bozza.ora && !conRitocchi && <> alle {bozza.ora}</>}{conRitocchi && <> alle <span className="relative inline-block">
+      <button type="button" className="u" data-ora-scritta>{bozza.ora ?? '—'}</button>
+      <input aria-label="Alle" type="time" value={bozza.ora ? oraPerSql(bozza.ora) : ''} onChange={e => setBozza({ ...bozza, ora: oraBreve(e.target.value) })}
+        onClick={e => apriSelettore(e.currentTarget)} style={{ position: 'absolute', inset: '-10px -6px', width: 'calc(100% + 12px)', opacity: 0, cursor: 'pointer' }} />
+    </span></>}</> : <>fatta {giornoFatta}</>}
     onChiudi={onChiudi} salvato={salvato} onFineSalvato={() => { if (salvato) onSalvato?.(salvato.risposta); ricaricaNumeriOggiOvunque(); void ricaricaDaControllare(); onChiudi() }}
     azione={pendente ? 'Riprova' : correzione ? 'Salva correzione' : 'Conferma pulizia'} onAzione={() => void salva()}
     salvando={salvando} disabilitato={!bozza.federeScelte || !bozza.data || bozza.data > oggi || !!salvato}>
@@ -238,9 +280,14 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
       {timerNonRiportato && <p className="pul-avviso">Il timer segna {testoCronometro(t!.trascorsi)}: riporta i minuti prima di confermare.</p>}
       {pendente && <p role="status" className="pul-avviso">Un salvataggio di questa camera attende conferma: premi Riprova per verificarlo senza duplicarlo.</p>}
       {errore && <p role="alert" className="pul-errore">{errore}</p>}
+      {conRitocchi && !pendente && <button type="button" className="pul-del" data-togli onClick={() => { setErrore(''); setChiediTogli(true) }}>Segnata per sbaglio · togli</button>}
     </div>
   </FoglioPulizie>
 }
+
+/** «Togli la pulizia di Allegra del 1 ottobre?» */
+export const domandaTogli = (camera: string, giorno: string) => { const [, m, d] = giorno.split('-').map(Number); return `Togli la pulizia di ${camera} del ${d} ${MESI_LUNGHI[m - 1]}?` }
+export const SPIEGA_TOGLI = 'I letti e i recuperati segnati spariscono dal registro e dalle statistiche.'
 
 // Le cifre che corrono, nere, nel foglio (il timer della camera in corso)
 function CifreTimer({ t, scarto }: { t: TimerSql; scarto: number }) {

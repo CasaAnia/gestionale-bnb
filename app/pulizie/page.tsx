@@ -206,7 +206,8 @@ export default function Pulizie() {
     {foglioSpazi && <FoglioSpaziComuni key={`${foglioSpazi.giorno}:${foglioSpazi.voce}`} giorno={foglioSpazi.giorno} oggi={td} voce={foglioSpazi.voce} righe={foglioSpazi.righe}
       conCosa={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onChiudi={() => setFoglioSpazi(null)} onSalvato={ricarica} />}
     {scheda && <SchedaPulizia key={`${scheda.pulizia.id ?? ''}:${scheda.pulizia.booking_id}:${scheda.pulizia.data_prevista}`} camera={scheda.camera} pulizia={scheda.pulizia} booking={scheda.booking} oggi={td}
-      ultimaId={ultimaId(scheda.pulizia.room_id)} onChiudi={() => setScheda(null)} onSalvato={aggiornato} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />}
+      ultimaId={ultimaId(scheda.pulizia.room_id)} onChiudi={() => setScheda(null)} onSalvato={aggiornato}
+      onTolta={id => { setEvents(ev => ev.filter(e => e.id !== id)); ricaricaNumeriOggiOvunque(); void ricaricaDaControllare(); ricarica() }} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />}
   </main>
 }
 
