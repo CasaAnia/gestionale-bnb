@@ -170,7 +170,8 @@ test('rifiuti del database in italiano corretto; guardie: niente elementi della 
   for (const approvato of ['<GraficoGiornata', 'giornoLungo(td)', 'Prossime pulizie', 'Rinvii e salti']) assert.ok(pagina.includes(approvato), approvato)
   const scheda = readFileSync(new URL('../components/SchedaPulizia.tsx', import.meta.url), 'utf8')
   // Dal 28/09/2026 la veste «Maison» (riferimento approvato da Ania): foglio dal basso, chip del recuperato sempre visibili
-  for (const approvato of ['<FoglioMaison titolo={camera}', 'Recuperato · Lenzuola', 'Recuperato · Asciugamani', 'Niente recuperato', 'Minuti effettivi · facoltativi', 'Conferma pulizia', 'Fatta il', 'Federe sul matrimoniale']) assert.ok(scheda.includes(approvato), approvato)
+  // Dal 01/10/2026 la veste dei fogli delle Pulizie (pulizie-fogli-riferimento.html, «Dopo»)
+  for (const approvato of ['<FoglioPulizie dati="recupero"', 'Recuperato · lenzuola', 'Recuperato · asciugamani', 'Letti preparati', '4 federe sul matrimoniale', 'tocca per correggere', 'Conferma pulizia', 'Salva correzione', 'aria-label="Fatta il"']) assert.ok(scheda.includes(approvato), approvato)
   // Home: nessuna striscia «da fare / fatta» portata dall'anteprima
   const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8') + readFileSync(new URL('../components/StrisciaSettimana.tsx', import.meta.url), 'utf8')
   assert.ok(!/da fare\s*\/|\/\s*\d+ fatt/.test(home))

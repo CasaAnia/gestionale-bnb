@@ -139,3 +139,29 @@ body:has(.pul-pagina) { background: #fff; }
 .pul-sc .min::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 40px; transform: translateY(-50%); }
 .pul-sc .pul-az { font-size: 11px; padding-bottom: 3px; }
 .pul-sc-timer .pul-timer .tg { margin-top: 0; padding-bottom: 6px; }
+
+/* ── Foglio «Pulita e recuperato» (P7, riferimento dei fogli, «Dopo») ───── */
+.pul-ln1 { font-size: 15px; margin: 0; }
+.pul-ln1 small { color: var(--p-sec); font-size: 13px; }
+.pul-ln1 em.dc { font-style: normal; color: var(--p-ott); font-size: 13px; }
+.pul-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.pul-tile { border: 1px solid var(--p-tile); border-radius: 10px; padding: 7px 9px 6px; min-height: 48px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; background: #fff; color: var(--p-ink); text-align: left; font-family: var(--p-sans); text-decoration: none !important; }
+.pul-tile span { font-size: 12px; line-height: 1.15; }
+.pul-tile b { font-family: var(--p-disp); font-size: 20px; font-weight: 600; line-height: 1; }
+.pul-tile b small { font-family: var(--p-sans); font-size: 10.5px; font-weight: 400; color: var(--p-sec); }
+.pul-tile.on { background: var(--p-ink); border-color: var(--p-ink); color: #F6F2EA; }
+.pul-tile.on b small { color: #CFC7B8; }
+.pul-lav2 { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--p-filo); border-bottom: 1px solid var(--p-filo); padding: 10px 0; margin-top: 14px; }
+.pul-lav2 b { font-family: var(--p-disp); font-size: 30px; font-weight: 600; line-height: 1; }
+.pul-lav2 b.vivo { color: var(--p-ink); font-variant-numeric: tabular-nums; }
+.pul-lav2 small { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--p-sec); margin-left: 6px; }
+.pul-lav2 span { display: block; font-size: 11.5px; color: var(--p-sec); margin-top: 3px; }
+.pul-lav2 .r { text-align: right; }
+.pul-lav2 .r .pul-az { margin-left: 10px; font-size: 11px; }
+.pul-lav2 .tocca { background: none; border: 0; padding: 0; text-align: right; color: var(--p-ink); font-family: var(--p-sans); text-decoration: none !important; cursor: pointer; }
+.pul-lav2 .pul-min { width: 70px; font-family: var(--p-disp); font-size: 30px; font-weight: 600; border: 0; border-bottom: 1px solid var(--p-avorio); text-align: right; background: transparent; outline: none; }
+/* misurato a 390 × 844: Lena con letto in più (5 + 5 riquadri) sta nei 690 px senza scorrere */
+.mz[data-foglio-maison="pul-recupero"] .pul-lb { margin: 13px 0 7px; }
+.mz[data-foglio-maison="pul-recupero"] .corpo > div > .pul-lb:first-child { margin-top: 10px; }
+.mz[data-foglio-maison="pul-recupero"] .pul-lav2 { margin-top: 12px; padding: 9px 0; }
+.mz[data-foglio-maison="pul-recupero"] .pul-lav2 span { margin-top: 2px; }
