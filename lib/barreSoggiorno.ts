@@ -15,13 +15,21 @@ export function barreSoggiorno<T extends Tratto>(righe: T[]): BarraSoggiorno<T>[
     if (gruppo.length<2) continue
     const s=[...gruppo].sort((a,b)=>a.check_in.localeCompare(b.check_in))
     if (s.some((r,i)=>r.room_id!==s[0].room_id || r.status!==s[0].status || (i>0 && s[i-1].check_out!==r.check_in))) continue
-    const persone=s.map(r=>Number(r.num_guests)||1).filter((n,i,a)=>i===0||n!==a[i-1])
+    const periodi: { dal: string; al: string; persone: number }[] = []
+    for (const r of s) {
+      const persone = Number(r.num_guests) || 1
+      const ultimo = periodi.at(-1)
+      if (ultimo?.persone === persone) ultimo.al = r.check_out
+      else periodi.push({ dal: r.check_in, al: r.check_out, persone })
+    }
+    const data = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+    const ospitiPeriodo = periodi.length > 1 ? periodi.map(p => `${p.dal.slice(0, 7) === p.al.slice(0, 7) ? Number(p.dal.slice(8)) : data(p.dal)}–${data(p.al)}: ${p.persone} ${p.persone === 1 ? 'persona' : 'persone'}`).join(' · ') : undefined
     sostituzioni.set(s[0].id,{
       ...s[0], check_out:s.at(-1)!.check_out,
       total_amount:s.reduce((n,r)=>n+Number(r.total_amount||0),0),
       pagato:s.every(r=>r.pagato===true),
       extra_bed:s.some(r=>r.extra_bed), extra_bed_dates:s.flatMap(nottiLettoExtra),
-      trattiBarra:s, ospitiPeriodo:persone.length>1?`${persone.join(' → ')} ospiti`:undefined,
+      trattiBarra:s, ospitiPeriodo,
     })
     s.slice(1).forEach(r=>nascosti.add(r.id))
   }

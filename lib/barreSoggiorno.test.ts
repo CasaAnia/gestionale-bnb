@@ -6,7 +6,7 @@ const b={...a,id:'b',check_in:'2026-10-12',check_out:'2026-10-18',num_guests:1,t
 test('una sola barra 11→18, ospiti 2→1 e totale 560; originali intatti',()=>{
  const originali=[a,b], copia=structuredClone(originali), barre=barreSoggiorno(originali)
  assert.equal(barre.length,1);assert.equal(barre[0].check_in,a.check_in);assert.equal(barre[0].check_out,b.check_out)
- assert.equal(barre[0].total_amount,560);assert.equal(barre[0].ospitiPeriodo,'2 → 1 ospiti')
+ assert.equal(barre[0].total_amount,560);assert.equal(barre[0].ospitiPeriodo,'11–12 ott: 2 persone · 12–18 ott: 1 persona')
  assert.deepEqual(barre[0].trattiBarra,originali);assert.deepEqual(originali,copia)
  assert.equal(barre.filter(r=>r.check_out>'2026-10-13'&&r.check_in<'2026-10-20').length,1)
 })
@@ -24,6 +24,6 @@ test('2→3→2 una sola scheda, senza perdere le notti del letto',()=>{
  const c={...b,id:'c',check_in:'2026-10-14',num_guests:2}
  const medio={...b,check_out:c.check_in,num_guests:3,extra_bed:true}
  const barra=barreSoggiorno([a,medio,c])[0]
- assert.equal(barra.ospitiPeriodo,'2 → 3 → 2 ospiti')
+ assert.equal(barra.ospitiPeriodo,'11–12 ott: 2 persone · 12–14 ott: 3 persone · 14–18 ott: 2 persone')
  assert.deepEqual(barra.extra_bed_dates,['2026-10-12','2026-10-13'])
 })
