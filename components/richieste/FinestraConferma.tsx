@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import FoglioMaison from '@/components/maison/FoglioMaison'
+import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese, testoNotti } from '@/lib/schedaPrenotazione'
 import { condizioneDaColonne, formattaEuro } from '@/lib/richiesteTesti'
@@ -75,10 +75,8 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
         </div>
       }
       piede={
-        <div className="ric-piede centro">
-          <button type="button" onClick={crea} disabled={occupato || !sol} aria-busy={occupato} className="ric-cta" data-crea-prenotazione>{occupato ? 'Creo…' : 'Crea prenotazione'}</button>
-          <button type="button" onClick={onChiudi} disabled={occupato} className="mz-lnk q">Annulla</button>
-        </div>
+        <PiedeMaison azione="Crea prenotazione" testoSalvando="Creo…" salvando={occupato} disabilitato={!sol}
+          onAzione={crea} onAnnulla={onChiudi} datiAzione={{ 'data-crea-prenotazione': '' }} />
       }>
       <div className="ric-pag ric-fog-conferma">
         <p className="so">{nomeCompleto(richiesta)} · {richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}</p>

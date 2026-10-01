@@ -51,22 +51,18 @@ test('A4: nei foglietti (Calendario e Richieste) il numero per esteso sotto il n
   }
 })
 
-test('A4: in fondo ai foglietti i due tasti affiancati (metà larghezza, 12 px, 44 px, 28 px sotto l’ultima riga): azione piena, «Chiudi» a filo', async () => {
-  const css = leggi('app/maison.css')
-  assert.match(css, /\.fog-tasti-blocco \{ margin-top: 28px; \}/)
-  assert.match(css, /\.fog-tasti \{ display: flex; justify-content: center; gap: 12px; \}/)
-  assert.match(css, /\.fog-tasti button \{ flex: 0 0 calc\(50% - 6px\);[^}]*height: 44px;[^}]*border: 1px solid var\(--m-ink\);/)
-  assert.match(css, /\.fog-tasti \.pieno \{ background: var\(--m-ink\); color: #F6F2EA; \}/)
-  assert.match(css, /\.fog-tasti \.filo \{ background: transparent; color: var\(--m-ink\); \}/)
+test('A4 → regola dei fogli (01/10/2026): in fondo ai foglietti «Chiudi» a contorno e l\u2019azione piena, 1fr 1.6fr, alti 44, nel piede', async () => {
+  const css = leggi('app/fogli.css')
+  assert.match(css, /\.mz \.fog-tasti \{ display: grid; grid-template-columns: 1fr 1\.6fr; gap: 10px; \}/)
+  assert.match(css, /\.mz \.fog-tasti button \{[^}]*height: 44px;/)
+  const pezzi = leggi('components/calendario/PezziFoglietto.tsx')
+  assert.ok(pezzi.indexOf('className="filo"') < pezzi.indexOf('className="pieno"'), '«Chiudi» prima, a sinistra')
   const cal = leggi('components/calendario/FogliettoPrenotazione.tsx')
-  // i tasti stanno dentro, subito sotto le righe (non incollati al bordo in fondo: niente `piede`)
-  assert.match(cal, /<\/div>\s*<TastiFoglietto azione=\{APRI_LA_SCHEDA\} onAzione=\{onApri\} datiAzione=\{\{ 'data-apri-scheda': '' \}\} onChiudi=\{onChiudi\} testoChiudi=\{CHIUDI\} \/>\s*<\/FoglioMaison>/)
-  assert.doesNotMatch(cal, /piede=\{/)
+  assert.match(cal, /piede=\{<TastiFoglietto azione=\{APRI_LA_SCHEDA\} onAzione=\{onApri\} datiAzione=\{\{ 'data-apri-scheda': '' \}\} onChiudi=\{onChiudi\} testoChiudi=\{CHIUDI\} \/>\}/)
   const ric = leggi('components/richieste/FogliettoRichiesta.tsx')
-  // «Modifica · Rifiuta» sottolineati sopra, l'azione piena e «Chiudi» a filo
   assert.match(ric, /const piena = tutte\.find\(a => a\.azione === 'proposta' \|\| a\.azione === 'conferma'\)/)
   assert.match(ric, /sopra=\{altre\.length > 0 \?/)
-  assert.doesNotMatch(ric, /piede=\{/)
+  assert.match(ric, /piede=\{azioni\(r, true\)\}/)
   const { ALTEZZA_FOGLIETTO } = await import('./calendarioFoglietto.ts')
   const { ALTEZZA_FOGLIETTO_RICHIESTA } = await import('./richiesteFoglietto.ts')
   assert.equal(ALTEZZA_FOGLIETTO, 500)

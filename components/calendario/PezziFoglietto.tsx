@@ -41,8 +41,9 @@ export function TastiFoglietto({ azione, onAzione, datiAzione, onChiudi, testoCh
     <div className="fog-tasti-blocco">
       {sopra && <div className="fog-sopra">{sopra}</div>}
       <div className="fog-tasti" data-senza-sottolinea data-tasti-foglietto>
-        {azione && onAzione && <button type="button" className="pieno" onClick={onAzione} {...datiAzione}>{azione}</button>}
+        {/* regola dei fogli (01/10/2026): «Chiudi» a contorno a sinistra, l'azione piena a destra */}
         {onChiudi && <button type="button" className="filo" data-chiudi-foglietto onClick={onChiudi}>{testoChiudi}</button>}
+        {azione && onAzione && <button type="button" className="pieno" onClick={onAzione} {...datiAzione}>{azione}</button>}
       </div>
     </div>
   )

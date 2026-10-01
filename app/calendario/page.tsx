@@ -17,7 +17,7 @@ import {
 import BackLink from '@/components/BackLink'
 import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione'
 import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro } from '@/components/calendario/Nastro'
-import FoglioMaison from '@/components/maison/FoglioMaison'
+import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese } from '@/lib/schedaPrenotazione'
 import TestaPagina from '@/components/TestaPagina'
@@ -887,7 +887,7 @@ export default function Calendario() {
             </div>
           }
           piede={
-            <div className="cal-ten-ac">
+            <PiedeMaison testoAnnulla="Chiudi" onAnnulla={() => setBarraAperta(null)} sopra={<>
               <button type="button" className="mz-lnk"
                 onClick={() => { setAvvisoTenuta(null); setConfermaLibera({ barra: barraAperta, prenotaDopo: true }) }}>
                 Libera e fai una prenotazione nuova
@@ -901,7 +901,7 @@ export default function Calendario() {
                 Apri la richiesta di {barraAperta.ospite}
               </button>
               <button type="button" className="mz-lnk q" onClick={() => setBarraAperta(null)}>Chiudi</button>
-            </div>
+            </>} />
           }>
           <div className="cal-ten">
             <p className="so">
@@ -940,11 +940,9 @@ export default function Calendario() {
           <FoglioMaison titolo={testo.titolo} altezza={ALTEZZA_CONFERMA_TENUTA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
             onChiudi={() => { if (!liberando) setConfermaLibera(null) }} dati="conferma-tenuta"
             piede={
-              // niente bottoni pieni (regola del riferimento): l'azione è la parola sottolineata
-              <div className="cal-fog-ac">
-                <button type="button" className="mz-lnk" data-azione-foglio="libera" disabled={liberando} onClick={() => liberaCamera(barra, prenotaDopo)}>{liberando ? 'Un attimo…' : testo.conferma}</button>
-                <button type="button" className="mz-lnk q" disabled={liberando} onClick={() => setConfermaLibera(null)}>Annulla</button>
-              </div>
+              // regola dei fogli (01/10/2026): «Annulla» a contorno e l'azione piena
+              <PiedeMaison azione={testo.conferma} testoSalvando="Un attimo…" salvando={liberando} dati="libera"
+                onAzione={() => liberaCamera(barra, prenotaDopo)} onAnnulla={() => setConfermaLibera(null)} />
             }>
             <div className="cal-conf" data-conferma-tenuta>
               {testo.righe.map(r => <p key={r}>{r}</p>)}

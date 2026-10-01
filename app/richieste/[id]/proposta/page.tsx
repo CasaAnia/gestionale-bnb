@@ -1035,10 +1035,10 @@ export default function PropostaPage() {
         <FoglioMaison titolo="L’hai inviata?" altezza={ALTEZZA_INVIATA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-inviata"
           onChiudi={() => setInvioNascosto(true)}
           piede={
-            <div className="ric-piede" data-piede-inviata>
+            <div className="mz-foot" data-piede-inviata><span className="acts">
               <button type="button" className="mz-lnk q" onClick={rispostaNo} disabled={occupato === 'invio' || !!pendente?.confermataIl}>{perConferma ? 'No' : 'Scarta attesa e ricomponi'}</button>
-              <button type="button" className="ric-cta corto" onClick={confermaInviata} disabled={occupato === 'invio' || !perConferma || !!mancaMigrazione}>{occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}</button>
-            </div>
+              <button type="button" className="mz-cta" onClick={confermaInviata} disabled={occupato === 'invio' || !perConferma || !!mancaMigrazione}>{occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}</button>
+            </span></div>
           }>
           <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="ric-inviata">
             {perConferma && <p className="so" data-pendente>{rigaConferma(perConferma)}</p>}
@@ -1053,7 +1053,7 @@ export default function PropostaPage() {
       {/* Altre soluzioni trovate */}
       {pannelloCambia && (
         <FoglioMaison titolo="Soluzioni trovate" altezza={420} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-soluzioni" onChiudi={() => setPannelloCambia(false)}
-          piede={<div className="ric-piede"><button type="button" className="mz-lnk q" onClick={() => setPannelloCambia(false)}>Chiudi</button></div>}>
+          piede={<div className="mz-foot"><span className="acts"><button type="button" className="mz-lnk q" onClick={() => setPannelloCambia(false)}>Chiudi</button></span></div>}>
           {soluzioni.length <= 1 && <p className="so">Nessun&apos;altra soluzione automatica.</p>}
           {soluzioni.map((x, i) => (
             <button key={i} type="button" onClick={() => scegli(i)} aria-pressed={i === indiceScelto} data-senza-sottolinea className={`dr2 ric-soluzione ${i === indiceScelto ? 'on' : ''}`}>
@@ -1067,10 +1067,10 @@ export default function PropostaPage() {
       {azioneSospesa && (
         <FoglioMaison titolo="Sostituire il testo modificato?" altezza={ALTEZZA_SOSTITUIRE} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} dati="richiesta-sostituire" onChiudi={() => setAzioneSospesa(null)}
           piede={
-            <div className="ric-piede">
+            <div className="mz-foot"><span className="acts">
               <button type="button" className="mz-lnk q" onClick={() => setAzioneSospesa(null)}>Annulla</button>
-              <button type="button" className="ric-cta corto" onClick={() => { azioneSospesa(); setTestoModificato(null); setAzioneSospesa(null) }}>Sostituisci</button>
-            </div>
+              <button type="button" className="mz-cta" onClick={() => { azioneSospesa(); setTestoModificato(null); setAzioneSospesa(null) }}>Sostituisci</button>
+            </span></div>
           }>
           <p className="so">La bozza verrà rigenerata con la nuova scelta e le modifiche a mano andranno perse.</p>
         </FoglioMaison>

@@ -97,16 +97,15 @@ export default function FogliettoRichiesta({ gruppo, adesso, libere, cliente, on
     const r = gruppo[0]
     return (
       <FoglioMaison titolo={nomeCompleto(r)} testa={testa(r)} altezza={ALTEZZA_FOGLIETTO_RICHIESTA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
-        veloChiaro onChiudi={onChiudi} dati="foglietto-richiesta">
+        veloChiaro onChiudi={onChiudi} dati="foglietto-richiesta" piede={azioni(r, true)}>
         {righe(r)}
-        {azioni(r, true)}
       </FoglioMaison>
     )
   }
   // Più richieste sovrapposte: una sotto l'altra, si scorre dentro il foglio
   return (
     <FoglioMaison titolo={`${gruppo.length} richieste`} testa={<span />} altezza={ALTEZZA_FOGLIETTO_RICHIESTA} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
-      veloChiaro onChiudi={onChiudi} dati="foglietto-richiesta">
+      veloChiaro onChiudi={onChiudi} dati="foglietto-richiesta" piede={<TastiFoglietto onChiudi={onChiudi} />}>
       {gruppo.map(r => (
         <section key={r.id} className="ric-fog-blocco">
           {testa(r)}
@@ -114,7 +113,6 @@ export default function FogliettoRichiesta({ gruppo, adesso, libere, cliente, on
           {azioni(r, false)}
         </section>
       ))}
-      <TastiFoglietto onChiudi={onChiudi} />
     </FoglioMaison>
   )
 }

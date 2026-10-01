@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import FoglioMaison from '@/components/maison/FoglioMaison'
+import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 import { periodoConMese } from '@/lib/schedaPrenotazione'
 import { MOTIVI_RIFIUTO_SCELTE, type MotivoRifiuto } from '@/lib/motivoRifiuto'
@@ -32,12 +32,8 @@ export default function RifiutaConMotivo({ richiesta, occupato = false, onConfer
         </div>
       }
       piede={
-        <div className="ric-piede centro">
-          <button type="button" onClick={() => { if (motivo) onConferma(motivo) }} disabled={occupato || !motivo} className="ric-cta mat" data-conferma-rifiuto>
-            {occupato ? 'Un attimo…' : 'Rifiuta la richiesta'}
-          </button>
-          <button type="button" onClick={onAnnulla} disabled={occupato} className="mz-lnk q">Annulla</button>
-        </div>
+        <PiedeMaison mattone azione="Rifiuta la richiesta" testoSalvando="Un attimo…" salvando={occupato} disabilitato={!motivo}
+          onAzione={() => { if (motivo) onConferma(motivo) }} onAnnulla={onAnnulla} datiAzione={{ 'data-conferma-rifiuto': '' }} />
       }>
       <div className="ric-pag ric-camere" role="group" aria-label="Motivo" data-senza-sottolinea>
         {MOTIVI_RIFIUTO_SCELTE.map(s => {

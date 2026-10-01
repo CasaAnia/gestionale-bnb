@@ -63,7 +63,7 @@ test('layout della pagina: «Legenda» sotto «Oggi» con etichetta, anche dal M
   assert.ok(occorrenze(legenda, '<FoglioMaison') >= 1)
   assert.ok(occorrenze(legenda, 'altezza = ALTEZZA_LEGENDA') >= 1)      // la stessa legenda, con le voci degli Arrivi quando le passano
   assert.ok(occorrenze(legenda, 'altezza={altezza}') >= 1)
-  assert.ok(occorrenze(legenda, '>Chiudi</button>') >= 1)
+  assert.ok(occorrenze(legenda, '<PiedeMaison testoAnnulla="Chiudi" onAnnulla={onChiudi} />') >= 1)   // regola dei fogli (01/10/2026)
   assert.ok(occorrenze(legenda, 'icone = ICONE_LEGENDA') >= 1)
   assert.ok(occorrenze(legenda, '{icone}') >= 1)
 })

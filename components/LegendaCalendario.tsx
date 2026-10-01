@@ -1,5 +1,5 @@
 'use client'
-import FoglioMaison from '@/components/maison/FoglioMaison'
+import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import { VOCI_LEGENDA, ICONE_LEGENDA, OPACITA_ARRIVATA, type VoceLegenda } from '@/lib/calendarioMobile'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
 
@@ -25,7 +25,7 @@ export function PannelloLegenda({ onChiudi, voci = VOCI_LEGENDA, icone = ICONE_L
   return (
     <FoglioMaison titolo={titolo} altezza={altezza} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC} onChiudi={onChiudi} dati={dati}
       testa={<div className="cal-leg-k">Legenda</div>}
-      piede={<div className="cal-fog-ac"><button type="button" className="mz-lnk q" onClick={onChiudi}>Chiudi</button></div>}>
+      piede={<PiedeMaison testoAnnulla="Chiudi" onAnnulla={onChiudi} />}>
       <div data-legenda>
         {voci.map(v => (
           <div key={v.testo} className="cal-leg-r"><i style={quadretto(v, 14)} />{v.testo}</div>

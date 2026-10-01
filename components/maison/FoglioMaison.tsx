@@ -78,9 +78,16 @@ export default function FoglioMaison({ titolo, sottotitolo, altezza, altezzaProp
 }
 
 /** I due comandi in fondo: «Annulla» tenue e l'azione piena, angoli vivi. */
-export function PiedeMaison({ azione, onAzione, onAnnulla, salvando = false, testoSalvando = 'Salvo…', disabilitato = false, totale, dati, testoAnnulla = TESTO_ANNULLA_MAISON }: {
-  azione: string
-  onAzione: () => void
+export function PiedeMaison({ azione, onAzione, onAnnulla, salvando = false, testoSalvando = 'Salvo…', disabilitato = false, totale, dati, testoAnnulla = TESTO_ANNULLA_MAISON, mattone = false, datiAzione, sopra }: {
+  /** senza azione resta solo «Annulla» / «Chiudi», a tutta larghezza */
+  azione?: string
+  onAzione?: () => void
+  /** l'azione in mattone: si toglie, si annulla, si rifiuta */
+  mattone?: boolean
+  /** attributi data- dell'azione (le prove la cercano per nome) */
+  datiAzione?: Record<string, string>
+  /** i comandi secondari, link sottolineati, sopra i due tasti */
+  sopra?: ReactNode
   onAnnulla: () => void
   salvando?: boolean
   testoSalvando?: string
@@ -92,10 +99,11 @@ export function PiedeMaison({ azione, onAzione, onAnnulla, salvando = false, tes
 }) {
   return (
     <div className="mz-foot" data-piede-foglio>
+      {sopra && <div className="sopra">{sopra}</div>}
       {totale ? <span className="tot">{totale}</span> : <span />}
       <span className="acts">
         <button type="button" className="mz-lnk q" data-annulla-foglio onClick={onAnnulla} disabled={salvando}>{testoAnnulla}</button>
-        <button type="button" className="mz-cta" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>
+        {azione && <button type="button" className={`mz-cta${mattone ? ' mat' : ''}`} data-azione-foglio={dati} {...datiAzione} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>}
       </span>
     </div>
   )

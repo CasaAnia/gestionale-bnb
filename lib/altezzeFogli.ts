@@ -46,12 +46,12 @@ export type FoglioConAltezza = keyof typeof ALTEZZE_FOGLI
 // sezione + testa + tasti (44) + 96 sotto. Fra parentesi il foglio più lungo.
 // ============================================================================
 export const ALTEZZE_SEZIONI = {
-  scheda: 860,      // (Dati della cliente) oltre il 92% di 844: tutti i fogli della scheda al 92%
-  home: 760,        // (Modifica arrivo dalla Home)
-  calendario: 560,  // (foglietto della prenotazione)
-  arrivi: 760,      // (Modifica arrivo dagli Arrivi)
-  richieste: 620,   // (foglietto della richiesta)
-  clienti: 420,     // (Elimina cliente)
-  nuova: 560,       // (la notte e «Aggiungi una persona»)
+  scheda: 860,      // (Dati della cliente con «Altra struttura»: 771 di prima + 74 sotto + 8 tasti) oltre il 92% di 844: tutti al 92%
+  home: 795,        // (Modifica arrivo dalla Home, «Altro luogo…» con la fascia: 713 di prima + 82)
+  calendario: 580,  // (foglietto della prenotazione, il caso più lungo di prima 500 + 78; legenda 499)
+  arrivi: 810,      // (Modifica arrivo dagli Arrivi: 729 di prima + 78; con azioni sopra i tasti)
+  richieste: 520,   // (foglietto della richiesta: 440 di prima + 78; più richieste insieme scorrono dentro)
+  clienti: 300,     // (Elimina cliente 255, Eliminare questo documento)
+  nuova: 640,       // (la notte: 552 di prima + 82; «Aggiungi una persona» 473)
 } as const
 export type SezioneFogli = keyof typeof ALTEZZE_SEZIONI

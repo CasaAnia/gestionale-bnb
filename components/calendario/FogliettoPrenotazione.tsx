@@ -147,6 +147,7 @@ export default function FogliettoPrenotazione({ prenotazione, tutte, camere, pag
 
   return (
     <FoglioMaison titolo={nome} testa={testa} altezza={ALTEZZA_FOGLIETTO} larghezzaDesktop={LARGHEZZA_FOGLIETTO_MAC}
+      piede={<TastiFoglietto azione={APRI_LA_SCHEDA} onAzione={onApri} datiAzione={{ 'data-apri-scheda': '' }} onChiudi={onChiudi} testoChiudi={CHIUDI} />}
       veloChiaro onVelo={onVelo} onChiudi={onChiudi} dati="foglietto-calendario">
       <div className="cal-fog" data-foglietto={prenotazione.id} data-caricato={righe ? '1' : undefined}>
         {contenuto.righe.map(r => (
@@ -159,7 +160,6 @@ export default function FogliettoPrenotazione({ prenotazione, tutte, camere, pag
           </div>
         ))}
       </div>
-      <TastiFoglietto azione={APRI_LA_SCHEDA} onAzione={onApri} datiAzione={{ 'data-apri-scheda': '' }} onChiudi={onChiudi} testoChiudi={CHIUDI} />
     </FoglioMaison>
   )
 }

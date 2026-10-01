@@ -118,12 +118,10 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
     <FoglioMaison titolo={nome || TITOLO_ARRIVO} sottotitolo={camera ? `${camera} · ${TITOLO_ARRIVO}` : TITOLO_ARRIVO} altezza={altezza}
       onChiudi={onChiudi} dati={dati} salvato={salvato} onFineSalvato={() => salvato && onSalvato(salvato.campi)}
       testa={testa} veloChiaro={veloChiaro} larghezzaDesktop={larghezzaDesktop}
-      piede={salvaPieno ? (
-        <div className="cal-fa-piede" data-piede-foglio>
-          {azioni && <div className="cal-fa-ac">{azioni}</div>}
-          <button type="button" className="cal-fa-cta" data-azione-foglio="arrivo" onClick={salva} disabled={salvando}>{salvando ? salvaPieno.salvando : 'Salva'}</button>
-        </div>
-      ) : <PiedeMaison azione="Salva" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="arrivo" />}>
+      // regola dei fogli (01/10/2026): sempre «Annulla» e «Salva»; negli Arrivi i comandi
+      // («Chiedi orario · Storico › · Apri prenotazione») sono link sopra i due tasti
+      piede={<PiedeMaison azione="Salva" onAzione={salva} salvando={salvando} testoSalvando={salvaPieno?.salvando ?? 'Salvo…'} onAnnulla={onChiudi} dati="arrivo"
+        sopra={salvaPieno && azioni ? azioni : undefined} />}>
       {sopra ? sopra(arrivo) : <p className="mz-hint">{SOTTOTITOLO_ARRIVO}</p>}
       <ArrivoNavettaMaison arrivo={arrivo} onArrivo={setArrivo} />
       {sotto?.(arrivo, setArrivo)}
