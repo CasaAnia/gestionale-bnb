@@ -171,7 +171,7 @@ export default function Pulizie() {
     <TestaMac titolo="Pulizie" contenitore={24} />
     <nav className="pul-tabs" aria-label="Sezioni pulizie">{(['oggi', 'registro', 'resoconto'] as const).map(v => <button type="button" key={v} className={vista === v ? 'on' : ''} aria-pressed={vista === v} onClick={() => setVista(v)}>{v === 'resoconto' ? 'Statistiche' : v === 'oggi' ? 'Oggi' : 'Registro'}</button>)}</nav>
     <SalvataggiPulizie onVerificato={ricarica} />
-    <TimerInCorso nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />
+    {vista !== 'oggi' && <TimerInCorso pagina nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />}
     {errore && <p role="alert" className="text-red-800 my-3">{errore} <button type="button" className="ed-azione" onClick={() => { setLoading(true); ricarica() }}>Riprova</button></p>}
     {avviso && <p role="alert" className="text-red-800 my-3">{avviso}</p>}
     {loading && !errore ? <p>Lettura del registro…</p> : pronta && <>
