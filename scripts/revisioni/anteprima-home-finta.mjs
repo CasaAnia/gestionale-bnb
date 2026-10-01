@@ -516,7 +516,7 @@ const finto = createServer(async (req, res) => {
     } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message, details: e.detail ?? null }) }
   }
   if (url.pathname === '/rest/v1/prezzi_lavanderia' && dbPulizie && process.env.FINTO_0064 === '1' && req.method !== 'GET') {
-    const corpo = await leggiCorpo(req)
+    const corpo = req.method === 'DELETE' ? [{ pezzo: (url.searchParams.get('pezzo') || '').replace(/^eq\./, ''), prezzo: null }] : await leggiCorpo(req)
     try {
       for (const r of Array.isArray(corpo) ? corpo : [corpo]) {
         if (r.prezzo === null) await dbPulizie.query('delete from prezzi_lavanderia where pezzo=$1', [r.pezzo])

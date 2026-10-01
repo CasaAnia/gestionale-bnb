@@ -11,6 +11,7 @@
 // ============================================================================
 import { useEffect, useMemo, useState } from 'react'
 import PeriodoPulizie, { FiltriPulizie } from '@/components/pulizie/PeriodoPulizie'
+import ProvaLavanderia from '@/components/pulizie/ProvaLavanderia'
 import { leggiFuoriCamera, type FuoriCameraSql } from '@/lib/pulizieTempiDati'
 import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import { interventiDaTabelle, csvInterventi } from '@/lib/pulizieDotazioneStatistiche'
@@ -122,6 +123,8 @@ export default function StatistichePulizie({ rooms, bookings, events, recuperi, 
       <p className="pul-sez">Rinvii e salti</p>
       <p className="pul-chi" data-rinvii>{S.rimandate} {S.rimandate === 1 ? 'rimandata' : 'rimandate'} · {S.saltate} {S.saltate === 1 ? 'cambio saltato' : 'cambi saltati'} · non sono lavori fatti</p>
       <button type="button" className="pul-az" style={{ marginTop: 18 }} onClick={esporta} data-esporta>Esporta il periodo</button>
+
+      <ProvaLavanderia mandati={S.mandati} giorni={S.giorni} />
 
       {(S.base.daCorreggere.length > 0 || senzaMisura > 0 || (storico && (storico.spostate.length + storico.saltate.length + storico.stime.length) > 0)) && <p className="pul-sez">Da sapere</p>}
       {S.base.daCorreggere.length > 0 && <p role="alert" className="pul-errore">{S.base.daCorreggere.length} {S.base.daCorreggere.length === 1 ? 'pulizia ha' : 'pulizie hanno'} recuperi oltre la dotazione: riaprile dal Registro e correggile. Sono escluse dal bucato.</p>}
