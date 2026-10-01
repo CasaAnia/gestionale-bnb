@@ -6,7 +6,7 @@ type Tratto = {
   status?: string | null; num_guests?: number | string | null; total_amount?: number | string | null
   pagato?: boolean | null; extra_bed?: boolean | null; extra_bed_dates?: string[] | null
 }
-export type BarraSoggiorno<T> = T & { trattiBarra?: T[]; ospitiPeriodo?: string }
+export type BarraSoggiorno<T> = T & Tratto & { trattiBarra?: T[]; ospitiPeriodo?: string }
 export function barreSoggiorno<T extends Tratto>(righe: T[]): BarraSoggiorno<T>[] {
   const gruppi = new Map<string,T[]>()
   for (const r of righe) { const k=r.group_id || `riga:${r.id}`; gruppi.set(k,[...(gruppi.get(k)||[]),r]) }
