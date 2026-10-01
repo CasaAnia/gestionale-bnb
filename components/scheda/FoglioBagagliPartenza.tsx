@@ -40,6 +40,7 @@ export default function FoglioBagagliPartenza({ catena, ospite, prenotazione, on
   const [partenzaSi, setPartenzaSi] = useState(!!catena.oraPartenza)
   const [partenza, setPartenza] = useState(catena.oraPartenza ?? '')
   const [errore, setErrore] = useState('')
+  const [esito, setEsito] = useState<'parziale' | 'incerto' | 'non_salvato' | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [salvato, setSalvato] = useState<(Salvataggio & { righe: Record<string, unknown>[] }) | null>(null)
   const freno = useRef(false)
@@ -52,13 +53,17 @@ export default function FoglioBagagliPartenza({ catena, ospite, prenotazione, on
     if (partenzaSi && !oraValida(partenza)) { setErrore('Scrivi l’ora della partenza, per esempio 10:00, oppure scegli «Da chiedere».'); return }
     const scritture = scrittureOrari(catena, bagagliSi ? oraBreve(bagagli) : null, partenzaSi ? oraBreve(partenza) : null)
     if (!scritture.length) { onChiudi(); return }
-    freno.current = true; setSalvando(true); setErrore('')
+    freno.current = true; setSalvando(true); setErrore(''); setEsito(null)
     try {
       const esito = await salvaOrari(scritture,
         (id, campi) => supabase.from('bookings').update(campi).eq('id', id).select('id, bagagli_alle, check_out_time'),
         ids => supabase.from('bookings').select('id, bagagli_alle, check_out_time').in('id', ids))
+      // Solo «salvato» (TUTTE le modifiche confermate) chiude il foglio. Parziale,
+      // incerto e non salvato: il foglio resta aperto con quello che hai scritto;
+      // la scheda mostra le righe rilette (quello che è davvero salvato).
       if (esito.stato === 'salvato') { setSalvato({ cosa: `${TITOLO_BAGAGLI_PARTENZA} · ${camere}`, quando: new Date(), righe: esito.righe }); return }
-      if (esito.stato === 'non_salvato' && esito.righe?.length) onSalvato(esito.righe)
+      if (esito.righe?.length) onSalvato(esito.righe)
+      setEsito(esito.stato)
       setErrore(esito.messaggio)
     } finally { freno.current = false; setSalvando(false) }
   }
@@ -85,7 +90,7 @@ export default function FoglioBagagliPartenza({ catena, ospite, prenotazione, on
       <p className="pul-nt">{NOTA_PARTENZA}</p>
       {wa && <div className="pul-lk"><a href={wa.href} target="_blank" rel="noopener noreferrer" className="pul-az" data-whatsapp="chiedi-partenza"
         onClick={e => { e.preventDefault(); openWhatsApp(wa.numero, wa.testo) }}>Chiedi orario</a></div>}
-      {errore && <p role="alert" className="pul-errore" data-errore-orari>{errore}</p>}
+      {errore && <p role="alert" className={esito === 'incerto' ? 'pul-avviso' : 'pul-errore'} data-errore-orari data-esito={esito ?? 'controllo'}>{errore}</p>}
     </div>
   </FoglioPulizie>
 }
