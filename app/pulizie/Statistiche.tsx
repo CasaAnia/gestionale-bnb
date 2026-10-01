@@ -1,62 +1,136 @@
 'use client'
-// Statistiche approvate il 25/09/2026 (riferimento congelato in outputs/riferimento-pulizie-approvato.zip, app/anteprima-pulizie,
-// vista «Statistiche»), sui dati confermati. Stime storiche, rinvii e salti
-// restano separati, sotto, come prima: mai sommati ai confermati.
-import { useMemo, useState } from 'react'
-import TempiFuoriCamera from '@/components/TempiFuoriCamera'
-import { VOCI_DOTAZIONE } from '@/lib/dotazionePulizie'
-import { interventiDaTabelle, statistichePulizie, oreMinuti, csvInterventi } from '@/lib/pulizieDotazioneStatistiche'
+// ============================================================================
+// Statistiche delle pulizie nella veste approvata da Ania il 01/10/2026
+// (pulizie-registro-statistiche-riferimento.html): periodo «‹ SETT. | MESE |
+// DAL–AL ›», filtri per camera, tre numeri col confronto, quanto dura per
+// tipo, per camera, spazi comuni, come si usano le camere, completi usati,
+// mandati a lavare, biancheria, rinvii e salti, esporta, prova lavanderia.
+// I conti: lib/statistichePulizieNuove (sopra quelli di sempre). Le parti
+// che c'erano già (stime storiche, recuperi oltre la dotazione, lenzuola
+// senza misura) restano in fondo, separate dalle pulizie confermate.
+// ============================================================================
+import { useEffect, useMemo, useState } from 'react'
+import PeriodoPulizie, { FiltriPulizie } from '@/components/pulizie/PeriodoPulizie'
+import { leggiFuoriCamera, type FuoriCameraSql } from '@/lib/pulizieTempiDati'
+import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
+import { interventiDaTabelle, csvInterventi } from '@/lib/pulizieDotazioneStatistiche'
 import { resocontoPulizie, TIPI_PULIZIA } from '@/lib/pulizieResoconto'
+import { periodoIniziale, giorniContati, precedente, testoConfronto, type Periodo } from '@/lib/periodoPulizie'
+import { statisticheNuove, ore } from '@/lib/statistichePulizieNuove'
 import { addDaysStr, type CameraPulizie, type PrenotazionePulizie, type Decisione } from '@/lib/pulizie'
 
 const dataBreve = (s: string) => s.split('-').reverse().join('/')
+const Barra = ({ quota }: { quota: number }) => <div className="bar2"><i style={{ width: `${Math.max(0, Math.min(100, quota * 100))}%` }} /></div>
 
-export default function StatistichePulizie({ rooms, bookings, events, recuperi, td, nomeCamera }: {
+export default function StatistichePulizie({ rooms, bookings, events, recuperi, td }: {
   rooms: CameraPulizie[]; bookings: PrenotazionePulizie[]; events: Decisione[]; recuperi: Record<string, unknown>[] | null; td: string
-  nomeCamera: (bookingId: string) => string | null
+  nomeCamera?: (bookingId: string) => string | null
 }) {
-  const [inizio, setInizio] = useState(`${td.slice(0, 7)}-01`)
-  const [fine, setFine] = useState(td)
-  const [camera, setCamera] = useState('')
-  const [fuori, setFuori] = useState<number | null>(null)
+  const [periodo, setPeriodo] = useState<Periodo>(() => periodoIniziale(td))
+  const [camera, setCamera] = useState('tutte')
+  const [tempi, setTempi] = useState<FuoriCameraSql[] | null>(null)
+  const [erroreTempi, setErroreTempi] = useState('')
+  const [giro, setGiro] = useState(0)
   const nome = (id: string) => rooms.find(r => r.id === id)?.name.split(' ').slice(-1)[0] ?? 'Camera non disponibile'
-  const periodoValido = !!inizio && !!fine && inizio <= fine
-  const fineEsclusa = fine ? addDaysStr(fine, 1) : ''
+  const contati = giorniContati(periodo, td)
+  const prima = contati ? precedente(periodo, td) : null
+  const leggiDal = prima && prima.dal < periodo.dal ? prima.dal : periodo.dal
+  useEffect(() => osservaAggiornamentiPulizie(window, () => setGiro(x => x + 1)), [])
+  useEffect(() => {
+    let viva = true
+    void leggiFuoriCamera(leggiDal, contati?.al ?? periodo.al).then(r => { if (!viva) return; setTempi(r.righe); setErroreTempi(r.errore ?? '') })
+    return () => { viva = false }
+  }, [leggiDal, contati?.al, periodo.al, giro])
   const interventi = useMemo(() => interventiDaTabelle(events as Parameters<typeof interventiDaTabelle>[0], recuperi), [events, recuperi])
-  const report = periodoValido ? statistichePulizie(interventi, inizio, fineEsclusa, camera) : null
-  const storico = periodoValido ? resocontoPulizie(rooms, bookings, events, null, inizio, fineEsclusa, td) : null
+  const roomId = camera === 'tutte' ? '' : camera
+  const S = useMemo(() => contati ? statisticheNuove({ interventi, tempi: tempi ?? [], rinvii: events.filter(e => e.stato !== 'fatta'), dal: contati.dal, al: contati.al, prima, roomId, nomeCamera: nome }) : null,
+    [interventi, tempi, events, contati?.dal, contati?.al, prima?.dal, prima?.al, roomId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const storico = contati ? resocontoPulizie(rooms, bookings, events, null, contati.dal, addDaysStr(contati.al, 1), td) : null
   function esporta() {
-    if (!report) return
-    const blob = new Blob([csvInterventi(report.righe, nome)], { type: 'text/csv;charset=utf-8' })
+    if (!S || !contati) return
+    const blob = new Blob([csvInterventi(S.base.righe, nome)], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob), a = document.createElement('a')
-    a.href = url; a.download = `Casa-Ania-pulizie-${inizio}-${fine}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+    a.href = url; a.download = `Casa-Ania-pulizie-${contati.dal}-${contati.al}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
-  const senzaMisura = report ? report.senzaMisura.lenzuolo_sotto + report.senzaMisura.lenzuolo_sopra : 0
+  const attive = rooms.filter(r => r.active !== false)
+  const massimoTipo = S ? Math.max(S.rifare.media ?? 0, S.biancheria.media ?? 0) : 0
+  const massimoCamera = S ? Math.max(1, ...S.perCamera.map(p => p.minuti)) : 1
+  const massimoSpazi = S ? Math.max(1, ...S.spazi.map(p => p.minuti)) : 1
+  const senzaMisura = S ? S.base.senzaMisura.lenzuolo_sotto + S.base.senzaMisura.lenzuolo_sopra : 0
   return <section id="statistiche" className="scroll-mt-20" data-resoconto-pulizie>
-    <div className="flex flex-wrap gap-3 mb-5"><label className="text-xs">Dal<input className="ed-campo block mt-1" type="date" value={inizio} max={td} onChange={e => setInizio(e.target.value)} /></label><label className="text-xs">Al<input className="ed-campo block mt-1" type="date" value={fine} max={td} onChange={e => setFine(e.target.value)} /></label><label className="text-xs">Camera<select className="ed-campo block mt-1" value={camera} onChange={e => setCamera(e.target.value)}><option value="">Tutte le camere</option>{rooms.map(r => <option key={r.id} value={r.id}>{nome(r.id)}</option>)}</select></label></div>
-    {!report ? <p role="alert">Controlla le date del periodo.</p> : <>
-      {recuperi === null && <p role="status" className="text-sm text-stone mb-3">Recuperi non disponibili in questo momento: le colonne dei recuperi restano vuote.</p>}
-      <div className="grid grid-cols-2 gap-5 border-y border-card-border py-5"><div><p className="ed-sezione">Pulizie confermate</p><p className="font-serif text-4xl mt-2" data-interventi={report.interventi}>{report.interventi}</p><p className="text-xs mt-1 text-stone">su {report.camereDistinte} {report.camereDistinte === 1 ? "camera distinta" : "camere distinte"}</p></div><div><p className="ed-sezione">Tempo registrato</p><p className="font-serif text-3xl mt-2" data-minuti-camere={report.minuti}>{report.conDurata ? oreMinuti(report.minuti) : '—'}</p><p className="text-xs mt-1 text-stone">durata nota per {report.conDurata} su {report.interventi} interventi</p></div></div>
-      <div className="py-4 border-b border-card-border">{report.perTipo.map(t => <p key={t.tipo} className="flex justify-between text-sm py-1" data-tipo={t.tipo}><span>{TIPI_PULIZIA[t.tipo]}</span><strong>{t.n}</strong></p>)}</div>
-      {!camera ? <TempiFuoriCamera giorno={td} oggi={td} dal={inizio} al={fine} minutiCamere={report.minuti} riepilogo nomeCamera={nomeCamera} onTotale={setFuori} />
-        : <p className="text-xs text-stone mt-4">Con una camera scelta si vede solo il suo tempo: il lavoro fuori dalle camere non si attribuisce a una camera.</p>}
-      {!camera && fuori !== null && <p className="text-xs text-stone">Totale lavoro = {report.minuti} min nelle camere (durata nota per {report.conDurata} su {report.interventi}) + {fuori} min fuori dalle camere.</p>}
-      <h2 className="font-serif text-2xl mt-6">Letti rifatti e completi asciugamani</h2><p className="text-xs text-stone mt-1">Dotazione documentata per {report.conAssetto} su {report.interventi} interventi.</p>
-      <div className="grid grid-cols-3 gap-3 py-4"><p><strong className="font-serif text-3xl block" data-matrimoniali>{report.matrimoniali}</strong><span className="text-sm">Matrimoniali</span></p><p><strong className="font-serif text-3xl block" data-singoli>{report.singoli}</strong><span className="text-sm">Singoli</span></p><p><strong className="font-serif text-3xl block" data-completi>{report.completi}</strong><span className="text-sm">Completi asciugamani</span></p></div>
-      <h2 className="font-serif text-2xl mt-5">Recuperato e da lavare</h2><p className="text-xs text-stone mt-1 mb-3">Bilancio completo per {report.conLavaggio} su {report.interventi} interventi. Recuperi annotati su {report.conRecuperi}. Ogni pezzo recuperato evita un pezzo da lavare.</p>
-      <div className="grid grid-cols-[minmax(0,1fr)_60px_60px_60px] gap-x-1 text-xs py-2 border-b border-card-border"><span>Pezzi</span><span className="text-right">Dotazione</span><span className="text-right">Recuperati</span><span className="text-right">Da lavare*</span></div>
-      {VOCI_DOTAZIONE.map(([k, label]) => <div key={k} className="grid grid-cols-[minmax(0,1fr)_60px_60px_60px] gap-x-1 text-sm py-3 border-b border-card-border" data-voce={k}><span>{label}</span><span className="text-right">{report.conAssetto ? report.dotazione[k] : '—'}</span><span className="text-right text-green-mid">{report.conRecuperi ? report.recuperi[k] : '—'}</span><span className="text-right">{report.conLavaggio ? report.lavaggio[k] : '—'}</span></div>)}
-      {senzaMisura > 0 && <div className="grid grid-cols-[minmax(0,1fr)_60px_60px_60px] gap-x-1 text-sm py-3 border-b border-card-border" data-voce="senza_misura"><span>Lenzuola senza misura (storico)</span><span className="text-right">—</span><span className="text-right text-green-mid">{senzaMisura}</span><span className="text-right">—</span></div>}
-      <p className="text-xs text-stone mt-3">*Solo gli interventi con dotazione e recuperi annotati. «Non annotato» non significa zero.{senzaMisura > 0 ? ' Le lenzuola senza misura vengono dallo storico: non si distribuiscono fra singoli e matrimoniali.' : ''}</p>
-      <p className="text-sm mt-4">Recupero sul totale: {report.percentualeRecupero === null ? 'non calcolabile su tutti gli interventi' : `${report.percentualeRecupero.toLocaleString('it-IT', { maximumFractionDigits: 1 })}%`}. Tempo medio: {report.minutiMedi === null ? 'non disponibile' : `${report.minutiMedi.toLocaleString('it-IT', { maximumFractionDigits: 1 })} minuti, sui soli interventi con durata`}.</p>
-      {report.daCorreggere.length > 0 && <p role="alert" className="text-sm text-red-800 mt-3">{report.daCorreggere.length} {report.daCorreggere.length === 1 ? 'intervento ha' : 'interventi hanno'} recuperi oltre la dotazione: riaprili dal Registro e correggili. Sono esclusi dal bucato.</p>}
-      {storico && <details className="text-xs text-stone border-t border-card-border py-3 mt-5"><summary className="cursor-pointer">Rinvii, salti e stime dello storico · separati dai confermati</summary>
-        <p className="mt-2">{storico.spostate.length} pulizie spostate · {storico.numeroRinvii} rinvii · {storico.saltate.length} saltate. Non sono lavori eseguiti.</p>
+    <PeriodoPulizie periodo={periodo} oggi={td} onPeriodo={setPeriodo} />
+    <FiltriPulizie voci={[{ chiave: 'tutte', nome: 'Tutte' }, ...attive.map(r => ({ chiave: r.id, nome: nome(r.id) }))]} scelta={camera} onScegli={setCamera} />
+    {!S || !contati ? <p className="pul-avviso">Questo periodo non è ancora cominciato.</p> : <>
+      {recuperi === null && <p role="status" className="pul-avviso">Recuperi non disponibili in questo momento: le colonne dei recuperi restano vuote.</p>}
+      {erroreTempi && <p role="status" className="pul-avviso">{erroreTempi}</p>}
+      <div className="pul-big3" data-tre-numeri>
+        <div><b data-interventi={S.pulizie}>{S.pulizie}</b><small>{S.pulizie === 1 ? 'pulizia' : 'pulizie'}</small></div>
+        <div><b data-lavoro={S.lavoro}>{S.lavoro ? ore(S.lavoro) : '—'}</b><small>di lavoro<br />{roomId ? 'senza gli spazi comuni' : 'con gli spazi comuni'}</small></div>
+        <div><b data-media={S.aCamera.media ?? ''}>{S.aCamera.media === null ? '—' : `${Math.round(S.aCamera.media)}′`}</b><small>media<br />a camera</small></div>
+      </div>
+      {S.confronto && <p className={`pul-cmp${S.confronto.meglio ? '' : ' grigio'}`} data-confronto>{S.confronto.testo} {testoConfronto(periodo, td)}</p>}
+      {S.aCamera.conMinuti < S.aCamera.n && <p className="pul-nota">Media sulle {S.aCamera.conMinuti} pulizie coi minuti, su {S.aCamera.n}: quelle senza minuti non contano come zero.</p>}
+      {contati.al < periodo.al && <p className="pul-nota">Periodo in corso: contati {contati.giorni} {contati.giorni === 1 ? 'giorno' : 'giorni'}, fino a oggi.</p>}
+
+      <p className="pul-sez">Quanto dura, per tipo</p>
+      {([['Camera da rifare', 'partenze e cambi camera', S.rifare], ['Biancheria ogni 4 notti', 'con l’ospite che resta', S.biancheria]] as const).map(([t, sotto, m]) => <div key={t} className="pul-br" data-per-tipo={t}>
+        <div className="t1"><span>{t}</span><b>{m.media === null ? '—' : `${Math.round(m.media)}′`}<small>· {m.n} {m.n === 1 ? 'volta' : 'volte'}</small></b></div>
+        <p className="pul-chi" style={{ marginTop: 0 }}>{sotto}{m.conMinuti < m.n ? ` · media su ${m.conMinuti} coi minuti` : ''}</p>
+        <Barra quota={massimoTipo && m.media !== null ? m.media / massimoTipo : 0} />
+      </div>)}
+
+      <p className="pul-sez">Per camera</p>
+      {S.perCamera.length === 0 && <p className="pul-nota">Nessuna pulizia in questo periodo.</p>}
+      {S.perCamera.map(p => <div key={p.roomId} className="pul-br" data-per-camera={p.nome}>
+        <div className="t1"><span>{p.nome}</span><b>{p.n}<small>· {p.minuti ? ore(p.minuti) : 'minuti non annotati'}</small></b></div>
+        <Barra quota={p.minuti / massimoCamera} />
+      </div>)}
+
+      <p className="pul-sez">Spazi comuni</p>
+      {roomId ? <p className="pul-nota" data-spazi-non-attribuiti>Il tempo degli spazi comuni non si attribuisce a una camera: si vede con «Tutte».</p>
+        : tempi === null ? <p className="pul-nota">Tempi non disponibili.</p>
+        : S.spazi.map(s => <div key={s.voce} className="pul-br" data-spazi-stat={s.voce}>
+          <div className="t1"><span>{s.nome}</span><b>{s.minuti ? ore(s.minuti) : '—'}</b></div>
+          <Barra quota={s.minuti / massimoSpazi} />
+        </div>)}
+
+      <p className="pul-sez">Come si usano le camere</p>
+      {S.uso.length === 0 && <p className="pul-nota">Nessuna pulizia coi letti segnati in questo periodo.</p>}
+      {S.uso.map(u => <div key={u.roomId} className="pul-cfg" data-uso={u.nome}>
+        <div className="t1"><span>{u.nome}</span><small>{u.tipo ? `${u.tipo} · ` : ''}{u.volte} {u.volte === 1 ? 'volta' : 'volte'}</small></div>
+        <div className="rw2">{u.pillole.map(p => <i key={p.testo}><b>{p.n}</b>{p.testo}</i>)}</div>
+      </div>)}
+
+      <p className="pul-sez">Completi usati</p>
+      <div className="pul-cu" data-completi>
+        <span className="h k" /><span className="h">Lenzuola<br />matrimoniali</span><span className="h">Lenzuola<br />singole</span><span className="h">Asciugamani</span>
+        {(['settimana', 'mese', 'anno'] as const).map(k => <span key={k} style={{ display: 'contents' }}>
+          <span className="k">{k === 'settimana' ? 'a settimana' : k === 'mese' ? 'al mese' : 'all’anno'}</span>
+          <span><b>{Math.round(S.completi.matrimoniali[k])}</b></span><span><b>{Math.round(S.completi.singole[k])}</b></span><span><b>{Math.round(S.completi.asciugamani[k])}</b></span>
+        </span>)}
+      </div>
+      <p className="pul-chi">Medie sul periodo scelto ({S.giorni} {S.giorni === 1 ? 'giorno' : 'giorni'}). La matrimoniale usata da una persona sola conta un completo matrimoniale e un completo asciugamani; il letto in più conta un completo singolo e uno di asciugamani.{S.base.conAssetto < S.pulizie ? ` Letti segnati su ${S.base.conAssetto} pulizie di ${S.pulizie}.` : ''}</p>
+
+      <p className="pul-sez">Mandati a lavare</p>
+      <div className="pul-pz h"><span>Pezzo</span><span>Totale</span><span>Recuperati</span><span>Al mese</span></div>
+      {S.mandati.map(m => <div key={m.pezzo} className="pul-pz" data-mandati={m.pezzo}><span>{m.nome}</span><span>{m.totale}</span><span>{m.recuperati}</span><span><b>{Math.round(m.alMese)}</b></span></div>)}
+      <p className="pul-chi">Totale = pezzi preparati nelle pulizie coi letti segnati; al mese = (totale − recuperati) diviso i giorni del periodo × 30,44.{S.base.conRecuperi < S.pulizie ? ` Recuperi annotati su ${S.base.conRecuperi} pulizie di ${S.pulizie}: dove non sono annotati, tutto conta come mandato a lavare.` : ''}</p>
+
+      <p className="pul-sez">Biancheria</p>
+      <div className="pul-lin" data-biancheria><div><b>{S.preparati}</b><small>preparati</small></div><div className="g"><b>{S.base.conRecuperi ? S.recuperati : '—'}</b><small>recuperati{S.base.conRecuperi && S.percentuale !== null ? ` · ${Math.round(S.percentuale)}%` : ''}</small></div><div><b>{S.aLavare}</b><small>a lavare</small></div></div>
+
+      <p className="pul-sez">Rinvii e salti</p>
+      <p className="pul-chi" data-rinvii>{S.rimandate} {S.rimandate === 1 ? 'rimandata' : 'rimandate'} · {S.saltate} {S.saltate === 1 ? 'cambio saltato' : 'cambi saltati'} · non sono lavori fatti</p>
+      <button type="button" className="pul-az" style={{ marginTop: 18 }} onClick={esporta} data-esporta>Esporta il periodo</button>
+
+      {(S.base.daCorreggere.length > 0 || senzaMisura > 0 || (storico && (storico.spostate.length + storico.saltate.length + storico.stime.length) > 0)) && <p className="pul-sez">Da sapere</p>}
+      {S.base.daCorreggere.length > 0 && <p role="alert" className="pul-errore">{S.base.daCorreggere.length} {S.base.daCorreggere.length === 1 ? 'pulizia ha' : 'pulizie hanno'} recuperi oltre la dotazione: riaprile dal Registro e correggile. Sono escluse dal bucato.</p>}
+      {senzaMisura > 0 && <p className="pul-chi" data-senza-misura>Lenzuola senza misura nello storico: {senzaMisura} recuperate. Non si distribuiscono fra singoli e matrimoniali.</p>}
+      {storico && (storico.spostate.length + storico.saltate.length + storico.stime.length) > 0 && <details className="pul-chi" style={{ marginTop: 8 }}><summary className="cursor-pointer">Rinvii dettagliati e stime dello storico · separati dalle pulizie confermate</summary>
         {storico.spostate.map((g, i) => <p key={i} className="mt-1">{nome(g.roomId)} · dal {dataBreve(g.prevista)} al {dataBreve(g.prossima)} · {g.rinvii.length} rinvii</p>)}
         {storico.saltate.map((r, i) => <p key={`s${i}`} className="mt-1">{nome(r.room_id)} · saltata la pulizia del {dataBreve(r.data_prevista)}</p>)}
-        {storico.stime.length > 0 && <><p className="mt-3">{storico.stime.length} interventi ricostruiti dallo storico: stime del vecchio sistema, possono cambiare se si correggono le prenotazioni.</p>{storico.stime.map((r, i) => <p key={`t${i}`} className="mt-1">{dataBreve(r.date)} · {nome(r.roomId)} · {TIPI_PULIZIA[r.tipo]}</p>)}</>}
+        {storico.stime.length > 0 && <><p className="mt-3">{storico.stime.length} interventi ricostruiti dallo storico: stime del vecchio sistema, non sono pulizie confermate e non entrano nei numeri sopra.</p>{storico.stime.map((r, i) => <p key={`t${i}`} className="mt-1">{dataBreve(r.date)} · {nome(r.roomId)} · {TIPI_PULIZIA[r.tipo]}</p>)}</>}
       </details>}
-      <button type="button" className="ed-pillola-contorno mt-4" onClick={esporta}>Esporta resoconto</button>
     </>}
   </section>
 }

@@ -210,3 +210,46 @@ button.pul-rr { cursor: pointer; }
 .pul-togli { margin-top: 18px; font-size: 15px; line-height: 1.45; }
 .pul-togli small { display: block; font-size: 12.5px; color: var(--p-sec); margin-top: 6px; }
 .mz[data-foglio-maison^="pul-"] .corpo { overflow-x: hidden; }
+
+/* ── Statistiche (riferimento 3) ────────────────────────────────────────── */
+.pul-sez { display: flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--p-ott); margin: 22px 0 10px; }
+.pul-sez::after { content: ""; flex: 1; height: 1px; background: var(--p-ott); opacity: .45; }
+.pul-big3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; border-top: 1px solid var(--p-filo); border-bottom: 1px solid var(--p-filo); padding: 14px 0; }
+.pul-big3 div b { display: block; font-family: var(--p-disp); font-size: 34px; font-weight: 600; line-height: 1; }
+.pul-big3 div small { display: block; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--p-sec); margin-top: 6px; line-height: 1.35; }
+.pul-cmp { font-size: 12px; color: var(--p-ver); margin-top: 6px; }
+.pul-cmp.grigio { color: var(--p-sec); }
+.pul-nota { font-size: 11.5px; color: var(--p-sec); margin-top: 4px; line-height: 1.4; }
+.pul-br { padding: 9px 0; border-bottom: 1px solid var(--p-filo); }
+.pul-br .t1 { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.pul-br .t1 span { font-family: var(--p-disp); font-size: 19px; }
+.pul-br .t1 b { font-family: var(--p-disp); font-size: 19px; font-weight: 600; white-space: nowrap; }
+.pul-br .t1 b small { font-family: var(--p-sans); font-size: 11.5px; font-weight: 400; color: var(--p-sec); margin-left: 6px; }
+.pul-br .bar2 { height: 5px; background: #F1ECE3; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+.pul-br .bar2 i { display: block; height: 100%; background: var(--p-ott); opacity: .75; }
+.pul-lin { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.pul-lin div { border: 1px solid var(--p-filo); border-radius: 10px; padding: 10px; }
+.pul-lin div b { display: block; font-family: var(--p-disp); font-size: 28px; font-weight: 600; line-height: 1; }
+.pul-lin div small { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--p-sec); }
+.pul-lin div.g b { color: var(--p-ver); }
+.pul-cfg { padding: 10px 0; border-bottom: 1px solid var(--p-filo); }
+.pul-cfg .t1 { display: flex; justify-content: space-between; align-items: baseline; }
+.pul-cfg .t1 span { font-family: var(--p-disp); font-size: 20px; }
+.pul-cfg .t1 small { font-size: 11px; color: var(--p-sec); }
+.pul-cfg .rw2 { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.pul-cfg .rw2 i { font-style: normal; font-size: 12px; border: 1px solid var(--p-filo); border-radius: 999px; padding: 4px 10px; }
+.pul-cfg .rw2 i b { font-family: var(--p-disp); font-size: 15px; font-weight: 600; margin-right: 4px; }
+.pul-cu { display: grid; grid-template-columns: 86px repeat(3, 1fr); margin-top: 6px; }
+.pul-cu span { padding: 9px 0; border-bottom: 1px solid var(--p-filo); text-align: right; }
+.pul-cu span.k { text-align: left; font-size: 12.5px; color: var(--p-sec); }
+.pul-cu span.h { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--p-sec); line-height: 1.3; padding: 4px 0 6px; }
+.pul-cu span b { font-family: var(--p-disp); font-size: 24px; font-weight: 600; }
+.pul-pz { display: grid; grid-template-columns: 1fr 54px 64px 74px; gap: 6px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--p-filo); font-size: 13px; }
+.pul-pz.h { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--p-sec); padding: 4px 0; }
+.pul-pz > span:not(:first-child) { text-align: right; }
+.pul-pz b { font-family: var(--p-disp); font-size: 17px; font-weight: 600; }
+.pul-pz input { width: 100%; text-align: right; border: 0; border-bottom: 1px solid var(--p-avorio); font-family: var(--p-disp); font-size: 16px; background: transparent; outline: none; padding: 0; color: var(--p-ink); }
+.pul-pz input::placeholder { color: #B8AE9C; font-style: italic; font-size: 13px; }
+.pul-tot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; border-top: 2px solid var(--p-ink); padding-top: 10px; }
+.pul-tot b { font-family: var(--p-disp); font-size: 34px; font-weight: 600; }
+.pul-tot span { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--p-sec); }
