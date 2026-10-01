@@ -127,7 +127,7 @@ export default function FoglioPrezzoSoggiorno({ segmenti, tutti, tratti, ricevut
           {anteprima.incassi.map(r => (
             <div key={r.chiave} data-riga-prezzo={r.chiave} className="flex items-baseline justify-between gap-3" style={{ paddingTop: 6 }}>
               <span style={{ fontSize: 13, color: 'var(--color-stone)' }}>{r.testo}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-stone)' }}>{r.importo}</span>
+              <span className="mz-disp" style={{ fontSize: 18, fontWeight: 400, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: 'var(--color-stone)' }}>{r.importo}</span>
             </div>
           ))}
         </DaPagareConto>

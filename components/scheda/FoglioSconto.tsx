@@ -80,7 +80,7 @@ export default function FoglioSconto({ righe, ricevutiCent, onChiudi, onIncerto,
           <div key={n.chiave} data-riga-anteprima={n.chiave} className="flex items-baseline justify-between gap-3"
             style={{ padding: '8px 0', borderTop: i > 0 ? '1px solid var(--color-card-border)' : undefined }}>
             <span style={{ fontSize: 14, color: n.chiave === 'resta' ? OTTONE : 'var(--color-green-dark)' }}>{n.testo}</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: n.chiave === 'resta' ? OTTONE : 'var(--color-green-dark)' }}>{n.importo}</span>
+            <span className="mz-disp" style={{ fontSize: 20, fontWeight: 400, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: n.chiave === 'resta' ? OTTONE : 'var(--color-green-dark)' }}>{n.importo}</span>
           </div>
         ))}
       </div>
