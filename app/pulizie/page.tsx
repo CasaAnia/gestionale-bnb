@@ -20,6 +20,7 @@ import SpaziComuniOggi from '@/components/pulizie/SpaziComuniOggi'
 import { testoFatta } from '@/lib/pulizieSchede'
 import { rigaGiornata, rigaSpaziComuni, giornoLungo, contoGiorno, oraSegnata, romaDi, oraTesto } from '@/lib/giornataPulizie'
 import { useParte0064 } from '@/lib/schema0064Dati'
+import { nomeOspite } from '@/lib/guestName'
 import { leggiFuoriCamera, type FuoriCameraSql } from '@/lib/pulizieTempiDati'
 import { raccogliPagine } from '@/lib/statistiche/paginazione'
 import { inviaOperazionePulizia } from '@/lib/pulizieServizio'
@@ -30,7 +31,7 @@ import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import { assettoDaSql, recuperoDaRiga, totalePezzi, totaleSenzaMisura } from '@/lib/dotazionePulizie'
 import { lettiTesto, confermateNelGiorno, prossimePulizie, rinviiInCorso, dataNumerica } from '@/lib/pulizieVista'
 import {
-  confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi,
+  confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi,
   pulizieAutomatiche, conteggioGiorno, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
   type PrenotazionePulizie, type CameraPulizie, type Priorita, type Decisione, type PuliziaAutomatica,
 } from '@/lib/pulizie'
@@ -183,7 +184,7 @@ export default function Pulizie() {
       <GraficoGiornata righe={grafico} spazi={spaziOggi} />
       {/* Le camere da fare, nell'ordine di urgenza (RANK di prioritaDi) */}
       {camereOggi.flatMap(c => c.aperte.map((p, i) => <SchedaCameraOggi key={`${p.tipo}:${p.booking.id}:${p.due}`} id={i === 0 ? `camera-${c.room.id}` : undefined}
-        nome={c.nome} pulizia={p} arrivo={c.arrivo} priorita={prioritaDi(p, c.arrivo)} oggi={td} conOrari={conOrari}
+        nome={c.nome} chi={p.tipo === 'soggiorno' ? `${nomeOspite(p.booking)} · ${diffDays(td, soggiornoContinuativo(prenotazioni, p.booking).inizio.check_in)}ª notte` : undefined} pulizia={p} arrivo={c.arrivo} priorita={prioritaDi(p, c.arrivo)} oggi={td} conOrari={conOrari}
         ultimaId={ultimaId(c.room.id)} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onSalvato={aggiornato} />))}
       {camereOggi.length === 0 && <p className="font-serif text-xl py-6" data-nessuna-pulizia>Nessuna pulizia da fare nella giornata.</p>}
       <SpaziComuniOggi oggi={td} righe={fuoriOggi} conAltro={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />

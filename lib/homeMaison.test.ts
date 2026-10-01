@@ -118,17 +118,22 @@ test('pulizie di oggi: con l’arrivo lo stesso giorno NON sono più automatiche
   for (const f of ['lib/pulizieOggi.ts', 'components/PulizieOggi.tsx', 'app/pulizie/page.tsx']) assert.equal(/registrata da sola/.test(leggi(f)), false, f)
 })
 
-test('«Rimanda o salta» nella veste nuova: selettore a filo, data a filo, «Annulla» e «Conferma» pieno, stesse date', () => {
+test('«Rimanda o salta» come foglio (01/10/2026): linguette a filo, data a filo, «Annulla» e «Conferma», stesse date', () => {
   const c = leggi('components/ControlliPulizia.tsx')
   const home = c.slice(c.indexOf('if (home) {'))
-  assert.match(home, /className="mz-inl"/)
-  assert.match(home, /'Rimanda al' : 'Salta questa · prossima il'/)
-  assert.match(home, /Nessun altro cambio prima della partenza del/)
-  assert.match(home, /className="mz-cta"[^>]*>\{occupata \? 'Salvo…' : 'Conferma'\}/)
+  assert.match(home, /<FoglioRimanda camera=\{camera\}/)
+  assert.match(home, /salvato=\{salvato\} onFineSalvato=\{fineSalvato\}/)
+  const f = leggi('components/pulizie/FoglioRimanda.tsx')
+  assert.match(f, /'Rimanda al' : 'Prossima il'/)
+  assert.match(f, /Nessun altro cambio prima della partenza del/)
+  assert.match(f, /azione="Conferma"/)
+  assert.match(f, /Salta questo cambio/)
   // le stesse date di prima
-  assert.match(home, /addDaysStr\(pulizia\.data_prevista > oggi \? pulizia\.data_prevista : oggi, 1\)/)
-  assert.match(home, /addDaysStr\(pulizia\.data_prevista, 4\)/)
-  assert.match(home, /<SalvatoMaison salvato=\{salvato\} onFine=\{fineSalvato\} \/>/)
+  assert.match(f, /const base = pulizia\.data_prevista > oggi \? pulizia\.data_prevista : oggi/)
+  assert.match(f, /addDaysStr\(base, 1\)/)
+  assert.match(f, /addDaysStr\(pulizia\.data_prevista, 4\)/)
+  assert.match(f, /data <= pulizia\.data_prevista/)
+  assert.match(leggi('components/maison/FoglioMaison.tsx'), /\{salvato && <SalvatoMaison salvato=\{salvato\}/)
 })
 
 test('conferma B: lo stesso componente in Arrivo, Pulizia, Pagamento (anche Segna pagato), Rimanda/Salta', () => {
@@ -136,7 +141,7 @@ test('conferma B: lo stesso componente in Arrivo, Pulizia, Pagamento (anche Segn
     assert.match(leggi(f), /salvato=\{salvato\} onFineSalvato=/, `${f} non usa la conferma B`)
   }
   assert.match(leggi('components/maison/FoglioMaison.tsx'), /\{salvato && <SalvatoMaison salvato=\{salvato\}/)
-  assert.match(leggi('components/ControlliPulizia.tsx'), /<SalvatoMaison salvato=\{salvato\} onFine=\{fineSalvato\} \/>/)
+  assert.match(leggi('components/ControlliPulizia.tsx'), /salvato=\{salvato\} onFineSalvato=\{fineSalvato\}/)
   // «Segna pagato» della giornata apre lo stesso foglio del pagamento
   assert.match(leggi('components/maison/PagamentoDaHome.tsx'), /<FoglioPagamento /)
   assert.match(leggi('components/ArriviOggi.tsx'), /<PagamentoDaHome bookingId=\{pagamento\}/)

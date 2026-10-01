@@ -165,3 +165,8 @@ body:has(.pul-pagina) { background: #fff; }
 .mz[data-foglio-maison="pul-recupero"] .corpo > div > .pul-lb:first-child { margin-top: 10px; }
 .mz[data-foglio-maison="pul-recupero"] .pul-lav2 { margin-top: 12px; padding: 9px 0; }
 .mz[data-foglio-maison="pul-recupero"] .pul-lav2 span { margin-top: 2px; }
+
+/* ── Foglio «Rimanda o salta» ───────────────────────────────────────────── */
+.pul-qk { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.pul-qk button { font-family: var(--p-sans); font-size: 13px; border: 1px solid var(--p-avorio); border-radius: 999px; padding: 8px 14px; background: #fff; color: var(--p-ink); text-decoration: none !important; }
+.pul-qk button.on { background: var(--p-ink); color: #F6F2EA; border-color: var(--p-ink); }

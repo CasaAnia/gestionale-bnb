@@ -14,9 +14,11 @@ import { testoRitardo } from '@/lib/pulizieOggi'
 import type { Pulizia, ProssimoArrivo, Priorita, Decisione } from '@/lib/pulizie'
 import type { RispostaPulizia } from '@/lib/pulizieOperazioni'
 
-export default function SchedaCameraOggi({ id, nome, pulizia: p, arrivo, priorita, oggi, conOrari, ultimaId, nomeCamera, onVaiA, onSalvato }: {
+export default function SchedaCameraOggi({ id, nome, chi, pulizia: p, arrivo, priorita, oggi, conOrari, ultimaId, nomeCamera, onVaiA, onSalvato }: {
   id?: string
   nome: string
+  /** per «Rimanda o salta» del cambio biancheria: «Lucia Ferri · 4ª notte» */
+  chi?: string
   pulizia: Pulizia
   arrivo: ProssimoArrivo | null
   priorita: Priorita
@@ -41,7 +43,7 @@ export default function SchedaCameraOggi({ id, nome, pulizia: p, arrivo, priorit
       : ore.length > 0 && <div className="pul-ore" data-orari>{ore.map(o => <div key={o.chiave} className={o.chiave === 'parte' ? (o.ora ? '' : 'q') : 'a'} data-ora={o.chiave}><small>{o.etichetta}</small><b>{o.ora ?? 'da chiedere'}</b></div>)}</div>}
     {wa && <div className="pul-azioni" style={{ marginTop: 8 }}><a href={wa.href} target="_blank" rel="noopener noreferrer" className="pul-az" data-whatsapp="chiedi-partenza" onClick={e => { e.preventDefault(); openWhatsApp(wa.numero, wa.testo) }}>Chiedi orario</a></div>}
     <div className="pul-prep" data-prepara>{pilloleLetti(nome, p.booking, oggi).map(x => <span key={x}>{x}</span>)}</div>
-    <ControlliPulizia pagina camera={nome} oggi={oggi} pulizia={decisione} ultimaId={ultimaId} persone={Number(p.booking.num_guests) || null}
+    <ControlliPulizia pagina camera={nome} chi={chi} oggi={oggi} pulizia={decisione} ultimaId={ultimaId} persone={Number(p.booking.num_guests) || null}
       partenza={p.tipo === 'soggiorno' ? p.booking.check_out : undefined} nomeCamera={nomeCamera} onVaiA={onVaiA} onSalvato={onSalvato} />
   </article>
 }

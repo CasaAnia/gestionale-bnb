@@ -45,7 +45,7 @@ export default function PulizieOggi({ dati }: { dati: StatoNumeriOggi }) {
         : v.prossimo && <p className="pr" data-prossimo-arrivo><small>{ETICHETTA_PROSSIMO_ARRIVO}</small>{v.prossimo}</p>}
       {v.tipo !== 'soggiorno' && <p className="de">{v.descrizione ?? v.riga}</p>}
       <ControlliPulizia home
-        camera={v.camera} oggi={oggi} ultimaId={v.ultimaId ?? null} persone={v.persone} partenza={v.partenza}
+        camera={v.camera} oggi={oggi} ultimaId={v.ultimaId ?? null} persone={v.persone} partenza={v.partenza} chi={v.biancheria?.split(' · ')[0].replace(', ', ' · ')}
         pulizia={v.decisione ?? { ...v.daSegnare!, stato: 'fatta' }} />
     </div>)}
     <div className="mz-fuori">
