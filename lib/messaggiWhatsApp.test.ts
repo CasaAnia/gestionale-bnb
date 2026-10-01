@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { messaggioRichiestaOrario, numeroWhatsAppPrenotazione, waHrefTesto, whatsappRichiestaOrario } from './messaggiWhatsApp.ts'
+import { messaggioRichiestaOrario, numeroWhatsAppPrenotazione, waHrefTesto, whatsappRichiestaOrario, messaggioRichiestaPartenza, whatsappRichiestaPartenza, giornoPartenzaLungo } from './messaggiWhatsApp.ts'
 
 test('numero WhatsApp dalla scheda cliente: solo cifre, 39 se manca, null senza numero', () => {
   assert.equal(numeroWhatsAppPrenotazione('+39 333 123 4567'), '393331234567')
@@ -36,4 +36,27 @@ test('il testo vive SOLO in lib/messaggiWhatsApp: la sezione Messaggi della sche
   assert.ok(scheda.includes('return messaggioRichiestaOrario(nome)'), 'la scheda usa la funzione condivisa, col saluto già pronto')
   assert.ok(!scheda.includes('il suo arrivo si avvicina'), 'nessuna copia del testo nella scheda')
   assert.ok(scheda.includes('waHrefTesto(waPhone'), 'stesso link wa.me condiviso')
+})
+
+// Testo dettato da Ania il 01/10/2026: bloccato parola per parola.
+test('«Richiesta orario di partenza»: il testo di Ania, parola per parola, col giorno per esteso', () => {
+  assert.equal(messaggioRichiestaPartenza('Giovanni', '2026-10-04'), `Gentile Giovanni,
+
+per organizzare al meglio la sua partenza da Casa Ania, può indicarmi a che ora prevede di lasciare la camera domenica 4 ottobre? Anche un orario indicativo va benissimo.
+
+Grazie mille,
+Ania`)
+  assert.equal(giornoPartenzaLungo('2026-10-01'), 'giovedì 1 ottobre')
+  assert.equal(giornoPartenzaLungo('2026-12-31'), 'giovedì 31 dicembre')
+})
+
+test('«Chiedi orario» della partenza: solo il nome nel saluto, stesso link wa.me, null senza telefono', () => {
+  const wa = whatsappRichiestaPartenza({ guest_name: 'Giovanni Serra', guests: { phone: '333 123 4567' } }, '2026-10-04')
+  assert.ok(wa)
+  assert.ok(wa.testo.startsWith('Gentile Giovanni,'))
+  assert.equal(wa.testo.includes('Serra'), false)
+  assert.equal(wa.href, `https://wa.me/393331234567?text=${encodeURIComponent(wa.testo)}`)
+  assert.equal(whatsappRichiestaPartenza({ guests: { phone: null } }, '2026-10-04'), null)
+  const sorgente = readFileSync(new URL('./messaggiWhatsApp.ts', import.meta.url), 'utf8')
+  assert.ok(sorgente.includes('messaggioRichiestaPartenza(salutoOspite(b).nome, giornoPartenza)'), 'stesso saluto di «Richiesta orario»')
 })
