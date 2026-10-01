@@ -28,6 +28,7 @@ import { SchedaNastro, FiloLetto } from './Nastro'
 
 type Prenotazione = {
   id: string; check_in: string; check_out: string; status?: string | null; source?: string | null
+  ospitiPeriodo?: string
   num_guests?: number | string | null; color?: string | null; pagato?: boolean | null; bonifico?: boolean | null
   extra_bed?: boolean | null; extra_bed_dates?: string[] | null
   guests?: { rating?: string | null; vuole_ricevuta?: boolean | null } | null
@@ -89,7 +90,7 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
     date: rigaDate(booking.check_in, booking.check_out, isWebPending ? 'dalSito' : null),
     icone: iconeScheda({ esclusiva: isEsclusiva, ottimo: isOttimo, ricevuta, letto: !!hasExtraBed, cambio: isMultiRoom, dalSito: booking.source === 'sito_web' && !isWebPending }),
     nome: nomeConAltri(booking),
-    sotto: rigaSotto({ ospiti: Number(booking.num_guests) || 1, stato: testoStato(stato), letti: lettiPoolPrenotazione(booking), poi: legami.poiCamera[booking.id], da: legami.daCamera[booking.id] }),
+    sotto: booking.ospitiPeriodo ? `${booking.ospitiPeriodo} · ${testoStato(stato)}` : rigaSotto({ ospiti: Number(booking.num_guests) || 1, stato: testoStato(stato), letti: lettiPoolPrenotazione(booking), poi: legami.poiCamera[booking.id], da: legami.daCamera[booking.id] }),
     arrivo: isWebPending ? null : hasIncoming ? CAMBIO_CAMERA : rigaArrivo(leggiArrivo(booking as unknown as Record<string, unknown>)),
   }
   return (

@@ -1,4 +1,5 @@
 'use client'
+import { barreSoggiorno } from '@/lib/barreSoggiorno'
 import { hrefScheda } from '@/lib/provenienzaScheda'
 // ============================================================================
 // ARRIVI «MAISON» (riferimento approvato da Ania il 29/09/2026:
@@ -395,7 +396,7 @@ export default function Arrivi() {
             {rooms.map((room, ri) => {
               const rowTop = RULER_H + ri * ROW_H
               const shortName = room.name.split(' ').slice(-1)[0]
-              const prenotazioni = arrivi.filter(b => b.room_id === room.id && b.check_out > toStr(startDate) && b.check_in < toStr(endDate))
+              const prenotazioni = barreSoggiorno(arrivi).filter(b => b.room_id === room.id && b.check_out > toStr(startDate) && b.check_in < toStr(endDate))
               // I buchi liberi guardano TUTTE le prenotazioni della camera (anche quelle
               // che negli Arrivi non si disegnano): un buco è libero davvero
               const occupate = bookings.filter(b => b.room_id === room.id)
