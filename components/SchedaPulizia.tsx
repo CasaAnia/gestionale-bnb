@@ -33,7 +33,7 @@ import {
 
 export const TIPI_INTERVENTO: Record<TipoPulizia, string> = { fine_soggiorno: 'Fine soggiorno', soggiorno: 'Durante il soggiorno', cambio_camera: 'Cambio camera' }
 /** Dal 01/10/2026 (Ania, P7): tutti i fogli delle Pulizie hanno la stessa
- *  altezza, quella di questo foglio nella veste nuova: 690 px a 390 × 844, con
+ *  altezza, quella di questo foglio nella veste nuova: fino a 790 px, entro il 92% dello schermo, con
  *  i tasti a 96 px dal fondo (components/pulizie/FoglioPulizie). Prima 866. */
 export const ALTEZZA_FOGLIO_PULIZIA = ALTEZZA_FOGLI_PULIZIE
 /** Il tipo nell'eyebrow e nel Registro (riferimento del 01/10/2026) */

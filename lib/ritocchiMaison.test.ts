@@ -102,9 +102,9 @@ test('B1: l’altezza nuova di ogni foglio, misurata a 390 px nel suo caso più 
   assert.match(arrivo, /export const ALTEZZA_FOGLIO_ARRIVO = 713/)
   assert.match(arrivo, /export const ALTEZZA_FOGLIO_ARRIVO_ARRIVI = 729/)
   assert.match(leggi('components/scheda/FoglioPagamento.tsx'), /export const ALTEZZA_FOGLIO_PAGAMENTO = 611/)
-  // Dal 01/10/2026 (P7): i fogli delle Pulizie alti uguali, 690 px, tasti a 96 px dal fondo
+  // Dal 01/10/2026 (P7): i fogli delle Pulizie alti uguali, fino a 790 px per i comandi del timer, tasti a 96 px dal fondo
   assert.match(leggi('components/SchedaPulizia.tsx'), /export const ALTEZZA_FOGLIO_PULIZIA = ALTEZZA_FOGLI_PULIZIE/)
-  assert.match(leggi('components/pulizie/FoglioPulizie.tsx'), /export const ALTEZZA_FOGLI_PULIZIE = 690/)
+  assert.match(leggi('components/pulizie/FoglioPulizie.tsx'), /export const ALTEZZA_FOGLI_PULIZIE = 790/)
   const proposta = leggi('app/richieste/[id]/proposta/page.tsx')
   assert.match(proposta, /const ALTEZZA_INVIATA = 235/)
   assert.match(proposta, /const ALTEZZA_SOSTITUIRE = 174/)

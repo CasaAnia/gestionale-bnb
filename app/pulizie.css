@@ -13,7 +13,7 @@
 
 /* ── I fogli: stessa altezza, tasti a 96 px dal fondo (P7) ─────────────── */
 .mz[data-foglio-maison^="pul-"] .mz-foglio { background: #fff; border-top: 0; border-radius: 18px 18px 0 0; padding: 10px 18px 96px; box-shadow: 0 -8px 30px rgba(36,31,26,.12); font-family: var(--p-sans); color: var(--p-ink); }
-.mz[data-foglio-maison^="pul-"] .mz-foglio.desktop { border-radius: 18px; padding-bottom: 22px; }
+.mz[data-foglio-maison^="pul-"] .mz-foglio.desktop { border-radius: 18px; padding-bottom: 22px; max-height: calc(92dvh / var(--zoom-pagina, 1)); }
 .mz[data-foglio-maison^="pul-"] .mz-foglio::before { width: 44px; height: 4px; border-radius: 2px; background: #DDD6CA; margin: 0 auto 12px; }
 .mz[data-foglio-maison^="pul-"] .mz-velo { background: rgba(36,31,26,.28); }
 .pul-testa { flex: none; }
@@ -160,10 +160,10 @@ body:has(.pul-pagina) { background: #fff; }
 .pul-lav2 .r .pul-az { margin-left: 10px; font-size: 11px; }
 .pul-lav2 .tocca { background: none; border: 0; padding: 0; text-align: right; color: var(--p-ink); font-family: var(--p-sans); text-decoration: none !important; cursor: pointer; }
 .pul-lav2 .pul-min { width: 70px; font-family: var(--p-disp); font-size: 30px; font-weight: 600; border: 0; border-bottom: 1px solid var(--p-avorio); text-align: right; background: transparent; outline: none; }
-/* misurato a 390 × 844: Lena con letto in più (5 + 5 riquadri) sta nei 690 px senza scorrere */
-.mz[data-foglio-maison="pul-recupero"] .pul-lb { margin: 13px 0 7px; }
-.mz[data-foglio-maison="pul-recupero"] .corpo > div > .pul-lb:first-child { margin-top: 10px; }
-.mz[data-foglio-maison="pul-recupero"] .pul-lav2 { margin-top: 12px; padding: 9px 0; }
+/* Spazio per i comandi manuali del timer, senza ridurre caratteri o tessere. */
+.mz[data-foglio-maison="pul-recupero"] .pul-lb { margin: 8px 0 7px; }
+.mz[data-foglio-maison="pul-recupero"] .corpo > div > .pul-lb:first-child { margin-top: 0; }
+.mz[data-foglio-maison="pul-recupero"] .pul-lav2 { margin-top: 8px; padding: 6px 0; }
 .mz[data-foglio-maison="pul-recupero"] .pul-lav2 span { margin-top: 2px; }
 
 /* ── Foglio «Rimanda o salta» ───────────────────────────────────────────── */
@@ -270,3 +270,10 @@ button.pul-rr { cursor: pointer; }
 .pul-timer-foglio .pul-az { font-size: 10.5px; }
 .pul-timer-foglio .pul-nota { margin-top: 4px; }
 .pul-cron { margin-top: 12px; } .pul-cron .pul-az { font-size: 10.5px; text-transform: none; letter-spacing: .02em; }
+
+/* Il bordo e la barra di scorrimento non coprono il testo o i comandi. */
+.mz[data-foglio-maison^="pul-"] .corpo { min-width: 0; scrollbar-width: thin; }
+.mz[data-foglio-maison^="pul-"] .corpo > div { min-width: 0; padding-right: 8px; }
+.mz[data-foglio-maison^="pul-"] .pul-nota { overflow-wrap: anywhere; }
+.pul-timer-foglio .pul-az { white-space: normal; text-align: left; max-width: 100%; }
+.mz[data-foglio-maison="pul-recupero"] .pul-timer-foglio { margin-top: 6px; }

@@ -3,8 +3,8 @@
 // I FOGLI DELLE PULIZIE (regola di Ania del 01/10/2026, riferimento
 // docs/design/pulizie-fogli-riferimento.html): «Pulita e recuperato»,
 // «Rimanda o salta», «Spazi comuni · minuti a mano» e «Bagagli e partenza»
-// hanno TUTTI la stessa altezza — quella del più lungo, il recupero: 690 px su
-// un telefono da 390 × 844 — così partono dallo stesso punto e non «saltano»
+// hanno TUTTI la stessa altezza — quella del più lungo, il recupero: fino a 790 px su
+// telefono (entro il 92% dello schermo) — così partono dallo stesso punto e non «saltano»
 // passando dall'uno all'altro. I tasti sono sempre due, a tutta larghezza,
 // «Annulla» a contorno e l'azione piena (1fr 1.6fr, alti 44), con il bordo
 // di sotto a 96 px dal fondo dello schermo. Il contenuto sta in alto; su uno
@@ -16,7 +16,7 @@ import type { ReactNode } from 'react'
 import FoglioMaison from '@/components/maison/FoglioMaison'
 import type { Salvataggio } from '@/components/maison/SalvatoMaison'
 
-export const ALTEZZA_FOGLI_PULIZIE = 690
+export const ALTEZZA_FOGLI_PULIZIE = 790
 export const DISTANZA_TASTI_DAL_FONDO = 96
 
 export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande = 30, dati, onChiudi, onAnnulla, salvato, onFineSalvato, azione, onAzione, salvando = false, disabilitato = false, mattone = false, testoAnnulla = 'Annulla', testoSalvando = 'Salvo…', children }: {
