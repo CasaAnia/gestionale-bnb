@@ -7,10 +7,10 @@
 // «Altro» una riga facoltativa «Cosa» (al massimo 60 caratteri; solo con la
 // proposta 0064). Salva con salvaFuoriCamera, lo stesso di TempiFuoriCamera:
 // il valore scritto SOSTITUISCE il totale della voce in quella giornata; il
-// timer fermato si somma in modo dichiarato (totaleProposto). Dopo il
+// timer fermato con «Ferma e riporta i minuti» si somma in modo dichiarato (totaleProposto). Dopo il
 // salvataggio si rilegge la riga e si confronta.
 // ============================================================================
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import FoglioPulizie from './FoglioPulizie'
 import TimerPulizia from '@/components/TimerPulizia'
 import type { Salvataggio } from '@/components/maison/SalvatoMaison'
@@ -47,20 +47,12 @@ export default function FoglioSpaziComuni({ giorno, oggi, voce, righe, conCosa, 
     setMinuti(String(p.minuti)); setRiportato(trascorsi); setMessaggio(p.testo)
   }, [salvata, minuti])
 
-  // Timer in pausa con minuti non ancora riportati: si aggiungono da soli,
-  // detto in chiaro («12 min salvati + 5 dal timer = 17 min»).
-  useEffect(() => {
-    if (!t || t.avviato_at || t.trascorsi <= 0 || riportato === t.trascorsi) return
-    const id = window.setTimeout(() => riporta(0, t.trascorsi), 0)
-    return () => window.clearTimeout(id)
-  }, [t, riportato, riporta])
-
   async function salva() {
     if (freno.current) return
     const n = Number(minuti)
     if (minuti.trim() === '' || !Number.isInteger(n) || n < 0 || n > 1440) { setMessaggio('Scrivi i minuti, da 0 a 1440.'); return }
     if (t?.avviato_at) { setMessaggio('Ferma il timer prima di salvare il tempo.'); return }
-    if (t && t.trascorsi > 0 && riportato !== t.trascorsi) { setMessaggio('Il timer ha minuti non ancora riportati: mettilo in pausa, i minuti si aggiungono qui.'); return }
+    if (t && t.trascorsi > 0 && riportato !== t.trascorsi) { setMessaggio('Il timer ha minuti non ancora riportati: premi «Ferma e riporta i minuti» oppure azzeralo.'); return }
     const testo = cosa.trim().slice(0, 60)
     freno.current = true; setSalvando(true); setMessaggio('')
     try {
@@ -79,7 +71,7 @@ export default function FoglioSpaziComuni({ giorno, oggi, voce, righe, conCosa, 
     onChiudi={onChiudi} salvato={salvato} onFineSalvato={() => { onSalvato(); onChiudi() }}
     azione="Salva" onAzione={() => void salva()} salvando={salvando} disabilitato={!!salvato}>
     <div data-foglio-spazi={voce}>
-      {giorno === oggi && <TimerPulizia grande chiave={chiave} nome={nome} onMinuti={riporta} nomeCamera={nomeCamera} />}
+      {giorno === oggi && <TimerPulizia foglio chiave={chiave} nome={nome} onMinuti={riporta} nomeCamera={nomeCamera} />}
       <label className="pul-fld"><span>Minuti</span>
         <input type="number" inputMode="numeric" min="0" max="1440" placeholder="—" aria-label="Minuti" data-campo="minuti-spazi" value={minuti} onChange={e => setMinuti(e.target.value)} style={{ width: 90 }} />
       </label>

@@ -33,7 +33,7 @@ import { ricaricaDaControllare } from '@/lib/daControllareDati'
 import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import { confermateNelGiorno, prossimePulizie, rinviiInCorso, dataNumerica } from '@/lib/pulizieVista'
 import {
-  confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi,
+  confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi, cronologiaCamera,
   pulizieAutomatiche, conteggioGiorno, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
   type PrenotazionePulizie, type CameraPulizie, type Priorita, type Decisione, type PuliziaAutomatica,
 } from '@/lib/pulizie'
@@ -124,7 +124,7 @@ export default function Pulizie() {
     const aperte = pulizieAperte(prenotazioni, room.id, td, events)
     const arrivo = prossimoArrivo(prenotazioni, room.id, td)
     const priorita = aperte.length ? aperte.map(p => prioritaDi(p, arrivo)).sort((a, b) => RANK[a] - RANK[b])[0] : null
-    return { room, nome: breve(room.id), aperte, arrivo, priorita }
+    return { room, nome: breve(room.id), aperte, arrivo, priorita, cronologia: cronologiaCamera(prenotazioni, room.id, td, events, rooms) }
   }).filter(r => r.aperte.length > 0).sort((a, b) => RANK[a.priorita!] - RANK[b.priorita!]), [rooms, prenotazioni, events, td, breve])
   const daFare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
   const confermate = confermateNelGiorno(events, td)
@@ -171,7 +171,7 @@ export default function Pulizie() {
     <TestaMac titolo="Pulizie" contenitore={24} />
     <nav className="pul-tabs" aria-label="Sezioni pulizie">{(['oggi', 'registro', 'resoconto'] as const).map(v => <button type="button" key={v} className={vista === v ? 'on' : ''} aria-pressed={vista === v} onClick={() => setVista(v)}>{v === 'resoconto' ? 'Statistiche' : v === 'oggi' ? 'Oggi' : 'Registro'}</button>)}</nav>
     <SalvataggiPulizie onVerificato={ricarica} />
-    {vista !== 'oggi' && <TimerInCorso pagina nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />}
+    <TimerInCorso pagina nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />
     {errore && <p role="alert" className="text-red-800 my-3">{errore} <button type="button" className="ed-azione" onClick={() => { setLoading(true); ricarica() }}>Riprova</button></p>}
     {avviso && <p role="alert" className="text-red-800 my-3">{avviso}</p>}
     {loading && !errore ? <p>Lettura del registro…</p> : pronta && <>
@@ -180,7 +180,7 @@ export default function Pulizie() {
       <GraficoGiornata righe={grafico} spazi={spaziOggi} />
       {/* Le camere da fare, nell'ordine di urgenza (RANK di prioritaDi) */}
       {camereOggi.flatMap(c => c.aperte.map((p, i) => <SchedaCameraOggi key={`${p.tipo}:${p.booking.id}:${p.due}`} id={i === 0 ? `camera-${c.room.id}` : undefined}
-        nome={c.nome} chi={p.tipo === 'soggiorno' ? `${nomeOspite(p.booking)} · ${diffDays(td, soggiornoContinuativo(prenotazioni, p.booking).inizio.check_in)}ª notte` : undefined} pulizia={p} arrivo={c.arrivo} priorita={prioritaDi(p, c.arrivo)} oggi={td} conOrari={conOrari}
+        nome={c.nome} cronologia={i === 0 ? c.cronologia : undefined} chi={p.tipo === 'soggiorno' ? `${nomeOspite(p.booking)} · ${diffDays(td, soggiornoContinuativo(prenotazioni, p.booking).inizio.check_in)}ª notte` : undefined} pulizia={p} arrivo={c.arrivo} priorita={prioritaDi(p, c.arrivo)} oggi={td} conOrari={conOrari}
         ultimaId={ultimaId(c.room.id)} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onSalvato={aggiornato} />))}
       {camereOggi.length === 0 && <p className="font-serif text-xl py-6" data-nessuna-pulizia>Nessuna pulizia da fare nella giornata.</p>}
       <SpaziComuniOggi oggi={td} righe={fuoriOggi} conAltro={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onMinuti={voce => setFoglioSpazi({ giorno: td, voce, righe: fuoriOggi })} />

@@ -38,8 +38,8 @@ export default function SpaziComuniOggi({ oggi, righe, conAltro, nomeCamera, onV
         <div className="pul-sc">
           <span>{label}</span>
           {onMinuti ? <button type="button" className="min" data-minuti-spazi={k} onClick={() => onMinuti(k)}>{testo}</button> : <small data-minuti-spazi={k}>{testo}</small>}
-          {!inCorso ? <button type="button" className="pul-az" data-comando-spazi={k} disabled={occupato || s.stato !== 'pronto'}
-            onClick={async () => { if (altro) { setErrore({ voce: k, testo: 'Un altro timer è in corso: mettilo in pausa prima di avviarne un altro.' }); return }; setOccupato(true); setErrore(null); const e = await azioneTimer('avvia', chiave); setOccupato(false); if (e.errore) setErrore({ voce: k, testo: e.errore }) }}>{secondi ? 'Riprendi' : 'Avvia'}</button> : <span />}
+          {!inCorso ? <button type="button" className="pul-az" data-comando-spazi={k} disabled={occupato || s.stato !== 'pronto' || !!altro}
+            onClick={async () => { setOccupato(true); setErrore(null); const e = await azioneTimer('avvia', chiave); setOccupato(false); if (e.errore) setErrore({ voce: k, testo: e.errore }) }}>{secondi ? 'Riprendi' : 'Avvia'}</button> : <span />}
         </div>
         {inCorso && <div className="pul-sc-timer"><TimerPulizia grande chiave={chiave} nome={label} onMinuti={() => onMinuti?.(k)} nomeCamera={nomeCamera} onVaiA={onVaiA} /></div>}
         {errore?.voce === k && <p role="alert" className="pul-errore">{errore.testo}</p>}

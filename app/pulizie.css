@@ -261,3 +261,12 @@ button.pul-rr { cursor: pointer; }
 .pul-pz input.da-confermare.non_salvato { color: var(--p-mat); border-bottom-color: var(--p-mat); }
 .pul-pz .nota-riga { grid-column: 1 / -1; text-align: left !important; font-size: 11.5px; color: var(--p-sec); line-height: 1.35; }
 .pul-pz .nota-riga.non_salvato { color: var(--p-mat); }
+/* i comandi del timer nei fogli (come il timer «maison») */
+.pul-timer-foglio { margin-top: 10px; }
+.pul-timer-foglio .riga { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.pul-timer-foglio .et { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--p-sec); }
+.pul-timer-foglio b { font-family: var(--p-disp); font-size: 22px; font-weight: 600; color: var(--p-avorio); font-variant-numeric: tabular-nums; }
+.pul-timer-foglio b.vivo { color: var(--p-ink); }
+.pul-timer-foglio .pul-az { font-size: 10.5px; }
+.pul-timer-foglio .pul-nota { margin-top: 4px; }
+.pul-cron { margin-top: 12px; } .pul-cron .pul-az { font-size: 10.5px; text-transform: none; letter-spacing: .02em; }

@@ -11,14 +11,18 @@ import { etichettaScheda, orariScheda, rigaResta, pilloleLetti } from '@/lib/pul
 import { whatsappRichiestaPartenza } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { testoRitardo } from '@/lib/pulizieOggi'
-import type { Pulizia, ProssimoArrivo, Priorita, Decisione } from '@/lib/pulizie'
+import type { Pulizia, ProssimoArrivo, Priorita, Decisione, VoceCronologia } from '@/lib/pulizie'
+import { useState } from 'react'
+import { dataNumerica } from '@/lib/pulizieVista'
 import type { RispostaPulizia } from '@/lib/pulizieOperazioni'
 
-export default function SchedaCameraOggi({ id, nome, chi, pulizia: p, arrivo, priorita, oggi, conOrari, ultimaId, nomeCamera, onVaiA, onSalvato }: {
+export default function SchedaCameraOggi({ id, nome, chi, cronologia, pulizia: p, arrivo, priorita, oggi, conOrari, ultimaId, nomeCamera, onVaiA, onSalvato }: {
   id?: string
   nome: string
   /** per «Rimanda o salta» del cambio biancheria: «Lucia Ferri · 4ª notte» */
   chi?: string
+  /** «perché questa data?»: la cronologia della camera (solo sulla prima scheda della camera) */
+  cronologia?: VoceCronologia[]
   pulizia: Pulizia
   arrivo: ProssimoArrivo | null
   priorita: Priorita
@@ -29,6 +33,7 @@ export default function SchedaCameraOggi({ id, nome, chi, pulizia: p, arrivo, pr
   onVaiA: (chiave: string) => void
   onSalvato: (r: RispostaPulizia) => void
 }) {
+  const [spiega, setSpiega] = useState(false)
   const t = useTimerPulizie().timer.find(x => x.chiave === chiaveTimerPulizia(p.booking.id, p.tipo, p.due))
   const inCorso = !!t?.avviato_at
   const ore = orariScheda(p, arrivo, oggi, conOrari)
@@ -45,5 +50,10 @@ export default function SchedaCameraOggi({ id, nome, chi, pulizia: p, arrivo, pr
     <div className="pul-prep" data-prepara>{pilloleLetti(nome, p.booking, oggi).map(x => <span key={x}>{x}</span>)}</div>
     <ControlliPulizia pagina camera={nome} chi={chi} oggi={oggi} pulizia={decisione} ultimaId={ultimaId} persone={Number(p.booking.num_guests) || null}
       partenza={p.tipo === 'soggiorno' ? p.booking.check_out : undefined} nomeCamera={nomeCamera} onVaiA={onVaiA} onSalvato={onSalvato} />
+    {/* «perché questa data?» come prima: la cronologia della camera, al tocco */}
+    {cronologia && cronologia.length > 0 && <div className="pul-cron">
+      <button type="button" className="pul-az tn" aria-expanded={spiega} onClick={() => setSpiega(x => !x)} data-perche>{spiega ? 'nascondi la cronologia' : 'perché questa data?'}</button>
+      {spiega && <div className="pul-nota" data-cronologia>{cronologia.map((v, i) => <p key={i} style={{ padding: '2px 0' }}>{dataNumerica(v.data)} · {v.testo}{v.registro === 'ricostruita' ? ' · ricostruito, esito ignoto' : v.registro === 'futura' ? ' · previsto' : ''}</p>)}</div>}
+    </div>}
   </article>
 }

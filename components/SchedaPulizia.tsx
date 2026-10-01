@@ -11,6 +11,7 @@ import { COSA_SALVATA } from '@/lib/salvatoMaison'
 import { apriSelettore } from './nuova/CampoData'
 import { MESI_BREVI, MESI_LUNGHI } from '@/lib/dateItaliane'
 import { useParte0064 } from '@/lib/schema0064Dati'
+import TimerPulizia from './TimerPulizia'
 import { oraBreve, oraPerSql } from '@/lib/schema0064'
 import { oraSegnata, romaDi, oraTesto } from '@/lib/giornataPulizie'
 import { ritoccaPulizia } from '@/lib/ritoccaPulizia'
@@ -20,8 +21,8 @@ import { inviaOperazionePulizia } from '@/lib/pulizieServizio'
 import { leggiOperazionePulizia, TIMER_CAMBIATO, type RispostaPulizia, type TimerVisto } from '@/lib/pulizieOperazioni'
 import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { ricaricaDaControllare } from '@/lib/daControllareDati'
-import { useTimerPulizie, leggiTimer, statoTimerAttuale, azioneTimer } from '@/lib/pulizieTempiDati'
-import { chiaveTimerPulizia, testoCronometro, minutiTimer, secondiTimer, type TimerSql } from '@/lib/tempoPulizie'
+import { useTimerPulizie, leggiTimer, statoTimerAttuale } from '@/lib/pulizieTempiDati'
+import { chiaveTimerPulizia, testoCronometro, secondiTimer, type TimerSql } from '@/lib/tempoPulizie'
 import { lettiTesto } from '@/lib/pulizieVista'
 import type { Decisione, PrenotazionePulizie, TipoPulizia } from '@/lib/pulizie'
 import {
@@ -50,7 +51,7 @@ type Bozza = {
   ora: string | null; oraIniziale: string | null
 }
 
-export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId, onChiudi, onSalvato, onTolta }: {
+export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId, onChiudi, onSalvato, onTolta, nomeCamera, onVaiA }: {
   camera: string                       // nome breve («Amelia»)
   pulizia: Decisione                   // da confermare (senza id) o già confermata
   booking?: PrenotazionePulizie | null // assente: si legge dal database (Home)
@@ -58,7 +59,6 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   onChiudi: () => void; onSalvato?: (r: RispostaPulizia) => void
   /** dopo «togli»: la pulizia non c'è più */
   onTolta?: (id: string) => void
-  /** non più usati dal foglio (il timer della camera sta nella scheda della pagina); restano per chi li passa */
   nomeCamera?: (bookingId: string) => string | null; onVaiA?: (chiave: string) => void
 }) {
   // Le proprietà dell'apertura si fissano: un nuovo disegno della pagina non riapre la scheda.
@@ -104,8 +104,9 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
       const riserva: AssettoPulizia = camera === 'Amelia' ? { matrimoniali: 0, singoli: 1, ospiti: 1, federeMatrimoniale: 4 } : { matrimoniali: 1, singoli: 0, ospiti: 1, federeMatrimoniale: 4 }
       if (!correzione) {
         const assetto = proposta ?? riserva
-        // Riquadri a zero (01/10/2026): confermare senza toccarne nessuno vuol dire «niente recuperato»
-        if (viva) setBozza({ data: oggi, assetto, assettoDaConfermare: !proposta, federeScelte: !(assetto.matrimoniali && assetto.ospiti === 1), recuperi: pezziVuoti(), senzaMisura: NESSUNO, minuti: null, versione: null, versioneRecupero: null, ora: null, oraIniziale: null })
+        // Recuperi «non annotati» (null) finché non si tocca un riquadro o «Niente recuperato»:
+        // zero è solo una scelta esplicita (rilievo di Codex del 01/10/2026, comportamento di prima)
+        if (viva) setBozza({ data: oggi, assetto, assettoDaConfermare: !proposta, federeScelte: !(assetto.matrimoniali && assetto.ospiti === 1), recuperi: null, senzaMisura: NESSUNO, minuti: null, versione: null, versioneRecupero: null, ora: null, oraIniziale: null })
         return
       }
       const [c, r] = await Promise.all([
@@ -135,14 +136,6 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   }
   const riportaMinuti = useCallback((n: number) => { setBozza(b => b ? { ...b, minuti: n || null } : b); setVisto(fotoTimer(ultimoT.current)) }, [])
 
-  // Il timer fermato con dei minuti e i minuti mai scritti: si riportano da
-  // soli (come «Ferma e riporta i minuti»), dal valore riletto dal server.
-  useEffect(() => {
-    if (!bozza || correzione || !t || t.avviato_at || t.trascorsi <= 0 || bozza.minuti !== null || visto !== undefined) return
-    const id = window.setTimeout(() => riportaMinuti(minutiTimer(t.trascorsi)), 0)
-    return () => window.clearTimeout(id)
-  }, [bozza, correzione, t, visto, riportaMinuti])
-
   // Riferimento approvato il 01/10/2026 (pulizie-fogli-riferimento.html,
   // «Dopo»): eyebrow «CAMBIO OSPITE · PULITA E RECUPERATO», camera in grande.
   const eyebrow = `${TIPI_FOGLIO[pulizia.tipo]} · ${correzione ? 'Correzione' : 'Pulita e recuperato'}`
@@ -165,7 +158,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   async function salva() {
     if (!bozza || blocco.current) return
     if (timerInCorso) { setErrore('Ferma il timer prima di confermare la pulizia.'); return }
-    if (timerNonRiportato) { setErrore(`Il timer segna ${testoCronometro(t!.trascorsi)}: scrivi i minuti effettivi.`); return }
+    if (timerNonRiportato) { setErrore(`Il timer segna ${testoCronometro(t!.trascorsi)}: premi «Ferma e riporta i minuti», scrivi i minuti effettivi oppure azzera il timer.`); return }
     if (!bozza.federeScelte) { setErrore('Scegli due o quattro federe per il matrimoniale.'); return }
     if (!bozza.data || bozza.data > oggi) { setErrore('Scegli la data in cui hai fatto la pulizia, fino a oggi.'); return }
     if (bozza.minuti !== null && (!Number.isInteger(bozza.minuti) || bozza.minuti < 1 || bozza.minuti > 1440)) { setErrore('I minuti vanno da 1 a 1440, oppure lascia il campo vuoto.'); return }
@@ -265,7 +258,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
         <div data-da-lavare={lavaggio ? totalePezzi(lavaggio) : ''}><b>{lavaggio ? totalePezzi(lavaggio) : '—'}</b><small>da lavare</small>
           <span>{recuperati === null ? 'recuperi non ancora annotati' : `${preparati} preparati − ${recuperati} recuperati`}</span></div>
         <div className="r" data-minuti-foglio={bozza.minuti ?? ''}>
-          {timerInCorso && t ? <><CifreTimer t={t} scarto={timer.scarto} /><button type="button" className="pul-az" onClick={() => void azioneTimer('pausa', chiave!)} data-pausa-foglio>Pausa</button></>
+          {timerInCorso && t ? <><CifreTimer t={t} scarto={timer.scarto} /><small>in corso</small></>
             : scriviMinuti ? <><input className="pul-min" type="number" inputMode="numeric" min="1" max="1440" autoFocus aria-label="Minuti effettivi" value={bozza.minuti ?? ''}
               onChange={e => { setBozza({ ...bozza, minuti: e.target.value === '' ? null : Number(e.target.value) }); setVisto(fotoTimer(t)) }} onBlur={() => setScriviMinuti(false)} /><small>min</small><span>scrivi i minuti</span></>
             : <button type="button" className="tocca" onClick={() => setScriviMinuti(true)} data-tocca-minuti>
@@ -273,11 +266,13 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
               <span>{bozza.minuti ? 'tocca per correggere' : 'scrivi i minuti'}</span></button>}
         </div>
       </div>
+      <p className="pul-nota" data-nota-recuperi>{bozza.recuperi ? 'Un tocco aggiunge un pezzo recuperato; dopo il massimo torna a zero.' : 'Recuperi non ancora annotati: puoi aggiungerli anche dopo.'} <button type="button" className="pul-az tn" style={{ fontSize: 10.5 }} onClick={() => setBozza({ ...bozza, recuperi: pezziVuoti() })} data-niente-recuperato>Niente recuperato</button></p>
+      {chiave && <TimerPulizia foglio chiave={chiave} nome={camera} onMinuti={riportaMinuti} nomeCamera={nomeCamera ?? (() => null)} onVaiA={onVaiA} />}
+      {correzione && <p className="pul-nota">Correzione: i minuti sono quelli salvati, nessun timer li sostituisce.</p>}
       {totaleSenzaMisura(bozza.senzaMisura) > 0 && <div className="pul-avviso" data-senza-misura><p>Nello storico: {bozza.senzaMisura.lenzuolo_sotto ? `${bozza.senzaMisura.lenzuolo_sotto} lenzuolo sotto` : ''}{bozza.senzaMisura.lenzuolo_sotto && bozza.senzaMisura.lenzuolo_sopra ? ' e ' : ''}{bozza.senzaMisura.lenzuolo_sopra ? `${bozza.senzaMisura.lenzuolo_sopra} lenzuolo sopra` : ''} senza misura. Restano così finché non li riporti sulla misura giusta.</p><button type="button" className="pul-az tn" style={{ marginTop: 6 }} onClick={() => setBozza({ ...bozza, senzaMisura: NESSUNO, recuperi: bozza.recuperi ?? pezziVuoti() })}>Riporta sulla misura</button></div>}
       {!!a.matrimoniali && !bozza.federeScelte && <p className="pul-avviso" data-federe-da-scegliere>Scegli due o quattro federe per il matrimoniale.</p>}
       {oltre.length > 0 && <p role="alert" className="pul-errore" data-recuperi-oltre>Recuperi oltre la dotazione di questi letti: {oltre.join(', ')}. Correggili prima di salvare.</p>}
-      {timerInCorso && <p className="pul-avviso">Il timer è in corso: mettilo in pausa per riportare i minuti.</p>}
-      {timerNonRiportato && <p className="pul-avviso">Il timer segna {testoCronometro(t!.trascorsi)}: riporta i minuti prima di confermare.</p>}
+            {timerNonRiportato && <p className="pul-avviso">Il timer segna {testoCronometro(t!.trascorsi)}: riporta i minuti prima di confermare.</p>}
       {pendente && <p role="status" className="pul-avviso">Un salvataggio di questa camera attende conferma: premi Riprova per verificarlo senza duplicarlo.</p>}
       {errore && <p role="alert" className="pul-errore">{errore}</p>}
       {conRitocchi && !pendente && <button type="button" className="pul-del" data-togli onClick={() => { setErrore(''); setChiediTogli(true) }}>Segnata per sbaglio · togli</button>}
