@@ -6,7 +6,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import { supabase } from '@/lib/supabase'
-import { nomeOspite, nomeConAltri } from '@/lib/guestName'
 import BackBar from '@/components/BackBar'
 import TestaMac from '@/components/TestaMac'
 import { giornoDaParametro } from '@/lib/daControllare'
@@ -16,7 +15,10 @@ import TempiFuoriCamera from '@/components/TempiFuoriCamera'
 import TimerInCorso from '@/components/TimerInCorso'
 import StatistichePulizie from './Statistiche'
 import GraficoGiornata from '@/components/pulizie/GraficoGiornata'
-import { rigaGiornata, rigaSpaziComuni, giornoLungo, contoGiorno } from '@/lib/giornataPulizie'
+import SchedaCameraOggi from '@/components/pulizie/SchedaCameraOggi'
+import SpaziComuniOggi from '@/components/pulizie/SpaziComuniOggi'
+import { testoFatta } from '@/lib/pulizieSchede'
+import { rigaGiornata, rigaSpaziComuni, giornoLungo, contoGiorno, oraSegnata, romaDi, oraTesto } from '@/lib/giornataPulizie'
 import { useParte0064 } from '@/lib/schema0064Dati'
 import { leggiFuoriCamera, type FuoriCameraSql } from '@/lib/pulizieTempiDati'
 import { raccogliPagine } from '@/lib/statistiche/paginazione'
@@ -26,16 +28,15 @@ import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { ricaricaDaControllare } from '@/lib/daControllareDati'
 import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import { assettoDaSql, recuperoDaRiga, totalePezzi, totaleSenzaMisura } from '@/lib/dotazionePulizie'
-import { lettiProposti, lettiTesto, confermateNelGiorno, prossimePulizie, rinviiInCorso, dataNumerica } from '@/lib/pulizieVista'
+import { lettiTesto, confermateNelGiorno, prossimePulizie, rinviiInCorso, dataNumerica } from '@/lib/pulizieVista'
 import {
-  confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi, testoArrivo, cronologiaCamera,
-  pulizieAutomatiche, conteggioGiorno, addDaysStr, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
-  type PrenotazionePulizie, type CameraPulizie, type Pulizia, type Priorita, type Decisione, type PuliziaAutomatica,
+  confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi,
+  pulizieAutomatiche, conteggioGiorno, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
+  type PrenotazionePulizie, type CameraPulizie, type Priorita, type Decisione, type PuliziaAutomatica,
 } from '@/lib/pulizie'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const RANK: Record<Priorita, number> = { urgente: 0, alta: 1, flessibile: 2, nessuna_fretta: 3 }
-const PRIORITA: Record<Priorita, string> = { urgente: 'urgente', alta: 'priorità alta', flessibile: 'flessibile', nessuna_fretta: 'nessuna fretta' }
 const classe = 'ed-pillola-contorno'
 const PAGINA_REGISTRO = 20
 type Vista = 'oggi' | 'registro' | 'resoconto'
@@ -54,13 +55,13 @@ export default function Pulizie() {
   const [saving, setSaving] = useState<string | null>(null)
   const [vista, setVista] = useState<Vista>('oggi')
   const [scheda, setScheda] = useState<Apertura | null>(null)
-  const [spiega, setSpiega] = useState<Record<string, boolean>>({})
   const [giornoRegistro, setGiornoRegistro] = useState('')
   const [quanteRighe, setQuanteRighe] = useState(PAGINA_REGISTRO)
   const [correzione, setCorrezione] = useState<Record<string, string>>({})
   const [td, setTd] = useState(todayStr)
   // Bagagli e partenza (proposta 0064): senza le colonne il grafico non le disegna
   const orari0064 = useParte0064('orari')
+  const altro0064 = useParte0064('altro')
   const conOrari = orari0064.stato === 'si'
   // I tempi degli spazi comuni di oggi, per la riga in fondo al grafico
   const [fuoriOggi, setFuoriOggi] = useState<FuoriCameraSql[]>([])
@@ -121,7 +122,7 @@ export default function Pulizie() {
     const aperte = pulizieAperte(prenotazioni, room.id, td, events)
     const arrivo = prossimoArrivo(prenotazioni, room.id, td)
     const priorita = aperte.length ? aperte.map(p => prioritaDi(p, arrivo)).sort((a, b) => RANK[a] - RANK[b])[0] : null
-    return { room, nome: breve(room.id), aperte, arrivo, priorita, cronologia: cronologiaCamera(prenotazioni, room.id, td, events, rooms) }
+    return { room, nome: breve(room.id), aperte, arrivo, priorita }
   }).filter(r => r.aperte.length > 0).sort((a, b) => RANK[a.priorita!] - RANK[b.priorita!]), [rooms, prenotazioni, events, td, breve])
   const daFare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
   const confermate = confermateNelGiorno(events, td)
@@ -129,23 +130,14 @@ export default function Pulizie() {
   const grafico = useMemo(() => rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, events as Parameters<typeof rigaGiornata>[3], td, conOrari)), [rooms, prenotazioni, events, td, conOrari, breve])
   const spaziOggi = useMemo(() => rigaSpaziComuni(fuoriOggi, td), [fuoriOggi, td])
   const conto = contoGiorno(daFare, confermate)
+  // Pulite oggi: in fondo, una riga sola con l'ora in cui sono state segnate
+  const fatteOggi = useMemo(() => events.filter(e => e.stato === 'fatta' && e.id && (e.data_effettiva || e.data_prevista) === td)
+    .map(e => { const o = oraSegnata(e as Parameters<typeof oraSegnata>[0], romaDi); return { id: e.id!, room_id: e.room_id, ora: o === null ? null : oraTesto(o), minuti: e.minuti ?? null } }), [events, td])
   const prossime = useMemo(() => prossimePulizie(prenotazioni, rooms.filter(r => r.active !== false).map(r => r.id), td, events)
     .filter(p => !camereOggi.some(c => c.room.id === p.roomId && c.aperte.some(a => a.tipo === p.tipo && a.booking.id === p.booking.id && a.due === p.data))), [prenotazioni, rooms, td, events, camereOggi])
   const rinvii = useMemo(() => rinviiInCorso(events, td), [events, td])
 
-  async function sposta(p: Pulizia, giorni: number | null) {
-    if (saving) return
-    setSaving(p.roomId); setAvviso('')
-    const prossima = giorni === null ? addDaysStr(p.due, 4) : addDaysStr(td > p.due ? td : p.due, giorni)
-    const r = await inviaOperazionePulizia(p.roomId, { azione: 'registra', ultima_id: ultimaId(p.roomId), recupero: null, pulizia: {
-      room_id: p.roomId, booking_id: p.booking.id, tipo: p.tipo, stato: giorni === null ? 'saltata' : 'rimandata', data_prevista: p.due,
-      data_effettiva: null, prossima_data: prossima, cambio_biancheria: false, note: null, persone_servite: Number(p.booking.num_guests) || null } })
-    setSaving(null)
-    if (r.errore) { setAvviso(r.errore); return }
-    if (r.risposta) aggiornato(r.risposta)
-  }
   const apri = (camera: string, pulizia: Decisione, booking: PrenotazionePulizie | null) => setScheda({ camera, pulizia, booking })
-  const apriPulizia = (p: Pulizia) => apri(breve(p.roomId), { room_id: p.roomId, booking_id: p.booking.id, tipo: p.tipo, stato: 'fatta', data_prevista: p.due, persone_servite: Number(p.booking.num_guests) || null }, p.booking)
   const vaiA = useCallback((chiave: string) => {
     setScheda(null); setVista('oggi')
     const p = chiave.split(':')
@@ -189,23 +181,15 @@ export default function Pulizie() {
     {vista === 'oggi' && <>
       <div className="pul-giorno" id={`pulizie-giorno-${td}`}><b>{giornoLungo(td)}</b><small><span data-da-fare={daFare}>{conto.daFare}</span> · <em data-confermate={confermate}>{conto.fatte}</em></small></div>
       <GraficoGiornata righe={grafico} spazi={spaziOggi} />
-      {camereOggi.map(c => <article key={c.room.id} id={`camera-${c.room.id}`} className="ed-riga py-5 scroll-mt-20" data-camera={c.nome}>
-        {c.aperte.map((p, i) => { const b = p.booking; const rit = p.ritardo > 0 ? ` · in ritardo di ${p.ritardo} ${p.ritardo === 1 ? 'giorno' : 'giorni'}` : ''
-          return <div key={`${p.tipo}:${b.id}:${p.due}`} className={i ? 'mt-5' : ''} data-pulizia={p.tipo}>
-            <div className="flex justify-between items-baseline gap-3"><h2 className="font-serif text-2xl">{c.nome}</h2><span className="text-xs text-stone">{TIPI_INTERVENTO[p.tipo]}{rit}</span></div>
-            <p className="text-sm mt-2">{lettiProposti(c.nome, b, td)}</p>
-            <p className="text-xs text-stone mt-1">{p.tipo === 'soggiorno' ? `${nomeConAltri(b)} resta · pulizia 4 notti` : p.tipo === 'cambio_camera' ? `${nomeConAltri(b)} va in ${breve(p.cambioCameraVerso!.room_id)}` : p.prevista === td ? `è partito ${nomeOspite(b)}` : `partenza del ${dataNumerica(p.prevista)} · ${nomeOspite(b)}`}{i === 0 && c.arrivo ? ` · ${testoArrivo(c.arrivo)}` : ''}{i === 0 && c.priorita ? ` · ${PRIORITA[c.priorita]}` : ''}</p>
-            {/* Dal 28/09/2026 anche il cambio ospite dello stesso giorno si segna a mano, come le altre */}
-            <>
-              <button type="button" className="ed-pillola mt-4 disabled:opacity-40" disabled={!!saving} onClick={() => apriPulizia(p)}>Registra pulizia · {c.nome}</button>
-              <div className="flex flex-wrap gap-3 mt-3"><button type="button" className={`${classe} disabled:opacity-40`} disabled={!!saving} onClick={() => void sposta(p, 1)}>Domani · {c.nome}</button><button type="button" className={`${classe} disabled:opacity-40`} disabled={!!saving} onClick={() => void sposta(p, 2)}>Tra due giorni · {c.nome}</button>{p.tipo === 'soggiorno' && <button type="button" className={`${classe} disabled:opacity-40`} disabled={!!saving} onClick={() => void sposta(p, null)}>Salta questo cambio · {c.nome}</button>}</div>
-            </>
-          </div> })}
-        {c.cronologia.length > 0 && <div className="mt-3"><button type="button" className="ed-azione ed-azione-tenue" aria-expanded={!!spiega[c.room.id]} onClick={() => setSpiega(s => ({ ...s, [c.room.id]: !s[c.room.id] }))}>{spiega[c.room.id] ? 'nascondi la cronologia' : 'perché questa data?'}</button>
-          {spiega[c.room.id] && <div className="mt-2 text-xs text-stone">{c.cronologia.map((v, i) => <p key={i} className="py-0.5">{dataNumerica(v.data)} · {v.testo}{v.registro === 'ricostruita' ? ' · ricostruito, esito ignoto' : v.registro === 'futura' ? ' · previsto' : ''}</p>)}</div>}</div>}
-      </article>)}
+      {/* Le camere da fare, nell'ordine di urgenza (RANK di prioritaDi) */}
+      {camereOggi.flatMap(c => c.aperte.map((p, i) => <SchedaCameraOggi key={`${p.tipo}:${p.booking.id}:${p.due}`} id={i === 0 ? `camera-${c.room.id}` : undefined}
+        nome={c.nome} pulizia={p} arrivo={c.arrivo} priorita={prioritaDi(p, c.arrivo)} oggi={td} conOrari={conOrari}
+        ultimaId={ultimaId(c.room.id)} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onSalvato={aggiornato} />))}
+      {camereOggi.length === 0 && <p className="font-serif text-xl py-6" data-nessuna-pulizia>Nessuna pulizia da fare nella giornata.</p>}
+      <SpaziComuniOggi oggi={td} righe={fuoriOggi} conAltro={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />
+      {/* Le camere già pulite oggi, in fondo e attenuate */}
+      {fatteOggi.map(f => <article key={f.id} className="pul-card dn" data-pulita-oggi={breve(f.room_id)}><div className="hd"><b>{breve(f.room_id)}</b><span className="pul-pr ok">{testoFatta(f.ora, f.minuti)}</span></div></article>)}
       <div id="fuori-camera" className="scroll-mt-20"><TempiFuoriCamera giorno={td} oggi={td} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} /></div>
-      {camereOggi.length === 0 && <p className="font-serif text-xl py-6">Nessuna pulizia da fare nella giornata.</p>}
       {prossime.length > 0 && <section className="mt-6"><h2 className="font-serif text-2xl">Prossime pulizie</h2>{prossime.map(p => {
         const anticipabile = p.tipo === 'soggiorno' && diffDays(p.data, td) <= GIORNI_PREAVVISO
         return <div key={`${p.roomId}:${p.tipo}:${p.data}`} id={`pulizie-giorno-${p.data}`} className="py-3 text-sm border-b border-card-border scroll-mt-20" data-prossima={breve(p.roomId)}>

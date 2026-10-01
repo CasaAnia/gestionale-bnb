@@ -7,13 +7,17 @@ import { useEffect, useState } from 'react'
 import { useTimerPulizie, azioneTimer } from '@/lib/pulizieTempiDati'
 import { secondiTimer, minutiTimer, testoCronometro, descriviChiave } from '@/lib/tempoPulizie'
 
-export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVaiA, compatto = false, maison = false, etichetta }: {
+export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVaiA, compatto = false, maison = false, grande = false, etichetta }: {
   chiave: string; nome: string; onMinuti: (n: number, trascorsi: number) => void
   nomeCamera: (bookingId: string) => string | null
   onVaiA?: (chiave: string) => void
   compatto?: boolean
   /** il timer pieno nella veste «Maison» (foglio «Pulita e recuperato») */
   maison?: boolean
+  /** il timer GRANDE della pagina Pulizie (01/10/2026): Cormorant 48; in corso
+   *  il numero è nero con «In corso» e «Pausa», fermo è avorio scuro con
+   *  «Avvia» / «Riprendi». Stessa logica: cambia solo l'aspetto. */
+  grande?: boolean
   /** compatto: la scritta a sinistra delle cifre («Area comune, corridoio e biancheria») */
   etichetta?: string
 }) {
@@ -22,6 +26,8 @@ export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVai
   const [occupato, setOccupato] = useState(false)
   const [errore, setErrore] = useState('')
   const [attesaRiporto, setAttesaRiporto] = useState(false)
+  // timer grande: l'avviso «un altro timer è in corso» dopo il tocco su «Avvia»
+  const [avvisoAltro, setAvvisoAltro] = useState(false)
   const t = s.timer.find(x => x.chiave === chiave) ?? null
   const altro = s.timer.find(x => x.chiave !== chiave && x.avviato_at) ?? null
   const inCorso = !!t?.avviato_at
@@ -64,6 +70,19 @@ export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVai
     {altroDescritto && <p className="mz-note" data-altro-timer>Un altro timer è in corso: {altroDescritto.nome}. <button type="button" className="mz-lnk q" disabled={occupato} onClick={() => void esegui('pausa', altro!.chiave)}>Metti in pausa</button></p>}
     {s.stato === 'caricamento' && <p className="mz-note">Lettura del timer…</p>}
     {(s.nonSincronizzato || s.errore || errore) && <p role="status" className="mz-errore">{errore || s.errore || 'Timer non sincronizzato: controlla la connessione.'}</p>}
+  </section>
+  // Pagina Pulizie (01/10/2026, scelta di Ania): l'unico numero nero è quello
+  // della camera che si sta facendo; fermo o in pausa, avorio scuro.
+  if (grande) return <section className="pul-timer" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
+    <div className="tg"><b role="timer" aria-live="off" className={inCorso ? 'vivo' : ''}>{testoCronometro(secondi).padStart(5, '0')}</b>
+      {inCorso && <span>In corso</span>}
+      {/* con un altro timer in corso «Avvia» non parte: mostra l'avviso con «Metti in pausa» */}
+      <button type="button" className="pul-az" disabled={!pronto} onClick={() => { if (!inCorso && altro) { setAvvisoAltro(true); return } void esegui(inCorso ? 'pausa' : 'avvia') }} data-comando-timer>{inCorso ? 'Pausa' : secondi ? 'Riprendi' : 'Avvia'}</button>
+    </div>
+    {altroDescritto && avvisoAltro && <p className="pul-avviso" data-altro-timer>Un altro timer è in corso: {altroDescritto.nome}. <button type="button" className="pul-az tn" disabled={occupato} onClick={() => void esegui('pausa', altro!.chiave)}>Metti in pausa</button>
+      {onVaiA && <> <button type="button" className="pul-az tn" onClick={() => onVaiA(altro!.chiave)}>Vai a {altroDescritto.nome}</button></>}</p>}
+    {s.stato === 'caricamento' && <p className="pul-avviso">Lettura del timer…</p>}
+    {(s.nonSincronizzato || s.errore || errore) && <p role="status" className="pul-errore">{errore || s.errore || 'Timer non sincronizzato: controlla la connessione.'}</p>}
   </section>
   // Dentro il foglio «Pulita e recuperato» (veste «Maison»): stessi comandi del timer pieno, come parole sottolineate
   if (maison) return <section className="mz-timer" style={{ marginTop: 16 }} aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
