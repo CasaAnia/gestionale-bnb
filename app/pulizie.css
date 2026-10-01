@@ -1,0 +1,67 @@
+/* ============================================================================
+   PULIZIE NUOVE (riferimenti approvati da Ania il 01/10/2026):
+   docs/design/pulizie-riferimento.html, pulizie-fogli-riferimento.html,
+   pulizie-registro-statistiche-riferimento.html. Colori e misure dei
+   riferimenti; caratteri del gestionale (Cormorant e Jost veri).
+   ========================================================================== */
+.pul, .mz[data-foglio-maison^="pul-"] {
+  --p-ink: #241F1A; --p-sec: #6E6558; --p-filo: #E8E3DA; --p-ott: #A8894F; --p-ott2: #7a5f2c;
+  --p-mat: #8C3B2E; --p-ver: #2D6A4F; --p-verc: #E3EFE7; --p-avorio: #C9BFA8; --p-tile: #D8D1C4;
+  --p-disp: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  --p-sans: var(--font-jost), Jost, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ── I fogli: stessa altezza, tasti a 96 px dal fondo (P7) ─────────────── */
+.mz[data-foglio-maison^="pul-"] .mz-foglio { background: #fff; border-top: 0; border-radius: 18px 18px 0 0; padding: 10px 18px 96px; box-shadow: 0 -8px 30px rgba(36,31,26,.12); font-family: var(--p-sans); color: var(--p-ink); }
+.mz[data-foglio-maison^="pul-"] .mz-foglio.desktop { border-radius: 18px; padding-bottom: 22px; }
+.mz[data-foglio-maison^="pul-"] .mz-foglio::before { width: 44px; height: 4px; border-radius: 2px; background: #DDD6CA; margin: 0 auto 12px; }
+.mz[data-foglio-maison^="pul-"] .mz-velo { background: rgba(36,31,26,.28); }
+.pul-testa { flex: none; }
+.pul-ey { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--p-ott); margin: 0; }
+.pul-tt { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 4px; }
+.pul-tt b { font-family: var(--p-disp); font-weight: 500; font-size: 30px; line-height: 1.1; color: var(--p-ink); }
+.pul-tt.t28 b { font-size: 28px; }
+.pul-dx { font-size: 12px; color: var(--p-sec); text-align: right; white-space: nowrap; }
+.pul-dx u, .pul-dx button.u { text-decoration: none; border: 0; border-bottom: 1.5px solid var(--p-ott); color: var(--p-ink); padding: 0 0 2px; margin-left: 4px; background: none; font: inherit; position: relative; cursor: pointer; }
+.pul-dx button.u::before { content: ""; position: absolute; left: -6px; right: -6px; top: 50%; height: 40px; transform: translateY(-50%); }
+.pul-su { font-size: 14px; color: var(--p-sec); margin: 2px 0 0; }
+.pul-tasti { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; flex: none; margin-top: 12px; }
+.pul-tasti button { height: 44px; text-align: center; font-family: var(--p-sans); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; border: 1px solid var(--p-ink); background: #fff; color: var(--p-ink); border-radius: 0; text-decoration: none !important; }
+.pul-tasti button.p { background: var(--p-ink); color: #F6F2EA; }
+.pul-tasti button:disabled { opacity: .45; }
+
+/* dentro i fogli */
+.pul-lb { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--p-sec); margin: 16px 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
+.pul-lb.ampia { font-size: 11px; margin: 22px 0 10px; }
+.pul-lb button { position: relative; font: inherit; letter-spacing: .16em; text-transform: uppercase; color: var(--p-ink); background: none; border: 0; border-bottom: 1.5px solid var(--p-ott); padding: 0; }
+.pul-lb button::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 40px; transform: translateY(-50%); }
+.pul-seg { display: flex; gap: 22px; margin-top: 8px; flex-wrap: wrap; }
+.pul-seg button { position: relative; font-family: var(--p-sans); font-size: 14px; color: var(--p-sec); padding: 0 0 5px; background: none; border: 0; border-bottom: 1.5px solid transparent; text-decoration: none !important; }
+.pul-seg button::before { content: ""; position: absolute; left: -6px; right: -6px; top: 50%; height: 40px; transform: translateY(-50%); }
+.pul-seg.grande { gap: 24px; }
+.pul-seg.grande button { font-size: 16px; padding-bottom: 6px; }
+.pul-seg button.on { color: var(--p-ink); border-color: var(--p-ott); }
+.pul-fi { display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--p-avorio); padding: 6px 0; margin-top: 12px; width: 160px; }
+.pul-fi input { font-family: var(--p-disp); font-size: 24px; font-weight: 500; width: 100%; border: 0; background: transparent; outline: none; color: var(--p-ink); padding: 0; }
+.pul-nt { font-size: 12.5px; color: var(--p-sec); margin-top: 8px; line-height: 1.4; }
+.pul-lk { display: flex; gap: 20px; margin-top: 22px; }
+.pul-az { position: relative; font-family: var(--p-sans); font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--p-ink); border: 0; border-bottom: 1.5px solid var(--p-ott); padding: 0 0 4px; background: none; white-space: nowrap; line-height: 1.2; text-decoration: none !important; cursor: pointer; }
+.pul-az::before { content: ""; position: absolute; left: -6px; right: -6px; top: 50%; height: 44px; transform: translateY(-50%); }
+.pul-az.tn { color: var(--p-sec); border-color: var(--p-tile); }
+.pul-az.mat { color: var(--p-mat); border-color: #D9B9B2; }
+.pul-az.p { background: var(--p-ink); color: #F6F2EA; border: 0; padding: 11px 16px; }
+.pul-az:disabled { opacity: .45; cursor: default; }
+.pul-fld { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--p-avorio); padding: 8px 0; margin-top: 12px; position: relative; }
+.pul-fld > span:first-child { font-size: 14px; flex: none; }
+.pul-fld b, .pul-fld input { font-family: var(--p-disp); font-size: 22px; font-weight: 500; text-align: right; background: transparent; border: 0; outline: none; color: var(--p-ink); min-width: 0; padding: 0; }
+.pul-fld input.vu, .pul-fld b.vu { font-size: 17px; font-weight: 400; font-style: italic; }
+.pul-fld input::placeholder { color: #B8AE9C; font-style: italic; font-weight: 400; font-size: 17px; }
+.pul-errore { font-size: 12px; color: var(--p-mat); margin-top: 8px; }
+.pul-avviso { font-size: 12px; color: var(--p-sec); margin-top: 8px; line-height: 1.4; }
+
+/* ── Scheda prenotazione, linguetta Soggiorno: «Bagagli» e «Partenza» ──── */
+.sch-orari { margin-top: 6px; }
+.sch-orario { display: flex; width: 100%; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border: 0; border-bottom: 1px solid var(--m-line); background: none; text-align: left; font-family: var(--home-ui-font); font-size: 13px; color: var(--m-ink); text-decoration: none !important; cursor: pointer; }
+.sch-orario .v { font-family: var(--m-disp); font-size: 18px; font-weight: 500; white-space: nowrap; }
+.sch-orario .v em { font-style: normal; }
+.sch-orario .v em.mat { color: var(--m-mat); }

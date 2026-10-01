@@ -98,6 +98,31 @@
         "PORTA_APP": "3217",
         "PORTA_FINTO": "54333"
       }
+    },
+    {
+      "name": "pulizie-nuove-schema-prima",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "FINTO_PULIZIE_SQL=3",
+        "PORTA_APP=3217",
+        "PORTA_FINTO=54331",
+        "node",
+        "scripts/revisioni/anteprima-home-finta.mjs"
+      ],
+      "port": 3217
+    },
+    {
+      "name": "pulizie-nuove-con-0064",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "FINTO_PULIZIE_SQL=3",
+        "FINTO_0064=1",
+        "PORTA_APP=3217",
+        "PORTA_FINTO=54331",
+        "node",
+        "scripts/revisioni/anteprima-home-finta.mjs"
+      ],
+      "port": 3217
     }
   ]
 }

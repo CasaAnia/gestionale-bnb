@@ -38,7 +38,10 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import TestataMaison from '@/components/scheda/TestataMaison'
 import LinguetteScheda, { useLinguetta } from '@/components/scheda/LinguetteScheda'
 import OggiScheda, { type RigaInBreve, type VoceDaFare } from '@/components/scheda/OggiScheda'
-import { ArrivoMaison, CamereMaison } from '@/components/scheda/SoggiornoMaison'
+import { ArrivoMaison, CamereMaison, OrariMaison } from '@/components/scheda/SoggiornoMaison'
+import FoglioBagagliPartenza from '@/components/scheda/FoglioBagagliPartenza'
+import { catenePrenotazione, type RigaOrari } from '@/lib/bagagliPartenza'
+import { useParte0064 } from '@/lib/schema0064Dati'
 import { VesteMaison } from '@/components/nuova/PezziNuova'
 import { useRegistraIndietro } from '@/components/BackContext'
 import { smartBack } from '@/lib/navHistory'
@@ -166,6 +169,9 @@ export default function SchedaPage() {
   const [business, setBusiness] = useState(false)
   const [confermaAperta, setConfermaAperta] = useState(false)
   const [foglioArrivo, setFoglioArrivo] = useState<string | null>(null)
+  // «Bagagli e partenza» (01/10/2026): la catena aperta nel foglio
+  const [foglioOrari, setFoglioOrari] = useState<string | null>(null)
+  const orari0064 = useParte0064('orari')
   const [foglioProvenienza, setFoglioProvenienza] = useState(false)
   const [foglioComePaga, setFoglioComePaga] = useState(false)
   const [foglioPagamento, setFoglioPagamento] = useState(false)
@@ -356,6 +362,9 @@ export default function SchedaPage() {
   const telefono = guest?.phone ?? null
   const primoSegmento = attive[0] ?? booking
   const arriviPeriodi = arriviDeiPeriodi(attive)
+  // Bagagli sul primo tratto, partenza sull'ultimo, per ogni catena (lib/bagagliPartenza)
+  const catene = useMemo(() => catenePrenotazione((attive.length ? attive : booking ? [booking] : []) as unknown as RigaOrari[]), [attive, booking])
+  const catenaAperta = catene.find(c => c.chiave === foglioOrari) ?? null
   const segmentoArrivo = righe.find(r => r.id === foglioArrivo) ?? (booking?.id === foglioArrivo ? booking : null)
   // «Modifica arrivo» con un arrivo solo; con più arrivi ognuno ha il suo
   const apriArrivi = () => setFoglioArrivo(primoSegmento?.id ?? null)
@@ -677,6 +686,7 @@ export default function SchedaPage() {
                   etichetta={etichettaArrivoPeriodo(r)} onModifica={() => setFoglioArrivo(r.id)} ariaModifica={`Modifica ${etichettaArrivoPeriodo(r).toLowerCase()}`} />
               </div>
             )) : primoArrivo && <ArrivoMaison arrivo={arrivoDati} checkIn={primoArrivo} oggi={oggi} onModifica={apriArrivi} />}
+            <OrariMaison catene={catene} stato={orari0064.stato} onApri={setFoglioOrari} onRiprova={orari0064.riprova} />
             {arriviAperti && <ArriviPrecedenti altre={altreCliente as unknown as SegmentoStorico[]} oggi={oggi} className="mt-2" />}
             <p style={{ marginTop: 8 }}>
               <button type="button" className="mz-lnk q" data-arrivi-precedenti-comando aria-expanded={arriviAperti} onClick={() => setArriviAperti(a => !a)}>
@@ -819,6 +829,17 @@ export default function SchedaPage() {
             setBooking(b => (b ? aggiorna(b) : b))
             setFoglioArrivo(null)
             rileggi()   // la cronologia (trigger 0042) e «Da controllare»
+          }} />
+      )}
+      {catenaAperta && booking && orari0064.stato === 'si' && (
+        <FoglioBagagliPartenza key={catenaAperta.chiave} catena={catenaAperta} ospite={nomeOspite(booking)} prenotazione={{ guest_name: booking.guest_name, guests: guest ?? booking.guests }}
+          onChiudi={() => setFoglioOrari(null)}
+          onSalvato={riletti => {
+            // le righe RILETTE dal server, solo le due colonne degli orari
+            const perId = new Map(riletti.map(r => [String(r.id), r]))
+            const aggiorna = (r: Prenotazione) => { const x = perId.get(r.id); return x ? { ...r, bagagli_alle: x.bagagli_alle, check_out_time: x.check_out_time } : r }
+            setRighe(rs => rs.map(aggiorna))
+            setBooking(b => (b ? aggiorna(b) : b))
           }} />
       )}
       {foglioPagamento && conto && !noShow && (
