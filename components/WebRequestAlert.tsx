@@ -7,6 +7,10 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { fetchWebRequests, type WebRequest } from '@/lib/webRequests'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
+import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
+
+/** il foglio della richiesta dal sito: una richiesta col nome diverso e un'altra sotto */
+export const ALTEZZA_RICHIESTA_SITO = 460
 
 const DISMISS_KEY = 'ca_webreq_dismissed'
 // Memoria della sessione: NON è Supabase. Se il browser la nega (navigazione
@@ -64,54 +68,30 @@ export default function WebRequestAlert() {
     setOpen(false)
   }
 
+  // Regola dei fogli (Ania, 01/10/2026): lo stesso foglio di tutto il
+  // gestionale. Contenuto e comandi di sempre: «Chiama» è il link sopra,
+  // «Dopo» a contorno e «Apri» pieno.
   return (
-    <div className="velo-in fixed inset-0 z-[90] flex items-center justify-center px-6"
-      style={{ background: 'rgba(31, 61, 47, 0.35)' }} onClick={chiudi}>
-      <div className="scheda-in bg-cream rounded-xl p-5 w-full max-w-[340px] shadow-xl" onClick={e => e.stopPropagation()}>
-        <p className="font-serif text-lg text-green-dark mb-2">🌐 Richiesta dal sito</p>
-        <p className="text-[14.5px] font-semibold text-green-dark">
-          {primo.guest_name} · {primo.num_guests} {primo.num_guests === 1 ? 'persona' : 'persone'}
-        </p>
-        <p className="text-[13.5px] mb-2" style={{ color: 'var(--color-stone)' }}>
-          {fmtData(primo.check_in)} → {fmtData(primo.check_out)} · {primo.room_name} · €{Math.round(primo.total_amount)}
-        </p>
-        <AvvisoNomeDiverso r={primo} />
-        {requests.length > 1 && (
-          <div className="mb-3">
-            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--color-stone)' }}>
-              {requests.length - 1 === 1 ? '…e un’altra richiesta in attesa:' : `…e altre ${requests.length - 1} richieste in attesa:`}
-            </p>
-            {requests.slice(1).map(r => (
-              <div key={r.id} className="mb-1.5">
-                <p className="text-[14.5px] font-semibold text-green-dark">
-                  {r.guest_name} · {r.num_guests} {r.num_guests === 1 ? 'persona' : 'persone'}
-                </p>
-                <p className="text-[13.5px] mb-1" style={{ color: 'var(--color-stone)' }}>
-                  {fmtData(r.check_in)} → {fmtData(r.check_out)} · {r.room_name} · €{Math.round(r.total_amount)}
-                </p>
-                <AvvisoNomeDiverso r={r} />
-              </div>
-            ))}
-          </div>
-        )}
-        <p className="text-xs text-gray-500 mb-4">Chiama il cliente e poi conferma la prenotazione.</p>
-        <div className="flex gap-2">
-          {primo.guest_phone && (
-            <a href={`tel:${primo.guest_phone}`}
-              className="flex-1 text-center bg-green-mid text-white rounded-lg py-2 text-[13.5px] font-semibold transition-transform duration-100 active:scale-[0.97]">
-              📞 Chiama
-            </a>
-          )}
-          <button onClick={() => { chiudi(); router.push(`/scheda/${primo.id}`) }}
-            className="flex-1 bg-white text-green-dark rounded-lg py-2 text-[13.5px] font-semibold shadow-sm transition-transform duration-100 active:scale-[0.97]">
-            Apri
-          </button>
-          <button onClick={chiudi}
-            className="flex-1 bg-white text-gray-500 rounded-lg py-2 text-[13.5px] font-medium shadow-sm transition-transform duration-100 active:scale-[0.97]">
-            Dopo
-          </button>
+    <FoglioMaison titolo={primo.guest_name} sottotitolo="Richiesta dal sito" altezza={ALTEZZA_RICHIESTA_SITO} onChiudi={chiudi} dati="richiesta-sito"
+      piede={<PiedeMaison testoAnnulla="Dopo" onAnnulla={chiudi} azione="Apri" onAzione={() => { chiudi(); router.push(`/scheda/${primo.id}`) }} dati="richiesta-sito"
+        sopra={primo.guest_phone ? <a href={`tel:${primo.guest_phone}`} className="mz-lnk" data-chiama-richiesta>Chiama</a> : undefined} />}>
+      <p className="mz-note" style={{ marginTop: 14, fontSize: 14, color: 'var(--m-ink)' }}>
+        {primo.num_guests} {primo.num_guests === 1 ? 'persona' : 'persone'} · {fmtData(primo.check_in)} → {fmtData(primo.check_out)} · {primo.room_name} · €{Math.round(primo.total_amount)}
+      </p>
+      <AvvisoNomeDiverso r={primo} />
+      {requests.length > 1 && (
+        <div style={{ marginTop: 12 }}>
+          <span className="mz-lab">{requests.length - 1 === 1 ? '…e un’altra richiesta in attesa' : `…e altre ${requests.length - 1} richieste in attesa`}</span>
+          {requests.slice(1).map(r => (
+            <div key={r.id} style={{ marginBottom: 8 }}>
+              <p style={{ fontFamily: 'var(--m-disp)', fontSize: 18 }}>{r.guest_name} <span className="mz-note" style={{ display: 'inline' }}>· {r.num_guests} {r.num_guests === 1 ? 'persona' : 'persone'}</span></p>
+              <p className="mz-note" style={{ marginTop: 2 }}>{fmtData(r.check_in)} → {fmtData(r.check_out)} · {r.room_name} · €{Math.round(r.total_amount)}</p>
+              <AvvisoNomeDiverso r={r} />
+            </div>
+          ))}
         </div>
-      </div>
-    </div>
+      )}
+      <p className="mz-hint">Chiama il cliente e poi conferma la prenotazione.</p>
+    </FoglioMaison>
   )
 }
