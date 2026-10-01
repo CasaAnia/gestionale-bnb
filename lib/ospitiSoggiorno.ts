@@ -38,7 +38,10 @@ export function ospitiSoggiorno(segmenti: TrattoOspiti[], personeNotti: { giorno
   }
   return periodi.length > 1 ? periodi : null
 }
-export function periodoOspitiTesto(p: PeriodoOspiti): string {
-  const data = (iso: string, giornoSolo: boolean) => new Date(iso + 'T12:00:00Z').toLocaleDateString('it-IT', giornoSolo ? { day: 'numeric', timeZone: 'UTC' } : { day: 'numeric', month: 'long', ...(p.arrivo.slice(0, 4) !== p.partenza.slice(0, 4) ? { year: 'numeric' as const } : {}), timeZone: 'UTC' })
-  return `${data(p.arrivo, p.arrivo.slice(0, 7) === p.partenza.slice(0, 7))} → ${data(p.partenza, false)}`
+export function periodoOspitiTesto(p: PeriodoOspiti, breve = false): string {
+  // Il periodo elenca le notti dormite: la partenza non è una notte.
+  const ultima = new Date(Date.parse(p.partenza + 'T12:00:00Z') - 86400000).toISOString().slice(0, 10)
+  const data = (iso: string, giornoSolo = false) => new Date(iso + 'T12:00:00Z').toLocaleDateString('it-IT', giornoSolo ? { day: 'numeric', timeZone: 'UTC' } : { day: 'numeric', month: breve ? 'short' : 'long', ...(p.arrivo.slice(0, 4) !== ultima.slice(0, 4) ? { year: 'numeric' as const } : {}), timeZone: 'UTC' })
+  const periodo = p.arrivo === ultima ? data(p.arrivo) : `${data(p.arrivo, p.arrivo.slice(0, 7) === ultima.slice(0, 7))}–${data(ultima)}`
+  return breve ? periodo + '.' : periodo
 }

@@ -1,5 +1,6 @@
 // Modello soltanto visivo: le righe originali restano separate per salvare
 // ospiti e prezzi delle singole notti. Si raggruppa prima del filtro date.
+import { periodoOspitiTesto } from './ospitiSoggiorno.ts'
 import { nottiLettoExtra } from './lettiAggiuntivi.ts'
 type Tratto = {
   id: string; room_id: string; group_id?: string | null; check_in: string; check_out: string
@@ -22,8 +23,7 @@ export function barreSoggiorno<T extends Tratto>(righe: T[]): BarraSoggiorno<T>[
       if (ultimo?.persone === persone) ultimo.al = r.check_out
       else periodi.push({ dal: r.check_in, al: r.check_out, persone })
     }
-    const data = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-    const ospitiPeriodo = periodi.length > 1 ? periodi.map(p => `${p.dal.slice(0, 7) === p.al.slice(0, 7) ? Number(p.dal.slice(8)) : data(p.dal)}–${data(p.al)}: ${p.persone} ${p.persone === 1 ? 'persona' : 'persone'}`).join(' · ') : undefined
+    const ospitiPeriodo = periodi.length > 1 ? periodi.map(p => `${periodoOspitiTesto({ arrivo: p.dal, partenza: p.al, persone: p.persone }, true)} ${p.persone} ${p.persone === 1 ? 'persona' : 'persone'}`).join(' · ') : undefined
     sostituzioni.set(s[0].id,{
       ...s[0], check_out:s.at(-1)!.check_out,
       total_amount:s.reduce((n,r)=>n+Number(r.total_amount||0),0),

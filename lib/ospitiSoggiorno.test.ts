@@ -11,7 +11,7 @@ test('Maria Rosaria: un soggiorno, due periodi ospiti, conto unico da 560', () =
   const msg=buildWhatsappMsg(s[0],'conferma',s)
   assert.equal((msg.match(/Check-in:/g)||[]).length,1)
   assert.equal((msg.match(/Check-out:/g)||[]).length,1)
-  assert.match(msg,/11 → 12 ottobre/); assert.match(msg,/12 → 18 ottobre/)
+  assert.match(msg,/11 ottobre/); assert.match(msg,/12–17 ottobre/)
   assert.doesNotMatch(msg,/1\. \*Lena/)
 })
 test('2 → 3 → 2 resta in tre periodi, notti uguali accorpate, prezzi aggregati', () => {
