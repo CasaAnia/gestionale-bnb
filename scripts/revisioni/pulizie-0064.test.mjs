@@ -118,3 +118,38 @@ test('0064: prezzi_lavanderia accetta solo i pezzi previsti e prezzi da 0 in su;
     assert.deepEqual(await sql('select pezzo, prezzo::text from prezzi_lavanderia order by pezzo'), [{ pezzo: 'federe', prezzo: '0.50' }, { pezzo: 'tappetini', prezzo: '0.00' }])
   } finally { await db.close() }
 })
+
+test('0064: anon e utente non membro non possono ritoccare pulizie o leggere/scrivere prezzi', async () => {
+  const { db, sql, ritocca, tempo } = await ambiente()
+  try {
+    await db.exec("reset role; create or replace function private.is_app_member() returns boolean language sql as $$select false$$; set role authenticated;")
+    assert.equal((await ritocca({azione:'togli',cleaning_id:randomUUID(),versione:null})).error?.code,'42501')
+    assert.equal((await tempo({azione:'leggi'})).error?.code,'42501')
+    assert.deepEqual(await sql('select * from prezzi_lavanderia'),[])
+    await assert.rejects(sql("insert into prezzi_lavanderia(pezzo,prezzo) values ('federe',1)"),e=>e.code==='42501')
+    await db.exec('reset role; set role anon')
+    await assert.rejects(sql('select * from prezzi_lavanderia'),e=>e.code==='42501')
+    assert.equal((await ritocca({azione:'togli',cleaning_id:randomUUID(),versione:null})).error?.code,'42501')
+  } finally { await db.close() }
+})
+
+test('0064: timer area_comune precedente conservato e consumato una sola volta nella sua giornata', async () => {
+  const {db,tempo,sql}=await ambiente(false)
+  try {
+    const data=giorno(-1), chiave=`fuori:${data}:area_comune`
+    await db.exec('reset role')
+    await db.query('insert into pulizie_timer(chiave,trascorsi,versione) values ($1,420,1)',[chiave])
+    const {readFile}=await import('node:fs/promises')
+    await db.exec(await readFile(new URL('../../supabase/proposte/0064_bagagli_e_partenza.BOZZA.sql',import.meta.url),'utf8'))
+    await db.exec('set role authenticated')
+    const prima=await tempo({azione:'leggi'})
+    assert.equal(prima.data.timer.find(t=>t.chiave===chiave).trascorsi,420)
+    const r=await tempo({azione:'salva_fuori',data,attivita:'area_comune',minuti:7,versione:null,timer_trascorsi:420})
+    assert.equal(r.error,null,r.error?.message)
+    assert.equal(r.data.fuori.minuti,7)
+    assert.equal((await sql('select trascorsi from pulizie_timer where chiave=$1',[chiave]))[0].trascorsi,0)
+    const replay=await tempo({azione:'salva_fuori',data,attivita:'area_comune',minuti:7,versione:null,timer_trascorsi:420})
+    assert.equal(replay.error?.code,'P0045')
+    assert.equal((await sql('select sum(minuti)::int n from pulizie_fuori_camera'))[0].n,7)
+  } finally {await db.close()}
+})

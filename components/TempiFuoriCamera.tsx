@@ -10,13 +10,13 @@ import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import { chiaveTimerFuori, totaleProposto, vociSpaziAttive, minutiPerVoce, nomeAttivita, type AttivitaFuori } from '@/lib/tempoPulizie'
 import { useParte0064 } from '@/lib/schema0064Dati'
 
-export default function TempiFuoriCamera({ giorno, oggi, dal, al, minutiCamere = 0, riepilogo = false, nomeCamera, onVaiA, onTotale }: {
-  giorno: string; oggi: string; dal?: string; al?: string; minutiCamere?: number; riepilogo?: boolean
+export default function TempiFuoriCamera({ giorno, oggi, dal, al, attivitaIniziale = 'corridoio', minutiCamere = 0, riepilogo = false, nomeCamera, onVaiA, onTotale }: {
+  giorno: string; oggi: string; dal?: string; al?: string; attivitaIniziale?: AttivitaFuori; minutiCamere?: number; riepilogo?: boolean
   nomeCamera: (bookingId: string) => string | null; onVaiA?: (chiave: string) => void
   onTotale?: (minuti: number | null) => void
 }) {
   const [righe, setRighe] = useState<FuoriCameraSql[] | null>(null)
-  const [attivita, setAttivita] = useState<AttivitaFuori>('corridoio')
+  const [attivita, setAttivita] = useState<AttivitaFuori>(attivitaIniziale)
   // «Altro» solo con la proposta 0064 (il database prima non lo accetta)
   const voci = vociSpaziAttive(useParte0064('altro').stato === 'si')
   const [minuti, setMinuti] = useState('')
@@ -71,7 +71,7 @@ export default function TempiFuoriCamera({ giorno, oggi, dal, al, minutiCamere =
     {/* area_comune (i tempi di prima) si legge sotto «Corridoio e angolo caffè», una volta sola */}
     {voci.map(([k, label]) => { const v = righe ? minutiPerVoce(righe)[k] : null; return <p key={k} className="flex justify-between text-sm py-2" data-attivita={k}><span>{label}</span><span>{v === null ? '—' : v.righe.length ? `${v.minuti} min` : 'Non annotato'}</span></p> })}
     <p className="font-serif text-xl my-3" data-totale-fuori={totale ?? ''}>Fuori camera: {totale === null ? '—' : `${totale} min`}{riepilogo && <> · Totale registrato: {totale === null ? '—' : `${minutiCamere + totale} min`}</>}</p>
-    {!riepilogo && <><label className="text-sm">Attività<select className="ed-campo block mt-2" value={attivita} onChange={e => { setAttivita(e.target.value as AttivitaFuori); setMessaggio('') }}>{voci.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+    {!riepilogo && <><label className="text-sm">Attività<select className="ed-campo block mt-2" value={attivita} onChange={e => { setAttivita(e.target.value as AttivitaFuori); setMessaggio('') }}>{(attivita === 'area_comune' || timer.timer.some(t => t.chiave === chiaveTimerFuori(giorno, 'area_comune') && (t.avviato_at || t.trascorsi > 0))) && <option value="area_comune">Area comune · timer precedente</option>}{voci.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
       <TimerPulizia key={chiave} chiave={chiave} nome={nomeAttivita(attivita)} onMinuti={riporta} nomeCamera={nomeCamera} onVaiA={onVaiA} />
       <label className="block text-sm">Minuti totali dell’attività {etichettaGiorno}<input className="ed-campo block mt-2 w-24" type="number" inputMode="numeric" min="0" max="1440" value={minuti} onChange={e => setMinuti(e.target.value)} /></label>
       {salvata && <p className="text-xs text-stone mt-2">Salvati finora: {salvata.minuti} min. Il valore del campo sostituisce il totale della giornata.</p>}

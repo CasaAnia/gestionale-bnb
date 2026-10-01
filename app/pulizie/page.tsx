@@ -1,4 +1,5 @@
 'use client'
+import type { AttivitaFuori } from '@/lib/tempoPulizie'
 // Pagina Pulizie approvata da Ania il 25/09/2026 (riferimento
 // app/anteprima-pulizie, stessa struttura, classi e testi): Oggi / Registro /
 // Statistiche sulle pulizie vere. Le regole del calendario delle pulizie sono
@@ -24,7 +25,7 @@ import { testoFatta } from '@/lib/pulizieSchede'
 import { rigaGiornata, rigaSpaziComuni, giornoLungo, contoGiorno, oraSegnata, romaDi, oraTesto } from '@/lib/giornataPulizie'
 import { useParte0064 } from '@/lib/schema0064Dati'
 import { nomeOspite } from '@/lib/guestName'
-import { leggiFuoriCamera, type FuoriCameraSql } from '@/lib/pulizieTempiDati'
+import { leggiFuoriCamera, useTimerPulizie, type FuoriCameraSql } from '@/lib/pulizieTempiDati'
 import { raccogliPagine } from '@/lib/statistiche/paginazione'
 import { inviaOperazionePulizia } from '@/lib/pulizieServizio'
 import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
@@ -55,6 +56,8 @@ export default function Pulizie() {
   const [rilettura, setRilettura] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  const timerPrecedenti = useTimerPulizie().timer.filter(t => t.chiave.startsWith('fuori:') && t.chiave.endsWith(':area_comune') && !t.avviato_at && t.trascorsi > 0)
+  const [tempoDaRiprendere, setTempoDaRiprendere] = useState<{ giorno: string; attivita: AttivitaFuori } | null>(null)
   const [vista, setVista] = useState<Vista>('oggi')
   const [scheda, setScheda] = useState<Apertura | null>(null)
   // «Spazi comuni · minuti a mano»: la voce e il giorno aperti nel foglio
@@ -143,9 +146,10 @@ export default function Pulizie() {
   const vaiA = useCallback((chiave: string) => {
     setScheda(null); setVista('oggi')
     const p = chiave.split(':')
+    if (p[0] === 'fuori' && /^\d{4}-\d{2}-\d{2}$/.test(p[1]) && ['area_comune', 'corridoio', 'piegatura', 'altro'].includes(p[2])) setTempoDaRiprendere({ giorno: p[1], attivita: p[2] as AttivitaFuori })
     const id = p[0] === 'fuori' ? 'fuori-camera' : `camera-${bookings.find(b => b.id === p[1])?.room_id}`
     window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'auto', block: 'start' }), 0)
-  }, [bookings])
+  }, [bookings, setScheda, setVista, setTempoDaRiprendere])
 
   // Registro: le pulizie automatiche di prima, con i loro due comandi
   const automatiche = useMemo(() => pulizieAutomatiche(prenotazioni, events, td), [prenotazioni, events, td])
@@ -172,6 +176,7 @@ export default function Pulizie() {
     <nav className="pul-tabs" aria-label="Sezioni pulizie">{(['oggi', 'registro', 'resoconto'] as const).map(v => <button type="button" key={v} className={vista === v ? 'on' : ''} aria-pressed={vista === v} onClick={() => setVista(v)}>{v === 'resoconto' ? 'Statistiche' : v === 'oggi' ? 'Oggi' : 'Registro'}</button>)}</nav>
     <SalvataggiPulizie onVerificato={ricarica} />
     <TimerInCorso pagina nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />
+    {timerPrecedenti.map(t => <p key={t.chiave} className="pul-incorso" role="status">Timer precedente in pausa · Area comune · {t.chiave.split(':')[1].split('-').reverse().join('/')} · {Math.ceil(t.trascorsi / 60)} min <button type="button" className="pul-az" onClick={() => vaiA(t.chiave)}>Recupera minuti</button></p>)}
     {errore && <p role="alert" className="text-red-800 my-3">{errore} <button type="button" className="ed-azione" onClick={() => { setLoading(true); ricarica() }}>Riprova</button></p>}
     {avviso && <p role="alert" className="text-red-800 my-3">{avviso}</p>}
     {loading && !errore ? <p>Lettura del registro…</p> : pronta && <>
@@ -186,7 +191,7 @@ export default function Pulizie() {
       <SpaziComuniOggi oggi={td} righe={fuoriOggi} conAltro={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onMinuti={voce => setFoglioSpazi({ giorno: td, voce, righe: fuoriOggi })} />
       {/* Le camere già pulite oggi, in fondo e attenuate */}
       {fatteOggi.map(f => <article key={f.id} className="pul-card dn" data-pulita-oggi={breve(f.room_id)}><div className="hd"><b>{breve(f.room_id)}</b><span className="pul-pr ok">{testoFatta(f.ora, f.minuti)}</span></div></article>)}
-      <div id="fuori-camera" className="scroll-mt-20"><TempiFuoriCamera giorno={td} oggi={td} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} /></div>
+      <div id="fuori-camera" className="scroll-mt-20"><TempiFuoriCamera key={tempoDaRiprendere ? `${tempoDaRiprendere.giorno}:${tempoDaRiprendere.attivita}` : td} giorno={tempoDaRiprendere?.giorno ?? td} attivitaIniziale={tempoDaRiprendere?.attivita} oggi={td} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} /></div>
       {prossime.length > 0 && <section className="mt-6"><h2 className="font-serif text-2xl">Prossime pulizie</h2>{prossime.map(p => {
         const anticipabile = p.tipo === 'soggiorno' && diffDays(p.data, td) <= GIORNI_PREAVVISO
         return <div key={`${p.roomId}:${p.tipo}:${p.data}`} id={`pulizie-giorno-${p.data}`} className="py-3 text-sm border-b border-card-border scroll-mt-20" data-prossima={breve(p.roomId)}>

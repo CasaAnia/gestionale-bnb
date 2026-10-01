@@ -10,7 +10,8 @@ import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import { periodoIniziale, type Periodo } from '@/lib/periodoPulizie'
 import { registroPulizie, testataGiorno, nomeInDue, type FiltroRegistro, type RigaRegistro } from '@/lib/registroPulizie'
 import type { Decisione, PuliziaAutomatica } from '@/lib/pulizie'
-import type { VoceSpazi } from '@/lib/tempoPulizie'
+import { vociSpaziAttive, type VoceSpazi } from '@/lib/tempoPulizie'
+import { useParte0064 } from '@/lib/schema0064Dati'
 
 export const FRASE_REGISTRO = 'Un tocco su una riga per correggerla.'
 
@@ -30,6 +31,24 @@ export default function RegistroPulizie({ camere, events, recuperi, automatiche,
   const [tempi, setTempi] = useState<FuoriCameraSql[]>([])
   const [erroreTempi, setErroreTempi] = useState('')
   const [giro, setGiro] = useState(0)
+  const [giornoSpazi, setGiornoSpazi] = useState(oggi)
+  const [aprendoSpazi, setAprendoSpazi] = useState(false)
+  const [erroreApertura, setErroreApertura] = useState('')
+  const altro = useParte0064('altro')
+  async function aggiungiSpazi(voce: VoceSpazi) {
+    if (aprendoSpazi || !giornoSpazi || giornoSpazi > oggi) return
+    setAprendoSpazi(true); setErroreApertura('')
+    try {
+      // Leggere il giorno scelto anche se fuori dal periodo visibile:
+      // una lettura fallita non equivale a una giornata senza tempi.
+      const r = await leggiFuoriCamera(giornoSpazi, giornoSpazi)
+      if (r.errore || !r.righe) { setErroreApertura(r.errore || 'Non riesco a leggere i tempi del giorno. Riprova.'); return }
+      setPeriodo({ modo: 'dal_al', dal: giornoSpazi, al: giornoSpazi })
+      setFiltro('spazi')
+      onApriSpazi(giornoSpazi, voce, r.righe)
+    } catch { setErroreApertura('Non riesco a leggere i tempi del giorno. Riprova.') }
+    finally { setAprendoSpazi(false) }
+  }
   useEffect(() => osservaAggiornamentiPulizie(window, () => setGiro(x => x + 1)), [])
   useEffect(() => {
     let viva = true
@@ -62,6 +81,17 @@ export default function RegistroPulizie({ camere, events, recuperi, automatiche,
     <PeriodoPulizie periodo={periodo} oggi={oggi} onPeriodo={setPeriodo} />
     <FiltriPulizie voci={[{ chiave: 'tutte', nome: 'Tutte' }, ...camere.map(c => ({ chiave: c.id, nome: c.nome })), { chiave: 'spazi', nome: 'Spazi comuni' }]} scelta={filtro} onScegli={setFiltro} />
     <p className="pul-fix">{FRASE_REGISTRO}</p>
+    <details data-aggiungi-spazi-registro>
+      <summary className="pul-az">Annota minuti degli spazi comuni</summary>
+      <label className="pul-fld"><span>Giorno</span><input type="date" aria-label="Giorno dei minuti" max={oggi} value={giornoSpazi}
+        disabled={aprendoSpazi} onChange={e => setGiornoSpazi(e.target.value)} /></label>
+      <p className="pul-nota">Scegli il giorno e l’attività, anche se non hai ancora annotato minuti.</p>
+      <div className="pul-flt">{vociSpaziAttive(altro.stato === 'si').map(([voce, nome]) => <button type="button" key={voce}
+        disabled={aprendoSpazi || !giornoSpazi || giornoSpazi > oggi} onClick={() => void aggiungiSpazi(voce)}>{nome}</button>)}</div>
+      {aprendoSpazi && <p role="status" className="pul-nota">Lettura dei tempi…</p>}
+      {erroreApertura && <p role="alert" className="pul-errore">{erroreApertura}</p>}
+      {altro.stato === 'errore' && <p role="status" className="pul-errore">Non riesco a controllare se «Altro» è disponibile. <button type="button" onClick={altro.riprova}>Riprova</button></p>}
+    </details>
     {recuperi === null && <p role="status" className="pul-avviso">Recuperi non disponibili in questo momento: le quantità restano da leggere.</p>}
     {erroreTempi && <p role="status" className="pul-avviso">{erroreTempi}</p>}
     {!giorni.length && <p className="pul-avviso" data-registro-vuoto>Niente in questo periodo.</p>}
