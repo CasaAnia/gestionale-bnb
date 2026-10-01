@@ -139,9 +139,8 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
           {ricerca.trim().length >= 2 && risultati.length === 0 && !erroreRicerca && (
             <p style={{ marginTop: 14, fontSize: 13, color: 'var(--color-stone)' }}>Nessuna cliente con questo nome o telefono.</p>
           )}
-          <p style={{ marginTop: 18 }}>
-            <button type="button" data-annulla-foglio onClick={onChiudi} style={{ minHeight: 44, padding: '0 14px', fontSize: 13, color: 'var(--color-stone)' }}>Annulla</button>
-          </p>
+          {/* finché non si sceglie una cliente c'è solo «Annulla», a tutta larghezza (regola dei fogli) */}
+          <PiedeFoglio onAzione={() => {}} onAnnulla={onChiudi} dati="cambia-cliente" />
         </div>
       )}
 

@@ -75,8 +75,8 @@ for (const f of FOGLI) {
     if (f.file === 'FoglioCliente') {
       // «Dati della cliente» rifatto come il riferimento del 29/09/2026 (B2): FoglioMaison,
       // tasto pieno «Salva» e sotto «Annulla» sottolineato, nella riga fissa del piede
-      assert.match(sorgente, /import FoglioMaison from '@\/components\/maison\/FoglioMaison'/)
-      assert.match(sorgente, /piede=\{\s*<div className="cli-piede" data-piede-foglio>[\s\S]{0,400}data-annulla-foglio onClick=\{onChiudi\}/)
+      assert.match(sorgente, /import FoglioMaison(, \{ PiedeMaison \})? from '@\/components\/maison\/FoglioMaison'/)
+      assert.match(sorgente, /piede=\{<PiedeMaison [^\n]*onAnnulla=\{onChiudi\}/)
     } else if (FOGLI_MAISON.includes(f.file)) {
       assert.match(sorgente, /import FoglioMaison, \{ PiedeMaison \} from '@\/components\/maison\/FoglioMaison'/)
       assert.match(sorgente, /<PiedeMaison[^\n]*onAnnulla=\{onChiudi\}/)
@@ -318,8 +318,8 @@ test('«Dati della cliente»: rifatto come il riferimento del 29/09/2026 (B2), c
   assert.match(cliente, /Come ci ha trovato[\s\S]{0,300}PROVENIENZE\.map/)
   assert.match(cliente, /export const ALTRA_STRUTTURA_CHIP = 'Altra…'/)
   assert.match(cliente, /export const ETICHETTA_NOTE_CLIENTE = 'Note del cliente · restano anche le prossime volte'/)
-  // tasto pieno «Salva» e «Annulla» sottolineato; la conferma B dal foglio stesso
-  assert.match(cliente, /className="cli-cta" data-azione-foglio="cliente"[\s\S]{0,200}?>\{salvando \? 'Salvo…' : 'Salva'\}/)
+  // dal 01/10/2026 (regola dei fogli): «Annulla» e «Salva» del piede comune; la conferma B dal foglio stesso
+  assert.match(cliente, /piede=\{<PiedeMaison azione="Salva" onAzione=\{\(\) => void salva\(\)\} onAnnulla=\{onChiudi\}/)
   assert.match(cliente, /salvato=\{salvato\} onFineSalvato=/)
   // regole e salvataggio di prima (lib/datiCliente)
   assert.match(cliente, /campiDaModulo\(dati, cliente, \{ colonnaRicevuta: colonnaRicevutaPresente\(cliente\), conProvenienza, colonnaPagamento: conPagamento \}\)/)
@@ -721,7 +721,7 @@ test('i fogli della scheda: FoglioMaison col nome come titolo e il foglio sotto,
   assert.match(foglio, /if \(maison\) return <FoglioSchedaMaison titolo=\{titolo\} altezza=\{altezza \?\? ALTEZZA_FOGLIO_PREDEFINITA\}/)
   assert.match(foglio, /<FoglioMaison titolo=\{nome \|\| titolo\} sottotitolo=\{nome \? titolo : undefined\} altezza=\{altezza\}/)
   // l'altezza non si calcola dal contenuto: è quella scritta (FoglioMaison la usa così, mai oltre il 92%)
-  assert.match(leggi('components/maison/FoglioMaison.tsx'), /style=\{\{ height: `min\(\$\{altezza\}px, 92dvh\)` \}\}/)
+  assert.match(leggi('components/maison/FoglioMaison.tsx'), /style=\{desktop \? undefined : \{ height: `min\(\$\{alto\}px, 92dvh\)` \}\}/)
   // il piede sta in fondo al foglio, fuori dal contenuto che scorre
   assert.match(foglio, /createPortal\(\s*<div className="mz-foot" data-piede-foglio>/)
   // la conferma B: la pagina tiene il foglio aperto il tempo di «Salvato», poi lo chiude

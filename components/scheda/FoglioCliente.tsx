@@ -24,7 +24,7 @@
 // Regole, errori e salvataggio sono quelli di prima.
 // ============================================================================
 import { useEffect, useState, type ReactNode } from 'react'
-import FoglioMaison from '@/components/maison/FoglioMaison'
+import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import type { Salvataggio } from '@/components/maison/SalvatoMaison'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampiNomeCognome from '@/components/CampiNomeCognome'
@@ -36,7 +36,7 @@ import { colonnaMancante } from '@/lib/colonnaMancante'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { moduloDaCliente, campiDaModulo, TITOLO_DATI_CLIENTE, AVVISO_TUTTI_I_SOGGIORNI, type ClienteSalvato, type ModuloCliente } from '@/lib/datiCliente'
 import { colonnaPagamentoPresente, VOCI_PAGAMENTO_ABITUALE, ETICHETTA_PAGA_DI_SOLITO } from '@/lib/pagamentoAbituale'
-import { nomeDaSalvare } from '@/lib/guestName'
+import { nomeDaSalvare, nomeCompleto } from '@/lib/guestName'
 import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
 export const ERRORE_MOTIVO_SENZA_0046 = 'Il motivo interno non può ancora essere registrato (serve la proposta 0046). Nessuna modifica alla cliente è stata salvata: il testo resta qui.'
@@ -69,7 +69,8 @@ export default function FoglioCliente({ cliente, onChiudi, onSalvato }: {
   const conPagamento = colonnaPagamentoPresente(cliente)
   const conProvenienza = clienteConProvenienza(cliente) && strutture.disponibile
   // il titolo è il nome com'è salvato (non quello che si sta scrivendo)
-  const nome = (cliente.full_name ?? '').trim() || nomeDaSalvare({ nome: dati.nome, cognome: dati.cognome }) || 'Cliente'
+  // il nome nel titolo passa da nomeCompleto (regola fissa n. 2)
+  const nome = nomeCompleto(cliente) || nomeDaSalvare({ nome: dati.nome, cognome: dati.cognome }) || 'Cliente'
 
   useEffect(() => {
     let vivo = true
@@ -106,12 +107,7 @@ export default function FoglioCliente({ cliente, onChiudi, onSalvato }: {
     <FoglioMaison titolo={nome} sottotitolo={TITOLO_DATI_CLIENTE} altezza={ALTEZZE_FOGLI.cliente} dati="cliente"
       onChiudi={salvato ? () => {} : onChiudi}
       salvato={salvato} onFineSalvato={() => { if (salvato) onSalvato(salvato.campi, salvato.avviso) }}
-      piede={
-        <div className="cli-piede" data-piede-foglio>
-          <button type="button" className="cli-cta" data-azione-foglio="cliente" onClick={() => void salva()} disabled={salvando || !!salvato}>{salvando ? 'Salvo…' : 'Salva'}</button>
-          <p><button type="button" className="mz-lnk q" data-annulla-foglio onClick={onChiudi} disabled={salvando}>Annulla</button></p>
-        </div>
-      }>
+      piede={<PiedeMaison azione="Salva" onAzione={() => void salva()} onAnnulla={onChiudi} salvando={salvando} disabilitato={!!salvato} dati="cliente" />}>
       <div className="cli-foglio" data-dati-cliente>
         <p className="cli-avviso" data-vale-per-tutti>{AVVISO_TUTTI_I_SOGGIORNI}</p>
         {/* Nome e cognome: SOLO il componente condiviso (regola fissa n. 1, maiuscola mentre si scrive) */}
