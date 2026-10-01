@@ -15,6 +15,7 @@ import TempiFuoriCamera from '@/components/TempiFuoriCamera'
 import TimerInCorso from '@/components/TimerInCorso'
 import StatistichePulizie from './Statistiche'
 import GraficoGiornata from '@/components/pulizie/GraficoGiornata'
+import RegistroPulizie from '@/components/pulizie/RegistroPulizie'
 import SchedaCameraOggi from '@/components/pulizie/SchedaCameraOggi'
 import SpaziComuniOggi from '@/components/pulizie/SpaziComuniOggi'
 import FoglioSpaziComuni from '@/components/pulizie/FoglioSpaziComuni'
@@ -30,8 +31,7 @@ import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
 import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { ricaricaDaControllare } from '@/lib/daControllareDati'
 import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
-import { assettoDaSql, recuperoDaRiga, totalePezzi, totaleSenzaMisura } from '@/lib/dotazionePulizie'
-import { lettiTesto, confermateNelGiorno, prossimePulizie, rinviiInCorso, dataNumerica } from '@/lib/pulizieVista'
+import { confermateNelGiorno, prossimePulizie, rinviiInCorso, dataNumerica } from '@/lib/pulizieVista'
 import {
   confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi,
   pulizieAutomatiche, conteggioGiorno, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
@@ -41,7 +41,6 @@ import {
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const RANK: Record<Priorita, number> = { urgente: 0, alta: 1, flessibile: 2, nessuna_fretta: 3 }
 const classe = 'ed-pillola-contorno'
-const PAGINA_REGISTRO = 20
 type Vista = 'oggi' | 'registro' | 'resoconto'
 type Riga = Decisione & { assetto?: unknown; minuti?: number | null; aggiornata_at?: string | null }
 type Apertura = { camera: string; pulizia: Decisione; booking: PrenotazionePulizie | null }
@@ -60,8 +59,6 @@ export default function Pulizie() {
   const [scheda, setScheda] = useState<Apertura | null>(null)
   // «Spazi comuni · minuti a mano»: la voce e il giorno aperti nel foglio
   const [foglioSpazi, setFoglioSpazi] = useState<{ giorno: string; voce: VoceSpazi; righe: FuoriCameraSql[] } | null>(null)
-  const [giornoRegistro, setGiornoRegistro] = useState('')
-  const [quanteRighe, setQuanteRighe] = useState(PAGINA_REGISTRO)
   const [correzione, setCorrezione] = useState<Record<string, string>>({})
   const [td, setTd] = useState(todayStr)
   // Bagagli e partenza (proposta 0064): senza le colonne il grafico non le disegna
@@ -150,13 +147,8 @@ export default function Pulizie() {
     window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'auto', block: 'start' }), 0)
   }, [bookings])
 
-  // Registro: interventi confermati (i più recenti in alto) e automatiche da correggere.
-  const registro = useMemo(() => {
-    const perId = new Map((recuperi ?? []).map(r => [String(r.cleaning_id), r]))
-    const fatte = events.filter(e => e.stato === 'fatta' && e.id).map(e => ({ chiave: `m:${e.id}`, data: e.data_effettiva || e.data_prevista, evento: e, auto: null as PuliziaAutomatica | null, recupero: recuperi === null ? undefined : perId.get(e.id!) ?? null }))
-    const auto = pulizieAutomatiche(prenotazioni, events, td).map(a => ({ chiave: `a:${a.partenza.id}`, data: a.data, evento: null as Riga | null, auto: a, recupero: undefined }))
-    return [...fatte, ...auto].filter(v => !giornoRegistro || v.data === giornoRegistro).sort((x, y) => y.data.localeCompare(x.data) || x.chiave.localeCompare(y.chiave))
-  }, [events, recuperi, prenotazioni, td, giornoRegistro])
+  // Registro: le pulizie automatiche di prima, con i loro due comandi
+  const automatiche = useMemo(() => pulizieAutomatiche(prenotazioni, events, td), [prenotazioni, events, td])
   async function correggiAutomatica(a: PuliziaAutomatica, chiave: string, modo: 'data' | 'tolta') {
     if (saving) return
     setSaving(a.roomId); setAvviso('')
@@ -203,22 +195,12 @@ export default function Pulizie() {
         </div> })}</section>}
       {rinvii.length > 0 && <section className="mt-6"><h2 className="font-serif text-2xl">Rinvii e salti</h2>{rinvii.map(d => <p key={d.id} className="py-2 text-sm" data-rinvio={d.stato}>{breve(d.room_id)} · {d.stato === 'rimandata' ? `rimandata dal ${dataNumerica(d.data_prevista)} al ${dataNumerica(d.prossima_data!)}` : `saltato il cambio del ${dataNumerica(d.data_prevista)}`} · esclusa dalle pulizie fatte</p>)}</section>}
     </>}
-    {vista === 'registro' && <>
-      <h2 className="font-serif text-2xl mb-4">Ogni intervento, con i suoi numeri</h2>
-      <div className="flex flex-wrap items-end gap-3 mb-4"><label className="text-xs">Giorno<input className="ed-campo block mt-1" type="date" max={td} value={giornoRegistro} onChange={e => { setGiornoRegistro(e.target.value); setQuanteRighe(PAGINA_REGISTRO) }} /></label><button type="button" className={giornoRegistro ? classe : 'ed-pillola'} aria-pressed={!giornoRegistro} onClick={() => setGiornoRegistro('')}>Tutti i giorni</button></div>
-      {recuperi === null && <p role="status" className="text-sm text-stone mb-3">Recuperi non disponibili in questo momento: le quantità restano da leggere.</p>}
-      {!registro.length && <p>{giornoRegistro ? 'Nessuna pulizia confermata in questo giorno.' : 'Nessuna pulizia registrata.'}</p>}
-      {registro.slice(0, quanteRighe).map(v => { const nome = breve(v.evento?.room_id ?? v.auto!.roomId); const e = v.evento; const assetto = e ? assettoDaSql(e.assetto) : null; const rec = v.recupero ? recuperoDaRiga(v.recupero) : null
-        return <article className="ed-riga py-4" key={v.chiave} data-registro={nome}><h3 className="font-serif text-xl">{nome} · {dataNumerica(v.data)}</h3>
-          <p className="text-sm mt-2">{TIPI_INTERVENTO[e?.tipo ?? v.auto!.tipo]} · {assetto ? lettiTesto(assetto) : 'letti non documentati'}{v.auto ? ' · automatica' : ''}</p>
-          {e && <p className="text-sm text-stone mt-1">{v.recupero === undefined ? 'Recuperi da leggere' : rec ? ((n => n === 0 ? 'Niente recuperato' : n === 1 ? '1 pezzo recuperato' : `${n} pezzi recuperati`)(totalePezzi(rec.pezzi) + totaleSenzaMisura(rec.senzaMisura))) : 'Recuperi non annotati'} · {e.minuti ? `${e.minuti} minuti effettivi` : 'Durata non annotata'}</p>}
-          {e && <button type="button" className={`${classe} mt-3`} onClick={() => apri(nome, e, bookings.find(b => b.id === e.booking_id) ?? null)}>Riapri · {nome}</button>}
-          {v.auto && (correzione[v.chiave] !== undefined ? <div className="flex flex-wrap items-center gap-2 mt-3"><label className="text-xs">Fatta il<input type="date" className="ed-campo ml-2" max={td} value={correzione[v.chiave]} onChange={ev => setCorrezione({ ...correzione, [v.chiave]: ev.target.value })} /></label><button type="button" className="ed-pillola" disabled={!!saving || !correzione[v.chiave]} onClick={() => void correggiAutomatica(v.auto!, v.chiave, 'data')}>Conferma</button><button type="button" className="ed-pillola-tenue" onClick={() => setCorrezione(c => { const r = { ...c }; delete r[v.chiave]; return r })}>Annulla</button></div>
-            : <div className="flex flex-wrap gap-3 mt-3"><button type="button" className={classe} disabled={!!saving} onClick={() => setCorrezione({ ...correzione, [v.chiave]: v.data })}>Cambia data · {nome}</button><button type="button" className={classe} disabled={!!saving} onClick={() => void correggiAutomatica(v.auto!, v.chiave, 'tolta')}>Non fatta · {nome}</button></div>)}
-        </article> })}
-      {registro.length > quanteRighe && <button type="button" className={`${classe} mt-4`} onClick={() => setQuanteRighe(n => n + PAGINA_REGISTRO)}>Mostra altri interventi</button>}
-      {giornoRegistro ? <TempiFuoriCamera key={giornoRegistro} giorno={giornoRegistro} oggi={td} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} /> : <p className="text-xs text-stone mt-6">Per vedere o correggere i tempi fuori camera di un giorno passato, scegli il giorno qui sopra.</p>}
-    </>}
+    {vista === 'registro' && <RegistroPulizie camere={rooms.filter(r => r.active !== false).map(r => ({ id: r.id, nome: breve(r.id) }))}
+      events={events} recuperi={recuperi} automatiche={automatiche} oggi={td} rilettura={rilettura} nomeCamera={breve}
+      onApri={e => apri(breve(e.room_id), e, bookings.find(b => b.id === e.booking_id) ?? null)}
+      onApriSpazi={(giorno, voce, righe) => setFoglioSpazi({ giorno, voce, righe })}
+      automatica={(a, chiave) => correzione[chiave] !== undefined ? <div className="flex flex-wrap items-center gap-2 mt-3"><label className="text-xs">Fatta il<input type="date" className="ed-campo ml-2" max={td} value={correzione[chiave]} onChange={ev => setCorrezione({ ...correzione, [chiave]: ev.target.value })} /></label><button type="button" className="pul-az" disabled={!!saving || !correzione[chiave]} onClick={() => void correggiAutomatica(a, chiave, 'data')}>Conferma</button><button type="button" className="pul-az tn" onClick={() => setCorrezione(c => { const r = { ...c }; delete r[chiave]; return r })}>Annulla</button></div>
+        : <div className="pul-azioni" style={{ marginTop: 8 }}><button type="button" className="pul-az" disabled={!!saving} onClick={() => setCorrezione({ ...correzione, [chiave]: a.data })}>Cambia data</button><button type="button" className="pul-az tn" disabled={!!saving} onClick={() => void correggiAutomatica(a, chiave, 'tolta')}>Non fatta</button></div>} />}
     {vista === 'resoconto' && <StatistichePulizie rooms={rooms} bookings={prenotazioni} events={events} recuperi={recuperi} td={td} nomeCamera={nomeDaPrenotazione} />}
     </>}
     {foglioSpazi && <FoglioSpaziComuni key={`${foglioSpazi.giorno}:${foglioSpazi.voce}`} giorno={foglioSpazi.giorno} oggi={td} voce={foglioSpazi.voce} righe={foglioSpazi.righe}
