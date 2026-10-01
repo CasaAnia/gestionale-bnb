@@ -1,0 +1,33 @@
+/* ============================================================================
+   LA REGOLA DEI FOGLI (Ania, 01/10/2026), uguale a quella dei fogli delle
+   Pulizie, per tutti i fogli «Maison» del gestionale (FoglioMaison):
+   1. l'eyebrow in maiuscoletto ottone a 14 px sotto il titolo;
+   2. niente resti della veste vecchia: le azioni secondarie sono link
+      maiuscoletti sottolineati ottone (.mz-lnk);
+   3. i tasti sempre due, a tutta larghezza: «Annulla» a contorno e l'azione
+      piena (inchiostro; mattone dove si toglie o si annulla), colonne
+      1fr 1.6fr, alti 44, col bordo di sotto a 96 px dal fondo dello schermo
+      sul telefono;
+   4. i fogli di una sezione alti uguali (lib/altezzeFogli ALTEZZE_SEZIONI);
+   5. dal Mac lo stesso foglio, centrato, largo 480, alto quanto serve, coi
+      tasti subito sotto il contenuto.
+   Contenuti e logica dei fogli non cambiano: qui solo veste e posizione.
+   ========================================================================== */
+.mz .mz-foglio h2 small { margin-top: 14px; }
+.mz .mz-foglio:not(.desktop) { padding-bottom: 96px; }
+.mz .mz-foglio.desktop { width: 480px; height: auto; max-height: 92dvh; padding-bottom: 22px; }
+.mz .mz-foglio.desktop .corpo { flex: 0 1 auto; }
+
+/* i due tasti */
+.mz .mz-foot { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; align-items: stretch; margin-top: 12px; }
+.mz .mz-foot > span:empty { display: none; }
+.mz .mz-foot > .tot { grid-column: 1 / -1; font-size: 12px; color: var(--m-mut); }
+.mz .mz-foot > .acts { display: contents; }
+.mz .mz-foot > .acts > :only-child { grid-column: 1 / -1; }
+.mz .mz-foot > .acts > button { height: 44px; min-height: 44px; width: 100%; margin: 0; padding: 0 8px; border-radius: 0; text-align: center;
+  font-family: var(--m-ui); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; font-weight: 500; white-space: normal; line-height: 1.2; max-width: none; text-decoration: none !important; }
+.mz .mz-foot > .acts > button.mz-lnk { border: 1px solid var(--m-ink); background: transparent; color: var(--m-ink); }
+.mz .mz-foot > .acts > button.mz-lnk::before { display: none; }
+.mz .mz-foot > .acts > button.mz-cta { border: 1px solid var(--m-ink); background: var(--m-ink); color: #F6F2EA; }
+.mz .mz-foot > .acts > button.mz-cta.mat { border-color: var(--m-mat); background: var(--m-mat); }
+.mz .mz-foot > .acts > button:disabled { opacity: .45; }

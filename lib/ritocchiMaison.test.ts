@@ -84,7 +84,7 @@ test('B1: la riga «Annulla · Salva» sta 24 px sotto il contenuto, in tutti i 
     /\.cal-ten-ac \{[^}]*margin-top: 24px; flex: none; \}/,
   ]) assert.match(css, regola)
   // il foglio resta ad altezza fissa (la riga non si sposta scegliendo) e mai oltre il 92% dello schermo
-  assert.match(leggi('components/maison/FoglioMaison.tsx'), /style=\{\{ height: `min\(\$\{altezza\}px, 92dvh\)` \}\}/)
+  assert.match(leggi('components/maison/FoglioMaison.tsx'), /style=\{desktop \? undefined : \{ height: `min\(\$\{alto\}px, 92dvh\)` \}\}/)
   // il «Mancato arrivo» ha i tasti nella riga fissa (prima stavano in mezzo al contenuto)
   const mancato = leggi('components/scheda/FoglioMancatoArrivo.tsx')
   assert.match(mancato, /<PiedeFoglio azione=\{/)

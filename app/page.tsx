@@ -1,4 +1,5 @@
 'use client'
+import SezioneFogli from '@/components/maison/SezioneFogli'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
@@ -155,6 +156,7 @@ export default function Dashboard() {
   }
 
   return (
+    <SezioneFogli sezione="home">
     <div className="maison mz-home -mt-12 lg:mt-0 pb-8" data-senza-sottolinea>
       <StrisciaFoto />
 
@@ -226,5 +228,6 @@ export default function Dashboard() {
         </>
       )}
     </div>
+    </SezioneFogli>
   )
 }

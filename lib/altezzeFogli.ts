@@ -33,3 +33,25 @@ export const ALTEZZE_FOGLI = {
   notte: 552,           // la notte di una camera fra due, ospiti ed effetto sul conto
 } as const
 export type FoglioConAltezza = keyof typeof ALTEZZE_FOGLI
+
+// ============================================================================
+// LA REGOLA DEI FOGLI (Ania, 01/10/2026, come nei fogli delle Pulizie): i
+// fogli della STESSA SEZIONE sono tutti alti uguali, quanto il più lungo,
+// col contenuto in alto e lo spazio fra contenuto e tasti nei più corti;
+// tasti sempre nello stesso punto (bordo di sotto a 96 px dal fondo dello
+// schermo sul telefono). Sul telefono mai oltre il 92% dello schermo: oltre,
+// il contenuto scorre dentro e i tasti restano fermi. Dal Mac il foglio è
+// alto quanto serve (le altezze qui valgono solo sul telefono).
+// Misure a 390 × 844 nell'anteprima finta: contenuto più lungo della
+// sezione + testa + tasti (44) + 96 sotto. Fra parentesi il foglio più lungo.
+// ============================================================================
+export const ALTEZZE_SEZIONI = {
+  scheda: 860,      // (Dati della cliente) oltre il 92% di 844: tutti i fogli della scheda al 92%
+  home: 760,        // (Modifica arrivo dalla Home)
+  calendario: 560,  // (foglietto della prenotazione)
+  arrivi: 760,      // (Modifica arrivo dagli Arrivi)
+  richieste: 620,   // (foglietto della richiesta)
+  clienti: 420,     // (Elimina cliente)
+  nuova: 560,       // (la notte e «Aggiungi una persona»)
+} as const
+export type SezioneFogli = keyof typeof ALTEZZE_SEZIONI

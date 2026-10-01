@@ -117,7 +117,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   const riportaMinuti = useCallback((n: number) => { setBozza(b => b ? { ...b, minuti: n || null } : b); setVisto(fotoTimer(ultimoT.current)) }, [])
 
   const sottotitolo = `${TIPI_INTERVENTO[pulizia.tipo]} · ${correzione ? 'Correzione' : 'Pulita e recuperato'}`
-  if (!bozza) return <FoglioMaison titolo={camera} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PULIZIA} onChiudi={onChiudi} dati="pulizia">
+  if (!bozza) return <FoglioMaison titolo={camera} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PULIZIA} altezzaPropria onChiudi={onChiudi} dati="pulizia">
     <p className="mz-hint" style={{ marginTop: 16 }}>{errore || 'Lettura della pulizia…'}</p>
   </FoglioMaison>
 
@@ -185,7 +185,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   const conMisura = dotazione.sotto_matrimoniale + dotazione.sopra_matrimoniale > 0 && dotazione.sotto_singolo + dotazione.sopra_singolo > 0
   const lenzuola = chipLenzuola(conMisura).filter(visibile)
   const asciugamani = CHIP_ASCIUGAMANI.filter(visibile)
-  return <FoglioMaison titolo={camera} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PULIZIA} dati="pulizia"
+  return <FoglioMaison titolo={camera} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PULIZIA} altezzaPropria dati="pulizia"
     onChiudi={salvando || salvato ? () => {} : onChiudi}
     salvato={salvato} onFineSalvato={() => { if (salvato) onSalvato?.(salvato.risposta); ricaricaNumeriOggiOvunque(); void ricaricaDaControllare(); onChiudi() }}
     piede={<PiedeMaison azione={pendente ? 'Riprova' : correzione ? 'Salva correzione' : 'Conferma pulizia'} onAzione={() => void salva()} onAnnulla={onChiudi}

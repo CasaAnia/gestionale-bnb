@@ -10,13 +10,20 @@
 // Sopra ci può stare la conferma di salvataggio (SalvatoMaison, scelta B):
 // il foglio la mostra quando `salvato` è pieno e si chiude da solo.
 // ============================================================================
-import { useEffect, useRef, type ReactNode, type MouseEvent, type CSSProperties } from 'react'
+import { createContext, useContext, useEffect, useRef, type ReactNode, type MouseEvent, type CSSProperties } from 'react'
+import { ALTEZZE_SEZIONI, type SezioneFogli } from '@/lib/altezzeFogli'
 import { useDesktop } from '@/lib/richiesteVista'
 import SalvatoMaison, { type Salvataggio } from './SalvatoMaison'
 
 export const TESTO_ANNULLA_MAISON = 'Annulla'
 
-export default function FoglioMaison({ titolo, sottotitolo, altezza, onChiudi, salvato = null, onFineSalvato, dati, children, piede, testa, larghezzaDesktop, veloChiaro = false, onVelo }: {
+/** La sezione della pagina (scheda, home, calendario…): tutti i suoi fogli
+ *  prendono la stessa altezza, quella del più lungo (regola di Ania del
+ *  01/10/2026, lib/altezzeFogli ALTEZZE_SEZIONI). Senza sezione vale
+ *  l'altezza del foglio. */
+export const SezioneFogliContesto = createContext<SezioneFogli | null>(null)
+
+export default function FoglioMaison({ titolo, sottotitolo, altezza, altezzaPropria = false, onChiudi, salvato = null, onFineSalvato, dati, children, piede, testa, larghezzaDesktop, veloChiaro = false, onVelo }: {
   titolo: string
   /** al posto del titolo in Cormorant: una testa disegnata dal chiamante (il foglietto del calendario) */
   testa?: ReactNode
@@ -29,6 +36,8 @@ export default function FoglioMaison({ titolo, sottotitolo, altezza, onChiudi, s
   sottotitolo?: string
   /** l'altezza fissa del foglio sul telefono, in px (mai oltre il 92% dello schermo) */
   altezza: number
+  /** tiene la sua altezza anche dentro una sezione (i fogli delle Pulizie, che hanno la loro) */
+  altezzaPropria?: boolean
   onChiudi: () => void
   /** pieno dopo un salvataggio riuscito: compare la spunta e il foglio si chiude */
   salvato?: Salvataggio | null
@@ -40,6 +49,8 @@ export default function FoglioMaison({ titolo, sottotitolo, altezza, onChiudi, s
   piede?: ReactNode
 }) {
   const desktop = useDesktop()
+  const sezione = useContext(SezioneFogliContesto)
+  const alto = sezione && !altezzaPropria ? ALTEZZE_SEZIONI[sezione] : altezza
   const foglio = useRef<HTMLDivElement>(null)
   const chiudi = useRef(onChiudi)
   useEffect(() => { chiudi.current = onChiudi }, [onChiudi])
@@ -56,7 +67,7 @@ export default function FoglioMaison({ titolo, sottotitolo, altezza, onChiudi, s
       style={larghezzaDesktop ? ({ '--foglio-w': `${larghezzaDesktop}px` } as CSSProperties) : undefined}>
       <div className={`mz-velo velo-in ${veloChiaro ? 'chiaro' : ''}`} onClick={salvato ? undefined : (onVelo ?? onChiudi)} />
       <div ref={foglio} tabIndex={-1} className={`mz-foglio scheda-in outline-none ${desktop ? 'desktop' : ''}`}
-        style={{ height: `min(${altezza}px, 92dvh)` }}>
+        style={desktop ? undefined : { height: `min(${alto}px, 92dvh)` }}>
         {testa ?? <h2>{titolo}{sottotitolo && <small>{sottotitolo}</small>}</h2>}
         <div className="corpo">{children}</div>
         {piede}
