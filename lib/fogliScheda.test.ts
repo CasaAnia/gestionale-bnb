@@ -353,9 +353,10 @@ test('«Cambia cliente»: la ricerca dell’inserimento, le righe 🧾 ★ nome 
   const cambia = leggi('components/scheda/FoglioCambiaCliente.tsx')
   assert.match(cambia, /import CampoRicerca from '@\/components\/CampoRicerca'/)
   assert.match(cambia, /placeholder="Cerca per nome o telefono…"/)
-  assert.match(cambia, /import RigaCliente, \{ TastinoSage, NUOVO_CLIENTE \} from '@\/components\/nuova\/RigaCliente'/)
+  assert.match(cambia, /import RigaCliente, \{ NUOVO_CLIENTE \} from '@\/components\/nuova\/RigaCliente'/)
   assert.match(cambia, /<RigaCliente key=\{c\.id\} cliente=\{c\} soggiorni=\{soggiorni\[c\.id\] \?\? 0\} onScegli=\{\(\) => setScelto\(c\)\}/)
-  assert.match(cambia, /<TastinoSage testo=\{NUOVO_CLIENTE\} onClick=\{\(\) => setNuovo\(moduloDaRicerca\(ricerca\)\)\}/)
+  // dal 01/10/2026 (regola dei fogli) «+ Nuovo cliente» è un link sottolineato, non più la pastiglia
+  assert.match(cambia, /className="mz-lnk" data-nuovo-cliente onClick=\{\(\) => setNuovo\(moduloDaRicerca\(ricerca\)\)\}>\{NUOVO_CLIENTE\}/)
   // il cliente nuovo: lo stesso modulo dell'inserimento, gli stessi campi
   assert.match(cambia, /<NuovoCliente dati=\{nuovo\}[\s\S]{0,200}titolo=\{null\} avanti=\{null\} etichetteOttone/)
   assert.match(cambia, /creaClienteNuovo\(campiNuovoCliente\(nuovo, strutture\.disponibile\)/)

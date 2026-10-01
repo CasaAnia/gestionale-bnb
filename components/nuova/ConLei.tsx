@@ -7,7 +7,7 @@
 // piene la pagina lo dice invece di perdere la terza.
 // ============================================================================
 import { useState } from 'react'
-import Foglio from '@/components/scheda/Foglio'
+import Foglio, { PiedeFoglio } from '@/components/scheda/Foglio'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, useMaison } from './PezziNuova'
 import { CHI_E_VOCI, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import CampiNomeCognome from '@/components/CampiNomeCognome'
@@ -95,10 +95,8 @@ export default function ConLei({ persone, onPersone, avviso, senzaTitolo = false
               <input type="text" data-campo="persona-chi" value={chiE} onChange={e => setChiE(e.target.value)} style={stileCampo} />
             </RigaCampo>
           )}
-          <div className="flex gap-2 mt-4 mb-1">
-            <button type="button" data-salva-persona onClick={salva} className="ed-pillola flex-1" style={{ minHeight: 44 }}>Aggiungi</button>
-            <button type="button" onClick={() => setAperto(false)} className="ed-pillola-tenue" style={{ minHeight: 44 }}>Annulla</button>
-          </div>
+          {/* regola dei fogli (01/10/2026): i due tasti del piede comune */}
+          <PiedeFoglio azione="Aggiungi" onAzione={salva} onAnnulla={() => setAperto(false)} dati="persona" datiAzione={{ 'data-salva-persona': '' }} />
         </Foglio>
       )}
     </section>

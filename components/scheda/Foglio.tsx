@@ -90,7 +90,7 @@ export default function Foglio({ titolo, grande = false, centrato = false, misur
  *  #8C3B2E: è l'annullamento della prenotazione. Con `disabilitato` l'azione
  *  è spenta (manca un dato valido) ma «Annulla» resta viva: si spegne solo
  *  mentre si salva. */
-export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando = 'Salvo…', onAnnulla, testoAnnulla = TESTO_ANNULLA, mattone = false, disabilitato = false, dati }: {
+export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando = 'Salvo…', onAnnulla, testoAnnulla = TESTO_ANNULLA, mattone = false, disabilitato = false, dati, datiAzione }: {
   /** senza azione resta solo «Annulla» (o «Chiudi»): il «Mancato arrivo» già saldato */
   azione?: string
   onAzione: () => void
@@ -101,6 +101,8 @@ export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando 
   mattone?: boolean
   disabilitato?: boolean
   dati?: string
+  /** attributi data- in più dell'azione (le prove la cercano per nome) */
+  datiAzione?: Record<string, string>
 }) {
   const posto = useContext(PostoPiede)
   // Veste «Maison»: «Annulla» tenue e l'azione piena (mattone per annullare
@@ -112,7 +114,7 @@ export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando 
         <span />
         <span className="acts">
           <button type="button" className="mz-lnk q" data-annulla-foglio onClick={onAnnulla} disabled={salvando}>{testoAnnulla}</button>
-          {azione && <button type="button" className={`mz-cta ${mattone ? 'mat' : ''}`} data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>}
+          {azione && <button type="button" className={`mz-cta ${mattone ? 'mat' : ''}`} data-azione-foglio={dati} {...datiAzione} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>}
         </span>
       </div>, posto)
   }

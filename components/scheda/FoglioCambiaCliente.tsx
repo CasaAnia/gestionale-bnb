@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 import Foglio, { PiedeFoglio } from './Foglio'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoRicerca from '@/components/CampoRicerca'
-import RigaCliente, { TastinoSage, NUOVO_CLIENTE } from '@/components/nuova/RigaCliente'
+import RigaCliente, { NUOVO_CLIENTE } from '@/components/nuova/RigaCliente'
 import NuovoCliente, { type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
 import { MATTONE, OTTONE } from '@/components/nuova/PezziNuova'
 import { nomeOspite, nomeCompleto } from '@/lib/guestName'
@@ -129,7 +129,7 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
       {!scelto && !nuovo && (
         <div data-cerca-cliente>
           <CampoRicerca value={ricerca} onChange={scriviRicerca} placeholder="Cerca per nome o telefono…" />
-          <div style={{ marginTop: 10 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(moduloDaRicerca(ricerca))} /></div>
+          <div style={{ marginTop: 12 }}><button type="button" className="mz-lnk" data-nuovo-cliente onClick={() => setNuovo(moduloDaRicerca(ricerca))}>{NUOVO_CLIENTE}</button></div>
           {erroreRicerca && <p className="mt-3" style={{ fontSize: 13, color: MATTONE }}>{erroreRicerca}</p>}
           {risultati.length > 0 && (
             <div data-trovati style={{ marginTop: 14 }}>
