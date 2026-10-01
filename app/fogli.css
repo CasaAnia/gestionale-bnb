@@ -40,3 +40,13 @@
 .mz .fog-tasti { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; }
 .mz .fog-tasti > :only-child { grid-column: 1 / -1; }
 .mz .fog-tasti button { flex: none; width: 100%; height: 44px; font-size: 11.5px; letter-spacing: .18em; white-space: normal; }
+/* sotto l'eyebrow sempre la stessa aria, 16 px, in ogni foglio (Ania, 01/10/2026:
+   «SCONTO troppo attaccata al bottone… le stesse misure dappertutto»):
+   lo spazio lo dà il corpo, il primo pezzo del contenuto non aggiunge il suo */
+.mz .mz-foglio h2 + .corpo { padding-top: 16px; }
+.mz .mz-foglio h2 + .corpo > :first-child,
+.mz .mz-foglio h2 + .corpo > :first-child > :first-child,
+.mz .mz-foglio h2 + .corpo > :first-child > :first-child > :first-child,
+.mz .mz-foglio h2 + .corpo > :first-child > :first-child > :first-child > :first-child,
+.mz .mz-foglio h2 + .corpo > :first-child:empty + *,
+.mz .mz-foglio h2 + .corpo > :first-child > :first-child:empty + * { margin-top: 0 !important; }
