@@ -8,7 +8,7 @@ const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), '
 
 test('la veste comune: eyebrow a 14 px, tasti 1fr 1.6fr alti 44, 96 px dal fondo, Mac 480 alto quanto serve', () => {
   const css = leggi('app/fogli.css')
-  assert.match(css, /\.mz \.mz-foglio h2 small \{ margin-top: 14px; \}/)
+  assert.match(css, /\.mz \.mz-foglio h2 small \{ margin-top: 16px; \}/)
   assert.match(css, /\.mz \.mz-foglio:not\(\.desktop\) \{ padding-bottom: 96px; \}/)
   assert.match(css, /\.mz \.mz-foglio\.desktop \{ width: 480px; height: auto;/)
   assert.match(css, /\.mz \.mz-foot \{ display: grid; grid-template-columns: 1fr 1\.6fr;/)

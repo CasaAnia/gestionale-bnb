@@ -13,7 +13,8 @@
       tasti subito sotto il contenuto.
    Contenuti e logica dei fogli non cambiano: qui solo veste e posizione.
    ========================================================================== */
-.mz .mz-foglio h2 small { margin-top: 14px; }
+/* 14 px VISIBILI fra il nome e l’eyebrow: la riga del nome in Cormorant ha 2 px d’aria sotto le lettere */
+.mz .mz-foglio h2 small { margin-top: 16px; }
 .mz .mz-foglio:not(.desktop) { padding-bottom: 96px; }
 .mz .mz-foglio.desktop { width: 480px; height: auto; max-height: 92dvh; padding-bottom: 22px; }
 .mz .mz-foglio.desktop .corpo { flex: 0 1 auto; }
