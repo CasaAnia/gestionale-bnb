@@ -17,6 +17,8 @@ import StatistichePulizie from './Statistiche'
 import GraficoGiornata from '@/components/pulizie/GraficoGiornata'
 import SchedaCameraOggi from '@/components/pulizie/SchedaCameraOggi'
 import SpaziComuniOggi from '@/components/pulizie/SpaziComuniOggi'
+import FoglioSpaziComuni from '@/components/pulizie/FoglioSpaziComuni'
+import type { VoceSpazi } from '@/lib/tempoPulizie'
 import { testoFatta } from '@/lib/pulizieSchede'
 import { rigaGiornata, rigaSpaziComuni, giornoLungo, contoGiorno, oraSegnata, romaDi, oraTesto } from '@/lib/giornataPulizie'
 import { useParte0064 } from '@/lib/schema0064Dati'
@@ -56,6 +58,8 @@ export default function Pulizie() {
   const [saving, setSaving] = useState<string | null>(null)
   const [vista, setVista] = useState<Vista>('oggi')
   const [scheda, setScheda] = useState<Apertura | null>(null)
+  // «Spazi comuni · minuti a mano»: la voce e il giorno aperti nel foglio
+  const [foglioSpazi, setFoglioSpazi] = useState<{ giorno: string; voce: VoceSpazi; righe: FuoriCameraSql[] } | null>(null)
   const [giornoRegistro, setGiornoRegistro] = useState('')
   const [quanteRighe, setQuanteRighe] = useState(PAGINA_REGISTRO)
   const [correzione, setCorrezione] = useState<Record<string, string>>({})
@@ -187,7 +191,7 @@ export default function Pulizie() {
         nome={c.nome} chi={p.tipo === 'soggiorno' ? `${nomeOspite(p.booking)} · ${diffDays(td, soggiornoContinuativo(prenotazioni, p.booking).inizio.check_in)}ª notte` : undefined} pulizia={p} arrivo={c.arrivo} priorita={prioritaDi(p, c.arrivo)} oggi={td} conOrari={conOrari}
         ultimaId={ultimaId(c.room.id)} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onSalvato={aggiornato} />))}
       {camereOggi.length === 0 && <p className="font-serif text-xl py-6" data-nessuna-pulizia>Nessuna pulizia da fare nella giornata.</p>}
-      <SpaziComuniOggi oggi={td} righe={fuoriOggi} conAltro={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />
+      <SpaziComuniOggi oggi={td} righe={fuoriOggi} conAltro={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onMinuti={voce => setFoglioSpazi({ giorno: td, voce, righe: fuoriOggi })} />
       {/* Le camere già pulite oggi, in fondo e attenuate */}
       {fatteOggi.map(f => <article key={f.id} className="pul-card dn" data-pulita-oggi={breve(f.room_id)}><div className="hd"><b>{breve(f.room_id)}</b><span className="pul-pr ok">{testoFatta(f.ora, f.minuti)}</span></div></article>)}
       <div id="fuori-camera" className="scroll-mt-20"><TempiFuoriCamera giorno={td} oggi={td} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} /></div>
@@ -217,6 +221,8 @@ export default function Pulizie() {
     </>}
     {vista === 'resoconto' && <StatistichePulizie rooms={rooms} bookings={prenotazioni} events={events} recuperi={recuperi} td={td} nomeCamera={nomeDaPrenotazione} />}
     </>}
+    {foglioSpazi && <FoglioSpaziComuni key={`${foglioSpazi.giorno}:${foglioSpazi.voce}`} giorno={foglioSpazi.giorno} oggi={td} voce={foglioSpazi.voce} righe={foglioSpazi.righe}
+      conCosa={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onChiudi={() => setFoglioSpazi(null)} onSalvato={ricarica} />}
     {scheda && <SchedaPulizia key={`${scheda.pulizia.id ?? ''}:${scheda.pulizia.booking_id}:${scheda.pulizia.data_prevista}`} camera={scheda.camera} pulizia={scheda.pulizia} booking={scheda.booking} oggi={td}
       ultimaId={ultimaId(scheda.pulizia.room_id)} onChiudi={() => setScheda(null)} onSalvato={aggiornato} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />}
   </main>
