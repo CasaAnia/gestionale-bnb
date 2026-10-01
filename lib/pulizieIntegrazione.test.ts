@@ -111,7 +111,7 @@ test('timer: istanti del server, scarto dell’orologio, arrotondamento solo all
   assert.equal(testoCronometro(330), '5:30')
   assert.equal(chiaveTimerPulizia('b1', 'soggiorno', '2026-09-26'), 'pulizia:b1:soggiorno:2026-09-26')
   assert.notEqual(chiaveTimerPulizia('b1', 'soggiorno', '2026-09-26'), chiaveTimerPulizia('b1', 'soggiorno', '2026-09-30'), 'la pulizia dopo non eredita il timer')
-  assert.deepEqual(descriviChiave('fuori:2026-09-25:corridoio', () => null), { tipo: 'fuori', nome: 'Corridoio', data: '2026-09-25' })
+  assert.deepEqual(descriviChiave('fuori:2026-09-25:corridoio', () => null), { tipo: 'fuori', nome: 'Corridoio e angolo caffè', data: '2026-09-25' })
 })
 
 test('fuori camera: il timer si somma al totale salvato in modo dichiarato, mai due volte', () => {
@@ -165,7 +165,9 @@ test('rifiuti del database in italiano corretto; guardie: niente elementi della 
   assert.match(messaggioRifiuto('boh'), /Non salvato/)
   const pagina = readFileSync(new URL('../app/pulizie/page.tsx', import.meta.url), 'utf8')
   for (const vietato of ['PROPOSTA DA PROVARE', 'Giorno della prova', 'giornata di esempio', 'localStorage', "'2026-09-25'"]) assert.ok(!pagina.includes(vietato), vietato)
-  for (const approvato of ['Camere, tempo di lavoro e biancheria, nello stesso registro.', 'Registra pulizia', 'Salta questo cambio', 'Prossime pulizie', 'Rinvii e salti', 'Ogni intervento, con i suoi numeri']) assert.ok(pagina.includes(approvato), approvato)
+  // Dal 01/10/2026 la pagina del riferimento nuovo (docs/design/pulizie-riferimento.html):
+  // il giorno, il grafico; sotto restano «Prossime pulizie» e «Rinvii e salti»
+  for (const approvato of ['<GraficoGiornata', 'giornoLungo(td)', 'Prossime pulizie', 'Rinvii e salti']) assert.ok(pagina.includes(approvato), approvato)
   const scheda = readFileSync(new URL('../components/SchedaPulizia.tsx', import.meta.url), 'utf8')
   // Dal 28/09/2026 la veste «Maison» (riferimento approvato da Ania): foglio dal basso, chip del recuperato sempre visibili
   for (const approvato of ['<FoglioMaison titolo={camera}', 'Recuperato · Lenzuola', 'Recuperato · Asciugamani', 'Niente recuperato', 'Minuti effettivi · facoltativi', 'Conferma pulizia', 'Fatta il', 'Federe sul matrimoniale']) assert.ok(scheda.includes(approvato), approvato)

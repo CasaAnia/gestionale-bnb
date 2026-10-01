@@ -15,6 +15,10 @@ import SchedaPulizia, { TIPI_INTERVENTO } from '@/components/SchedaPulizia'
 import TempiFuoriCamera from '@/components/TempiFuoriCamera'
 import TimerInCorso from '@/components/TimerInCorso'
 import StatistichePulizie from './Statistiche'
+import GraficoGiornata from '@/components/pulizie/GraficoGiornata'
+import { rigaGiornata, rigaSpaziComuni, giornoLungo, contoGiorno } from '@/lib/giornataPulizie'
+import { useParte0064 } from '@/lib/schema0064Dati'
+import { leggiFuoriCamera, type FuoriCameraSql } from '@/lib/pulizieTempiDati'
 import { raccogliPagine } from '@/lib/statistiche/paginazione'
 import { inviaOperazionePulizia } from '@/lib/pulizieServizio'
 import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
@@ -55,6 +59,19 @@ export default function Pulizie() {
   const [quanteRighe, setQuanteRighe] = useState(PAGINA_REGISTRO)
   const [correzione, setCorrezione] = useState<Record<string, string>>({})
   const [td, setTd] = useState(todayStr)
+  // Bagagli e partenza (proposta 0064): senza le colonne il grafico non le disegna
+  const orari0064 = useParte0064('orari')
+  const conOrari = orari0064.stato === 'si'
+  // I tempi degli spazi comuni di oggi, per la riga in fondo al grafico
+  const [fuoriOggi, setFuoriOggi] = useState<FuoriCameraSql[]>([])
+  useEffect(() => {
+    let viva = true
+    const leggi = () => { void leggiFuoriCamera(td, td).then(r => { if (viva && r.righe) setFuoriOggi(r.righe) }) }
+    leggi()
+    const smetti = osservaAggiornamentiPulizie(window, leggi)
+    window.addEventListener('pulizie-salvataggi', leggi)
+    return () => { viva = false; smetti(); window.removeEventListener('pulizie-salvataggi', leggi) }
+  }, [td, rilettura])
   useEffect(() => osservaAggiornamentiPulizie(window, () => setRilettura(x => x + 1)), [])
   // Cambio di giornata con la pagina aperta: si rilegge tutto col giorno nuovo.
   useEffect(() => { const t = window.setInterval(() => { const g = todayStr(); if (g !== td) { setTd(g); setRilettura(x => x + 1) } }, 30000); return () => window.clearInterval(t) }, [td])
@@ -108,6 +125,10 @@ export default function Pulizie() {
   }).filter(r => r.aperte.length > 0).sort((a, b) => RANK[a.priorita!] - RANK[b.priorita!]), [rooms, prenotazioni, events, td, breve])
   const daFare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
   const confermate = confermateNelGiorno(events, td)
+  // Il grafico: una riga per OGNI camera attiva, nell'ordine di sempre
+  const grafico = useMemo(() => rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, events as Parameters<typeof rigaGiornata>[3], td, conOrari)), [rooms, prenotazioni, events, td, conOrari, breve])
+  const spaziOggi = useMemo(() => rigaSpaziComuni(fuoriOggi, td), [fuoriOggi, td])
+  const conto = contoGiorno(daFare, confermate)
   const prossime = useMemo(() => prossimePulizie(prenotazioni, rooms.filter(r => r.active !== false).map(r => r.id), td, events)
     .filter(p => !camereOggi.some(c => c.room.id === p.roomId && c.aperte.some(a => a.tipo === p.tipo && a.booking.id === p.booking.id && a.due === p.data))), [prenotazioni, rooms, td, events, camereOggi])
   const rinvii = useMemo(() => rinviiInCorso(events, td), [events, td])
@@ -153,22 +174,21 @@ export default function Pulizie() {
   }
 
   const pronta = !loading && !errore
-  return <main className="max-w-4xl mx-auto px-4 py-6 pb-28" data-nuove-pulizie>
+  // Veste del riferimento approvato il 01/10/2026: pagina bianca, sul telefono
+  // il titolo è già nella barra in alto («‹ PULIZIE»); in cima le linguette.
+  return <main className="pul pul-pagina max-w-4xl mx-auto px-4 pt-2 lg:pt-6 pb-28" data-nuove-pulizie>
     <BackBar href="/" />
-    {/* Dal Mac la testa condivisa (29/09/2026): la sola scrittina.
-        Il contenitore ha già 24 px sopra (py-6) */}
+    {/* Dal Mac la testa condivisa (29/09/2026): la sola scrittina. */}
     <TestaMac titolo="Pulizie" contenitore={24} />
-    <h1 className="ed-titolo lg:hidden">Pulizie</h1>
-    <p className="ed-sotto mt-2 lg:hidden">Camere, tempo di lavoro e biancheria, nello stesso registro.</p>
-    <nav className="flex flex-wrap gap-3 my-6" aria-label="Sezioni pulizie">{(['oggi', 'registro', 'resoconto'] as const).map(v => <button type="button" key={v} className={vista === v ? 'ed-pillola capitalize' : `${classe} capitalize`} aria-pressed={vista === v} onClick={() => setVista(v)}>{v === 'resoconto' ? 'Statistiche' : v}</button>)}</nav>
+    <nav className="pul-tabs" aria-label="Sezioni pulizie">{(['oggi', 'registro', 'resoconto'] as const).map(v => <button type="button" key={v} className={vista === v ? 'on' : ''} aria-pressed={vista === v} onClick={() => setVista(v)}>{v === 'resoconto' ? 'Statistiche' : v === 'oggi' ? 'Oggi' : 'Registro'}</button>)}</nav>
     <SalvataggiPulizie onVerificato={ricarica} />
     <TimerInCorso nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />
     {errore && <p role="alert" className="text-red-800 my-3">{errore} <button type="button" className="ed-azione" onClick={() => { setLoading(true); ricarica() }}>Riprova</button></p>}
     {avviso && <p role="alert" className="text-red-800 my-3">{avviso}</p>}
     {loading && !errore ? <p>Lettura del registro…</p> : pronta && <>
     {vista === 'oggi' && <>
-      <div className="flex justify-between gap-3 border-y border-card-border py-4 mb-4"><p data-da-fare={daFare}><strong className="text-2xl font-serif">{daFare}</strong> da fare</p><p data-confermate={confermate}><strong className="text-2xl font-serif">{confermate}</strong> confermate</p></div>
-      <p className="ed-sezione mb-2" id={`pulizie-giorno-${td}`}>{dataNumerica(td)} · oggi</p>
+      <div className="pul-giorno" id={`pulizie-giorno-${td}`}><b>{giornoLungo(td)}</b><small><span data-da-fare={daFare}>{conto.daFare}</span> · <em data-confermate={confermate}>{conto.fatte}</em></small></div>
+      <GraficoGiornata righe={grafico} spazi={spaziOggi} />
       {camereOggi.map(c => <article key={c.room.id} id={`camera-${c.room.id}`} className="ed-riga py-5 scroll-mt-20" data-camera={c.nome}>
         {c.aperte.map((p, i) => { const b = p.booking; const rit = p.ritardo > 0 ? ` · in ritardo di ${p.ritardo} ${p.ritardo === 1 ? 'giorno' : 'giorni'}` : ''
           return <div key={`${p.tipo}:${b.id}:${p.due}`} className={i ? 'mt-5' : ''} data-pulizia={p.tipo}>

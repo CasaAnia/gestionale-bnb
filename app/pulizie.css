@@ -65,3 +65,77 @@
 .sch-orario .v { font-family: var(--m-disp); font-size: 18px; font-weight: 500; white-space: nowrap; }
 .sch-orario .v em { font-style: normal; }
 .sch-orario .v em.mat { color: var(--m-mat); }
+
+/* ── Pulizie · Oggi: testa e grafico della giornata (riferimento 1) ─────── */
+.pul { font-family: var(--p-sans); color: var(--p-ink); }
+.pul-tabs { display: flex; gap: 22px; justify-content: center; margin: 16px 0 4px; }
+.pul-tabs button { position: relative; font-family: var(--p-sans); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--p-sec); padding: 0 0 5px; background: none; border: 0; border-bottom: 1.5px solid transparent; text-decoration: none !important; }
+.pul-tabs button::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; transform: translateY(-50%); }
+.pul-tabs button.on { color: var(--p-ink); border-color: var(--p-ott); }
+.pul-giorno { text-align: center; margin: 18px 0 2px; }
+.pul-giorno b { display: block; font-family: var(--p-disp); font-weight: 500; font-size: 34px; line-height: 1.05; }
+.pul-giorno small { display: block; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--p-sec); margin-top: 6px; }
+.pul-giorno small em { font-style: normal; color: var(--p-ott2); }
+
+.tl { position: relative; margin-top: 22px; }
+.tl .ru { display: grid; grid-template-columns: 62px 1fr; font-size: 10px; color: var(--p-sec); }
+.tl .ru .h { position: relative; height: 18px; }
+.tl .ru .h span { position: absolute; transform: translateX(-50%); }
+.tl .rw { display: grid; grid-template-columns: 62px 1fr; align-items: center; height: 56px; border-top: 1px solid var(--p-filo); }
+.tl .rw.ultima { border-bottom: 1px solid var(--p-filo); margin-bottom: 16px; }
+.tl .rw .rn { font-family: var(--p-disp); font-size: 19px; }
+.tl .rw .rn.sc { font-size: 15px; line-height: 1.05; }
+.tl .ln { position: relative; height: 56px; }
+.tl .ln .g { position: absolute; top: 0; bottom: 0; border-left: 1px dashed #EEE9E0; }
+.tl .seg { position: absolute; top: 13px; height: 30px; border-radius: 5px; font-size: 10px; line-height: 1.15; padding: 4px 6px; overflow: hidden; white-space: nowrap; }
+.tl .seg.occ { background: repeating-linear-gradient(135deg, #EFEAE1 0 5px, #F7F4EE 5px 10px); color: var(--p-sec); }
+.tl .seg.win { background: var(--p-verc); border-left: 3px solid var(--p-ver); color: #1F3D2F; }
+.tl .seg.win.w2 { background: #F4EBDA; border-left-color: var(--p-ott); color: #6E5116; }
+.tl .seg.done { background: #fff; border: 1px solid #BFDCC8; color: var(--p-ver); z-index: 1; }
+.tl .seg.done.mini { padding: 4px 3px; }
+.tl .seg.stay { background: #F3F0FA; border-left: 3px solid #9B8EC4; color: #4A3F78; }
+.tl .arr { position: absolute; top: 8px; bottom: 8px; width: 0; border-left: 2px solid var(--p-ott); z-index: 1; }
+.tl .arr.ind { border-left-style: dashed; }
+.tl .arr::after { content: attr(data-t); position: absolute; top: -4px; left: 3px; font-size: 10px; font-weight: 500; color: var(--p-ott2); white-space: nowrap; }
+.tl .arr.sx::after { left: auto; right: 4px; }
+.tl .bag { position: absolute; top: 22px; width: 0; z-index: 1; }
+.tl .bag i { position: absolute; left: -7px; top: -2px; width: 14px; height: 12px; border: 1.4px solid var(--p-ott2); border-radius: 3px; background: #fff; }
+.tl .bag i::before { content: ""; position: absolute; left: 3px; top: -4px; width: 5px; height: 3px; border: 1.3px solid var(--p-ott2); border-bottom: 0; border-radius: 2px 2px 0 0; }
+.tl .bag span { position: absolute; top: -1px; left: 11px; font-size: 9.5px; color: var(--p-ott2); white-space: nowrap; }
+.tl .vuota { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #B8AE9C; }
+.tl .nota-rg { position: absolute; left: 6px; bottom: 2px; font-size: 9.5px; color: var(--p-mat); }
+.tl-ora { position: absolute; left: 62px; right: 0; top: 0; bottom: 16px; pointer-events: none; }
+.tl-ora .now { position: absolute; top: 0; bottom: 0; border-left: 1.5px solid var(--p-mat); z-index: 2; }
+.tl-ora .now span { position: absolute; bottom: -14px; left: -20px; font-size: 9px; letter-spacing: .1em; color: var(--p-mat); background: #fff; padding: 0 2px; white-space: nowrap; }
+
+/* ── Pulizie · Oggi: le schede delle camere (riferimento 1 e 2) ─────────── */
+body:has(.pul-pagina) { background: #fff; }
+.pul-card { border-top: 1px solid var(--p-filo); padding: 16px 0 18px; scroll-margin-top: 80px; }
+.pul-card.cur { background: linear-gradient(90deg, #FBF8F1, #fff); margin: 0 -16px; padding: 16px 16px 18px; border-top-color: transparent; }
+.pul-card.dn { opacity: .55; }
+.pul-card .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.pul-card .hd b { font-family: var(--p-disp); font-weight: 500; font-size: 28px; line-height: 1.1; }
+.pul-pr { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; text-align: right; }
+.pul-pr.urgente { color: var(--p-mat); } .pul-pr.alta { color: var(--p-ott2); } .pul-pr.flessibile, .pul-pr.nessuna_fretta, .pul-pr.calm { color: var(--p-sec); } .pul-pr.ok { color: var(--p-ver); }
+.pul-rit { font-size: 11px; color: var(--p-mat); margin-top: 2px; letter-spacing: .04em; }
+.pul-ore { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+.pul-ore div small { display: block; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--p-sec); }
+.pul-ore div b { font-family: var(--p-disp); font-size: 22px; font-weight: 600; }
+.pul-ore div.a b { color: var(--p-ott2); }
+.pul-ore div.q b { color: var(--p-mat); font-weight: 500; }
+.pul-chi { font-size: 13px; color: var(--p-sec); margin-top: 4px; line-height: 1.45; }
+.pul-prep { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.pul-prep span { font-size: 12px; border: 1px solid var(--p-filo); border-radius: 999px; padding: 5px 10px; background: #fff; }
+.pul-azioni { display: flex; flex-wrap: wrap; gap: 14px 18px; margin-top: 14px; align-items: center; }
+.pul-timer .tg { display: flex; align-items: baseline; gap: 14px; margin-top: 12px; }
+.pul-timer .tg b { font-family: var(--p-disp); font-weight: 600; font-size: 48px; line-height: 1; color: var(--p-avorio); font-variant-numeric: tabular-nums; }
+.pul-timer .tg b.vivo { color: var(--p-ink); }
+.pul-timer .tg span { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--p-sec); }
+.pul-timer .tg .pul-az { font-size: 11.5px; letter-spacing: .18em; padding-bottom: 3px; }
+.pul-sc { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--p-filo); }
+.pul-sc:first-of-type { border-top: 0; }
+.pul-sc > span { font-family: var(--p-disp); font-size: 20px; }
+.pul-sc small, .pul-sc .min { font-size: 12px; color: var(--p-sec); background: none; border: 0; padding: 0; font-family: var(--p-sans); position: relative; text-decoration: none !important; }
+.pul-sc .min::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 40px; transform: translateY(-50%); }
+.pul-sc .pul-az { font-size: 11px; padding-bottom: 3px; }
+.pul-sc-timer .pul-timer .tg { margin-top: 0; padding-bottom: 6px; }
