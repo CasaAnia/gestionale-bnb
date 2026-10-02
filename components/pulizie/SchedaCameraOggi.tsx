@@ -3,7 +3,8 @@
 // 01/10/2026, pulizie-riferimento.html, telefoni 1 e 2): nome e priorità, gli
 // orari, cosa preparare, il timer grande e i tre comandi di sempre
 // (ControlliPulizia, riusato). La scheda col timer in corso ha lo sfondo
-// avorio sfumato. Parole e dati: lib/pulizieSchede.
+// avorio sfumato; dal 02/10/2026 (pulizie-timer-riferimento.html) anche in
+// pausa e coi minuti a mano aperti. Parole e dati: lib/pulizieSchede.
 import ControlliPulizia from '@/components/ControlliPulizia'
 import { useTimerPulizie } from '@/lib/pulizieTempiDati'
 import { chiaveTimerPulizia } from '@/lib/tempoPulizie'
@@ -34,13 +35,14 @@ export default function SchedaCameraOggi({ id, nome, chi, cronologia, pulizia: p
   onSalvato: (r: RispostaPulizia) => void
 }) {
   const [spiega, setSpiega] = useState(false)
+  const [attivo, setAttivo] = useState(false)
   const t = useTimerPulizie().timer.find(x => x.chiave === chiaveTimerPulizia(p.booking.id, p.tipo, p.due))
   const inCorso = !!t?.avviato_at
   const ore = orariScheda(p, arrivo, oggi, conOrari)
   const parte = ore.find(o => o.chiave === 'parte')
   const wa = parte && !parte.ora ? whatsappRichiestaPartenza(p.booking, p.booking.check_out) : null
   const decisione: Decisione = { room_id: p.roomId, booking_id: p.booking.id, tipo: p.tipo, stato: 'fatta', data_prevista: p.due, persone_servite: Number(p.booking.num_guests) || null }
-  return <article id={id} className={`pul-card${inCorso ? ' cur' : ''}`} data-camera={nome} data-pulizia={p.tipo} data-in-corso={inCorso ? 1 : 0}>
+  return <article id={id} className={`pul-card${inCorso || attivo ? ' cur' : ''}`} data-camera={nome} data-pulizia={p.tipo} data-in-corso={inCorso ? 1 : 0}>
     <div className="hd"><b>{nome}</b><span className={`pul-pr ${priorita}`} data-priorita={priorita}>{etichettaScheda(p, arrivo, priorita)}</span></div>
     {p.ritardo > 0 && <p className="pul-rit" data-ritardo>{testoRitardo(p.ritardo)}</p>}
     {p.tipo === 'soggiorno'
@@ -49,7 +51,7 @@ export default function SchedaCameraOggi({ id, nome, chi, cronologia, pulizia: p
     {wa && <div className="pul-azioni" style={{ marginTop: 8 }}><a href={wa.href} target="_blank" rel="noopener noreferrer" className="pul-az" data-whatsapp="chiedi-partenza" onClick={e => { e.preventDefault(); openWhatsApp(wa.numero, wa.testo) }}>Chiedi orario</a></div>}
     <div className="pul-prep" data-prepara>{pilloleLetti(nome, p.booking, oggi).map(x => <span key={x}>{x}</span>)}</div>
     <ControlliPulizia pagina camera={nome} chi={chi} oggi={oggi} pulizia={decisione} ultimaId={ultimaId} persone={Number(p.booking.num_guests) || null}
-      partenza={p.tipo === 'soggiorno' ? p.booking.check_out : undefined} nomeCamera={nomeCamera} onVaiA={onVaiA} onSalvato={onSalvato} />
+      partenza={p.tipo === 'soggiorno' ? p.booking.check_out : undefined} nomeCamera={nomeCamera} onVaiA={onVaiA} onSalvato={onSalvato} onAttivo={setAttivo} />
     {/* «perché questa data?» come prima: la cronologia della camera, al tocco */}
     {cronologia && cronologia.length > 0 && <div className="pul-cron">
       <button type="button" className="pul-az tn" aria-expanded={spiega} onClick={() => setSpiega(x => !x)} data-perche>{spiega ? 'nascondi la cronologia' : 'perché questa data?'}</button>

@@ -2,14 +2,15 @@
 import { useEffect, useRef, useState } from 'react'
 import TimerPulizia from './TimerPulizia'
 import { useTimerPulizie } from '@/lib/pulizieTempiDati'
-import { chiaveTimerPulizia } from '@/lib/tempoPulizie'
+import { chiaveTimerPulizia, minutiTimer } from '@/lib/tempoPulizie'
+import { fotoTimer, segnatiValidi, testoSegnati, minutiDalCampo, leggiSegnati, scriviSegnati, type MinutiSegnati } from '@/lib/minutiSegnati'
 import SchedaPulizia from './SchedaPulizia'
 import AvvisoAzione from './AvvisoAzione'
 import { addDaysStr, type Decisione } from '@/lib/pulizie'
 import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
 import { type Contatori, type Recupero } from '@/lib/biancheria'
 import { recuperoDaRiga, totalePezzi, totaleSenzaMisura } from '@/lib/dotazionePulizie'
-import { leggiOperazionePulizia, type RichiestaPulizia, type RispostaPulizia } from '@/lib/pulizieOperazioni'
+import { leggiOperazionePulizia, TIMER_CAMBIATO, type RichiestaPulizia, type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import { inviaOperazionePulizia, leggiPersonePulizia } from '@/lib/pulizieServizio'
 import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { ricaricaDaControllare } from '@/lib/daControllareDati'
@@ -26,11 +27,13 @@ type Props = {
   chi?: string
   nomeCamera?: (bookingId: string) => string | null; onVaiA?: (chiave: string) => void
   onSalvato?: (risposta: RispostaPulizia) => void
+  /** pagina: la scheda ha il timer acceso, in pausa o i minuti a mano aperti (sfondo avorio) */
+  onAttivo?: (attivo: boolean) => void
 }
 
 // Un solo percorso per Home, pulizie aperte e registro. Il recupero prima
 // della conferma viene scritto nella stessa transazione della pulizia.
-export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, persone, partenza, scegliData, home = false, pagina = false, chi, nomeCamera, onVaiA, onSalvato }: Props) {
+export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, persone, partenza, scegliData, home = false, pagina = false, chi, nomeCamera, onVaiA, onSalvato, onAttivo }: Props) {
   const [confermata, setConfermata] = useState<Decisione | null>(pulizia.id && pulizia.stato === 'fatta' ? pulizia : null)
   const [recupero, setRecupero] = useState<Recupero | null>(null)
   // Il pop-up approvato (SchedaPulizia) per «Pulita e recuperato» e per le correzioni.
@@ -44,8 +47,23 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
   const [sposta, setSposta] = useState<{ stato: 'rimandata' | 'saltata'; data: string } | null>(null)
   const blocco = useRef(false)
   const tempi = useTimerPulizie()
-  const timer = tempi.timer.find(t => t.chiave === chiaveTimerPulizia(pulizia.booking_id ?? '', pulizia.tipo, pulizia.data_prevista))
-
+  const chiaveTimer = chiaveTimerPulizia(pulizia.booking_id ?? '', pulizia.tipo, pulizia.data_prevista)
+  const timer = tempi.timer.find(t => t.chiave === chiaveTimer)
+  // Pagina Pulizie (02/10/2026): i minuti segnati sulla scheda e il campo dei minuti a mano
+  const [segnati, setSegnatiStato] = useState<MinutiSegnati | null>(null)
+  const [aMano, setAMano] = useState<string | null>(null)
+  const [erroreAMano, setErroreAMano] = useState('')
+  const setSegnati = (v: MinutiSegnati | null) => { setSegnatiStato(v); scriviSegnati(window.localStorage, chiaveTimer, v) }
+  useEffect(() => {
+    if (!pagina) return
+    const t = window.setTimeout(() => setSegnatiStato(leggiSegnati(window.localStorage, chiaveTimer)), 0)
+    return () => window.clearTimeout(t)
+  }, [pagina, chiaveTimer])
+  // Valgono solo col timer di quando si sono segnati (letto dal server)
+  const segnatiOra = tempi.stato === 'pronto' ? segnatiValidi(segnati, timer) : null
+  // Riferimento, schermate 1–3: sfondo avorio col timer in corso, in pausa o coi minuti a mano aperti
+  const attivo = pagina && !confermata && !(segnatiOra && aMano === null) && (!!timer?.avviato_at || (timer?.trascorsi ?? 0) > 0 || aMano !== null)
+  useEffect(() => { onAttivo?.(attivo) }, [attivo, onAttivo])
 
   useEffect(() => {
     const leggi = () => {
@@ -107,7 +125,7 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
     } finally { blocco.current = false; setOccupata(false) }
   }
 
-  async function registra(stato: Decisione['stato'], valori: Contatori | null = null, n?: number, prossima?: string) {
+  async function registra(stato: Decisione['stato'], valori: Contatori | null = null, n?: number, prossima?: string, minuti?: MinutiSegnati) {
     if (pendente) return invia(null)
     const quanti = n ?? persone ?? pulizia.persone_servite ?? await leggiPersonePulizia(pulizia.booking_id)
     if (!quanti) { const msg = 'Non riesco a leggere il numero di ospiti del soggiorno. Riprova.'; setErrore(msg); return msg }
@@ -116,6 +134,7 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
       ...pulizia, stato, data_effettiva: stato === 'fatta' ? data : null,
       prossima_data: stato === 'fatta' ? null : prossima ?? sposta?.data ?? null,
       cambio_biancheria: stato === 'fatta', persone_servite: quanti,
+      ...(minuti ? { minuti: minuti.minuti, timer: minuti.timer } : {}),
     }, recupero: valori })
   }
 
@@ -134,17 +153,43 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
   // selettore «Rimanda | Salta» a filo, la data a filo, la frase sulla
   // partenza quando vale, «Annulla» e «Conferma» pieno. Stesse date di prima.
   // ── Pagina Pulizie (riferimento del 01/10/2026) ───────────────────────
-  // Il timer GRANDE (TimerPulizia, stessa logica) e i tre comandi di sempre:
-  // «Pulita» pieno d'inchiostro solo nella camera col timer in corso, gli
-  // altri sottolineati; «Rimanda o salta» apre il suo foglio (FoglioRimanda), come in Home.
+  // Il timer GRANDE (TimerPulizia, stessa logica) e i tre comandi di sempre,
+  // tutti sottolineati (dal 02/10/2026 nessun tasto pieno nella pagina);
+  // «Rimanda o salta» apre il suo foglio (FoglioRimanda), come in Home.
+  // Dal 02/10/2026 (pulizie-timer-riferimento.html, schermate 2–4) accanto al
+  // timer anche «Ferma e riporta i minuti», «Azzera» e «Minuti a mano»: i
+  // minuti riportati o scritti diventano «✓ 35 minuti segnati · correggi»,
+  // «Pulita» li salva con la pulizia senza aprire il foglio e «Pulita e
+  // recuperato» apre il foglio con quei minuti già scritti.
   if (pagina) {
-    const inCorso = !!timer?.avviato_at
     const apriSposta = () => { setErrore(null); setMenuSposta(true) }
+    const apriAMano = () => { setErroreAMano(''); setAMano(segnatiOra ? String(segnatiOra.minuti) : timer && timer.trascorsi > 0 ? String(minutiTimer(timer.trascorsi)) : '') }
+    const salvaAMano = () => {
+      const n = minutiDalCampo(aMano ?? '')
+      if (n === null) { setErroreAMano('Scrivi i minuti, da 1 a 1440.'); return }
+      if (timer?.avviato_at) { setErroreAMano('Ferma il timer prima di segnare i minuti.'); return }
+      setSegnati({ minuti: n, timer: fotoTimer(timer) }); setAMano(null)
+    }
+    async function pulita() {
+      if (!segnatiOra) { if (timer && (timer.avviato_at || timer.trascorsi > 0)) apriRecupero(); else void registra('fatta'); return }
+      const e = await registra('fatta', null, undefined, undefined, segnatiOra)
+      // salvata, oppure il timer è cambiato altrove: la scheda torna a mostrare il timer
+      if (!e || e === TIMER_CAMBIATO) setSegnati(null)
+    }
+    const campo = aMano !== null && <div data-minuti-a-mano-aperti>
+      <div className="pul-man"><input type="number" inputMode="numeric" min="1" max="1440" autoFocus aria-label={`Minuti · ${camera}`} value={aMano} onChange={e => setAMano(e.target.value)} data-campo="minuti-a-mano" /><small>minuti</small></div>
+      <div className="pul-cmd"><button type="button" className="pul-az" onClick={salvaAMano} data-salva-minuti>Salva</button><button type="button" className="pul-az tn" onClick={() => { setAMano(null); setErroreAMano('') }}>Annulla</button></div>
+      {erroreAMano && <p role="alert" className="pul-errore">{erroreAMano}</p>}
+    </div>
     return <div data-controlli-pulizia data-veste="pagina">
-      {!confermata && pulizia.booking_id && <TimerPulizia grande chiave={chiaveTimerPulizia(pulizia.booking_id, pulizia.tipo, pulizia.data_prevista)} nome={camera} nomeCamera={nomeCamera ?? (id => id === pulizia.booking_id ? camera : null)} onVaiA={onVaiA} onMinuti={apriRecupero} />}
+      {!confermata && pulizia.booking_id && (segnatiOra && aMano === null
+        ? <p className="pul-segnati" data-minuti-segnati={segnatiOra.minuti}>{testoSegnati(segnatiOra.minuti)} · <button type="button" className="correggi" onClick={apriAMano} data-correggi-minuti>correggi</button></p>
+        : <TimerPulizia grande chiave={chiaveTimer} nome={camera} nomeCamera={nomeCamera ?? (id => id === pulizia.booking_id ? camera : null)} onVaiA={onVaiA}
+          onMinuti={(n, _s, t) => setSegnati({ minuti: n, timer: fotoTimer(t) })} onAMano={apriAMano} sotto={campo || undefined} />)}
+      {!confermata && pulizia.booking_id && !timer?.avviato_at && (!segnatiOra || aMano !== null) && <div className="pul-sep" />}
       <div className="pul-azioni">
         {confermata ? <span className="pul-az" data-fatta>✓ Pulita</span>
-          : <button type="button" className={`pul-az${inCorso ? ' p' : ''}`} onClick={() => timer && (timer.avviato_at || timer.trascorsi > 0) ? apriRecupero() : void registra('fatta')} disabled={occupata || pendente} data-pulita>{occupata && !sposta ? 'Salvo…' : 'Pulita'}</button>}
+          : <button type="button" className="pul-az" onClick={() => void pulita()} disabled={occupata || pendente} data-pulita>{occupata && !sposta ? 'Salvo…' : 'Pulita'}</button>}
         <button type="button" className="pul-az" onClick={apriRecupero} disabled={occupata || pendente} data-recuperato>{!confermata ? 'Pulita e recuperato' : riepilogo ? 'Modifica recupero' : 'Recuperato'}</button>
         {!confermata && <button type="button" className="pul-az tn" disabled={occupata || pendente} onClick={apriSposta} aria-expanded={menuSposta} data-rimanda-o-salta>Rimanda o salta</button>}
       </div>
@@ -153,9 +198,9 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
         errore={errore} salvato={salvato} onFineSalvato={fineSalvato} onAnnulla={() => { setSposta(null); setMenuSposta(false) }}
         onConferma={(stato, data) => { rinviaRilettura.current = true; setSposta({ stato, data }); void registra(stato, null, undefined, data).finally(() => { rinviaRilettura.current = false }) }} />}
       {(errore || pendente) && <AvvisoAzione testo={errore || 'Un salvataggio attende conferma. Premi Riprova.'} className="mt-2" onRiprova={pendente ? () => void invia(null) : () => window.location.reload()} />}
-      {scheda && <SchedaPulizia camera={camera} pulizia={scheda} oggi={oggi} ultimaId={ultimaId} onChiudi={() => setScheda(null)}
+      {scheda && <SchedaPulizia camera={camera} pulizia={scheda} oggi={oggi} ultimaId={ultimaId} onChiudi={() => setScheda(null)} minutiSegnati={confermata ? undefined : segnatiOra ?? undefined}
         nomeCamera={nomeCamera ?? (id => id === pulizia.booking_id ? camera : null)} onVaiA={onVaiA}
-        onSalvato={r => { if (r.pulizia.stato === 'fatta' && (!confermata || r.pulizia.id === confermata.id)) setConfermata(r.pulizia); setRecupero(r.recupero); setRilettura(x => x + 1); onSalvato?.(r) }} />}
+        onSalvato={r => { if (r.pulizia.stato === 'fatta' && (!confermata || r.pulizia.id === confermata.id)) { setConfermata(r.pulizia); setSegnati(null) } setRecupero(r.recupero); setRilettura(x => x + 1); onSalvato?.(r) }} />}
     </div>
   }
 

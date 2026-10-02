@@ -132,6 +132,19 @@ body:has(.pul-pagina) { background: #fff; }
 .pul-timer .tg b.vivo { color: var(--p-ink); }
 .pul-timer .tg span { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--p-sec); }
 .pul-timer .tg .pul-az { font-size: 11.5px; letter-spacing: .18em; padding-bottom: 3px; }
+/* Comandi del timer sulla scheda (riferimento del 02/10/2026, pulizie-timer-riferimento.html) */
+.pul-cmd { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-top: 12px; align-items: center; }
+.pul-cmd .pul-az { padding-bottom: 3px; }
+.pul-man { display: flex; align-items: baseline; gap: 12px; margin-top: 12px; }
+.pul-man input { width: 70px; border: 0; border-bottom: 1px solid var(--p-avorio); border-radius: 0; font-family: var(--p-disp); font-size: 26px; padding: 2px 0; background: transparent; outline: none; color: var(--p-ink); }
+.pul-man small { font-size: 13px; color: var(--p-sec); }
+.pul-man input { -moz-appearance: textfield; appearance: textfield; }
+.pul-man input::-webkit-outer-spin-button, .pul-man input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.pul-segnati { font-size: 13px; color: var(--p-ver); margin-top: 8px; }
+.pul-segnati .correggi { position: relative; font: inherit; color: var(--p-sec); background: none; border: 0; border-bottom: 1px solid var(--p-avorio); padding: 0; text-decoration: none !important; cursor: pointer; }
+.pul-segnati .correggi::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 40px; transform: translateY(-50%); }
+.pul-sep { height: 1px; background: var(--p-filo); margin: 6px 0 2px; }
+.pul-sep + .pul-azioni { margin-top: 14px; }
 .pul-sc { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--p-filo); }
 .pul-sc:first-of-type { border-top: 0; }
 .pul-sc > span { font-family: var(--p-disp); font-size: 20px; }

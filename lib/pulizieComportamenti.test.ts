@@ -31,7 +31,7 @@ test('timer nel foglio: «Ferma e riporta i minuti» e «Azzera timer» come pri
 
 test('timer grande e spazi comuni: «Avvia» fermo con un altro timer in corso, avviso sempre visibile (come la Home)', () => {
   const t = leggi('components/TimerPulizia.tsx')
-  const grande = t.slice(t.indexOf('if (grande) return'), t.indexOf('if (foglio) return'))
+  const grande = t.slice(t.indexOf('if (grande)'), t.indexOf('if (foglio) return'))
   assert.match(grande, /disabled=\{!pronto \|\| \(!inCorso && !!altro\)\}/)
   assert.match(grande, /\{altroDescritto && <p className="pul-avviso" data-altro-timer>/)
   assert.match(leggi('components/pulizie/SpaziComuniOggi.tsx'), /disabled=\{occupato \|\| s\.stato !== 'pronto' \|\| !!altro\}/)

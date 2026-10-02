@@ -24,6 +24,7 @@ import { ricaricaDaControllare } from '@/lib/daControllareDati'
 import { useTimerPulizie, leggiTimer, statoTimerAttuale } from '@/lib/pulizieTempiDati'
 import { chiaveTimerPulizia, testoCronometro, secondiTimer, type TimerSql } from '@/lib/tempoPulizie'
 import { lettiTesto } from '@/lib/pulizieVista'
+import { fotoTimer, stessoTimer, type MinutiSegnati } from '@/lib/minutiSegnati'
 import type { Decisione, PrenotazionePulizie, TipoPulizia } from '@/lib/pulizie'
 import {
   VOCI_DOTAZIONE, dotazioneDaAssetto, pezziVuoti, totalePezzi, daLavare, validaAssetto, assettoPerSql, assettoDaSql, pezziDaSql,
@@ -39,9 +40,7 @@ export const ALTEZZA_FOGLIO_PULIZIA = ALTEZZA_FOGLI_PULIZIE
 /** Il tipo nell'eyebrow e nel Registro (riferimento del 01/10/2026) */
 export const TIPI_FOGLIO: Record<TipoPulizia, string> = { fine_soggiorno: 'Cambio ospite', soggiorno: 'Durante il soggiorno', cambio_camera: 'Cambio camera' }
 const NESSUNO: SenzaMisura = { lenzuolo_sotto: 0, lenzuolo_sopra: 0 }
-// Fotografia del timer che si vedeva quando si sono scritti o riportati i minuti.
-const fotoTimer = (t: TimerSql | null | undefined): TimerVisto | null => t ? { versione: Number(t.versione), trascorsi: Number(t.trascorsi) } : null
-const stessoTimer = (a: TimerVisto | null, b: TimerVisto | null) => (a?.versione ?? null) === (b?.versione ?? null) && (a?.trascorsi ?? 0) === (b?.trascorsi ?? 0)
+// Fotografia del timer che si vedeva quando si sono scritti o riportati i minuti (lib/minutiSegnati).
 
 type Bozza = {
   data: string; assetto: AssettoPulizia; assettoDaConfermare: boolean; federeScelte: boolean
@@ -51,7 +50,7 @@ type Bozza = {
   ora: string | null; oraIniziale: string | null
 }
 
-export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId, onChiudi, onSalvato, onTolta, nomeCamera, onVaiA }: {
+export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId, onChiudi, onSalvato, onTolta, nomeCamera, onVaiA, minutiSegnati }: {
   camera: string                       // nome breve («Amelia»)
   pulizia: Decisione                   // da confermare (senza id) o già confermata
   booking?: PrenotazionePulizie | null // assente: si legge dal database (Home)
@@ -60,9 +59,11 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   /** dopo «togli»: la pulizia non c'è più */
   onTolta?: (id: string) => void
   nomeCamera?: (bookingId: string) => string | null; onVaiA?: (chiave: string) => void
+  /** i minuti già segnati sulla scheda della camera (02/10/2026): il foglio parte da quelli */
+  minutiSegnati?: MinutiSegnati
 }) {
   // Le proprietà dell'apertura si fissano: un nuovo disegno della pagina non riapre la scheda.
-  const [iniziale] = useState(() => ({ pulizia, booking }))
+  const [iniziale] = useState(() => ({ pulizia, booking, minuti: minutiSegnati ?? null }))
   const correzione = !!pulizia.id && pulizia.stato === 'fatta'
   const [bozza, setBozza] = useState<Bozza | null>(null)
   const [errore, setErrore] = useState('')
@@ -82,7 +83,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   const chiave = !correzione && pulizia.booking_id ? chiaveTimerPulizia(pulizia.booking_id, pulizia.tipo, pulizia.data_prevista) : null
   const t = chiave ? timer.timer.find(x => x.chiave === chiave) ?? null : null
   // undefined = minuti mai scritti né riportati in questa scheda
-  const [visto, setVisto] = useState<TimerVisto | null | undefined>(undefined)
+  const [visto, setVisto] = useState<TimerVisto | null | undefined>(() => iniziale.minuti && !correzione ? iniziale.minuti.timer : undefined)
   const ultimoT = useRef(t)
   useEffect(() => { ultimoT.current = t }, [t])
 
@@ -106,7 +107,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
         const assetto = proposta ?? riserva
         // Recuperi «non annotati» (null) finché non si tocca un riquadro o «Niente recuperato»:
         // zero è solo una scelta esplicita (rilievo di Codex del 01/10/2026, comportamento di prima)
-        if (viva) setBozza({ data: oggi, assetto, assettoDaConfermare: !proposta, federeScelte: !(assetto.matrimoniali && assetto.ospiti === 1), recuperi: null, senzaMisura: NESSUNO, minuti: null, versione: null, versioneRecupero: null, ora: null, oraIniziale: null })
+        if (viva) setBozza({ data: oggi, assetto, assettoDaConfermare: !proposta, federeScelte: !(assetto.matrimoniali && assetto.ospiti === 1), recuperi: null, senzaMisura: NESSUNO, minuti: iniziale.minuti?.minuti ?? null, versione: null, versioneRecupero: null, ora: null, oraIniziale: null })
         return
       }
       const [c, r] = await Promise.all([

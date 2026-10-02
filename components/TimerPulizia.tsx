@@ -3,12 +3,14 @@
 // database: gli istanti sono del server, quindi chiudere la scheda,
 // ricaricare o cambiare telefono non ferma e non raddoppia il tempo.
 // Fermarlo riporta i minuti: la conferma della pulizia resta di Ania.
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTimerPulizie, azioneTimer } from '@/lib/pulizieTempiDati'
-import { secondiTimer, minutiTimer, testoCronometro, descriviChiave } from '@/lib/tempoPulizie'
+import { secondiTimer, minutiTimer, testoCronometro, descriviChiave, type TimerSql } from '@/lib/tempoPulizie'
 
-export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVaiA, compatto = false, maison = false, grande = false, foglio = false, etichetta }: {
-  chiave: string; nome: string; onMinuti: (n: number, trascorsi: number) => void
+export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVaiA, compatto = false, maison = false, grande = false, foglio = false, etichetta, onAMano, sotto }: {
+  chiave: string; nome: string
+  /** dopo «Ferma e riporta i minuti», coi secondi riletti dal server (e il timer riletto) */
+  onMinuti: (n: number, trascorsi: number, timer: TimerSql) => void
   nomeCamera: (bookingId: string) => string | null
   onVaiA?: (chiave: string) => void
   compatto?: boolean
@@ -24,6 +26,10 @@ export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVai
   foglio?: boolean
   /** compatto: la scritta a sinistra delle cifre («Area comune, corridoio e biancheria») */
   etichetta?: string
+  /** grande: «Minuti a mano» nella riga dei comandi (riferimento del 02/10/2026) */
+  onAMano?: () => void
+  /** grande: al posto della riga dei comandi (il campo dei minuti a mano aperto) */
+  sotto?: ReactNode
 }) {
   const s = useTimerPulizie()
   const [ora, setOra] = useState(0)
@@ -57,7 +63,7 @@ export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVai
   // Dopo «Ferma» i minuti si riportano dal valore riletto dal server, non dal conteggio locale.
   useEffect(() => {
     if (!attesaRiporto || !t || t.avviato_at) return
-    const id = window.setTimeout(() => { setAttesaRiporto(false); onMinuti(minutiTimer(t.trascorsi), t.trascorsi) }, 0)
+    const id = window.setTimeout(() => { setAttesaRiporto(false); onMinuti(minutiTimer(t.trascorsi), t.trascorsi, t) }, 0)
     return () => window.clearTimeout(id)
   }, [attesaRiporto, t, onMinuti])
 
@@ -75,16 +81,31 @@ export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVai
   </section>
   // Pagina Pulizie (01/10/2026, scelta di Ania): l'unico numero nero è quello
   // della camera che si sta facendo; fermo o in pausa, avorio scuro.
-  if (grande) return <section className="pul-timer" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
-    <div className="tg"><b role="timer" aria-live="off" className={inCorso ? 'vivo' : ''}>{testoCronometro(secondi).padStart(5, '0')}</b>
-      {inCorso && <span>In corso</span>}
-      <button type="button" className="pul-az" disabled={!pronto || (!inCorso && !!altro)} onClick={() => void esegui(inCorso ? 'pausa' : 'avvia')} data-comando-timer>{inCorso ? 'Pausa' : secondi ? 'Riprendi' : 'Avvia'}</button>
-    </div>
-    {altroDescritto && <p className="pul-avviso" data-altro-timer>Un altro timer è in corso: {altroDescritto.nome}. <button type="button" className="pul-az tn" disabled={occupato} onClick={() => void esegui('pausa', altro!.chiave)}>Metti in pausa</button>
-      {onVaiA && <> <button type="button" className="pul-az tn" onClick={() => onVaiA(altro!.chiave)}>Vai a {altroDescritto.nome}</button></>}</p>}
-    {s.stato === 'caricamento' && <p className="pul-avviso">Lettura del timer…</p>}
-    {(s.nonSincronizzato || s.errore || errore) && <p role="status" className="pul-errore">{errore || s.errore || 'Timer non sincronizzato: controlla la connessione.'}</p>}
-  </section>
+  // Dal 02/10/2026 (riferimento pulizie-timer-riferimento.html, schermate 1–3)
+  // i comandi del foglio stanno anche qui: in corso «In corso · Pausa»; in
+  // pausa «In pausa» e sotto «Riprendi · Ferma e riporta i minuti · Azzera ·
+  // Minuti a mano»; a zero «Avvia» e sotto «Minuti a mano». Stessa logica.
+  if (grande) {
+    const fermo = !inCorso && secondi > 0
+    return <section className="pul-timer" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
+      <div className="tg"><b role="timer" aria-live="off" className={inCorso ? 'vivo' : ''}>{testoCronometro(secondi).padStart(5, '0')}</b>
+        {inCorso ? <span>In corso</span> : fermo && <span>In pausa</span>}
+        {!fermo && <button type="button" className="pul-az" disabled={!pronto || (!inCorso && !!altro)} onClick={() => void esegui(inCorso ? 'pausa' : 'avvia')} data-comando-timer>{inCorso ? 'Pausa' : 'Avvia'}</button>}
+      </div>
+      {sotto ?? (!inCorso && <div className="pul-cmd" data-comandi-timer>
+        {fermo && <>
+          <button type="button" className="pul-az" disabled={!pronto || !!altro} onClick={() => void esegui('avvia')} data-comando-timer>Riprendi</button>
+          <button type="button" className="pul-az" disabled={!pronto} onClick={() => { setAttesaRiporto(true); void ferma() }} data-ferma-riporta>Ferma e riporta i minuti</button>
+          <button type="button" className="pul-az tn" disabled={!pronto} onClick={() => void esegui('azzera')} data-azzera>Azzera</button>
+        </>}
+        {onAMano && <button type="button" className="pul-az tn" disabled={s.stato !== 'pronto'} onClick={onAMano} data-minuti-a-mano>Minuti a mano</button>}
+      </div>)}
+      {altroDescritto && <p className="pul-avviso" data-altro-timer>Un altro timer è in corso: {altroDescritto.nome}. <button type="button" className="pul-az tn" disabled={occupato} onClick={() => void esegui('pausa', altro!.chiave)}>Metti in pausa</button>
+        {onVaiA && <> <button type="button" className="pul-az tn" onClick={() => onVaiA(altro!.chiave)}>Vai a {altroDescritto.nome}</button></>}</p>}
+      {s.stato === 'caricamento' && <p className="pul-avviso">Lettura del timer…</p>}
+      {(s.nonSincronizzato || s.errore || errore) && <p role="status" className="pul-errore">{errore || s.errore || 'Timer non sincronizzato: controlla la connessione.'}</p>}
+    </section>
+  }
   // Nei fogli delle Pulizie nuove: i comandi del timer «maison», nella veste
   // dei fogli (riga di parole sottolineate, cifre in Cormorant).
   if (foglio) return <section className="pul-timer-foglio" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
