@@ -43,7 +43,7 @@ test('la scheda del nastro: cifra a destra sulla riga del nome, Cormorant 13 pes
   assert.match(scheda, /<CifraSpeso cent=\{speso\} \/>/)
   const css = leggi('app/maison.css')
   assert.match(css, /\.cal-scheda-in \.tx > b\.con-speso > \[data-nome\] \{ flex: none; white-space: nowrap; \}/)
-  assert.match(css, /\.cal-scheda-in \.tx > b\.con-speso > \.spe \{ flex: none; margin-left: auto; padding-left: 8px; font-family: var\(--m-disp\); font-size: 13px; font-weight: 600; color: inherit; \}/)
+  assert.match(css, /\.cal-scheda-in \.tx > b\.con-speso > \.spe \{ flex: none; margin-left: auto; padding-left: 8px; font-family: var\(--m-disp\); font-size: 13px; font-weight: 600; color: #8C3B2E; \}/)
   assert.match(leggi('app/calendario/page.tsx'), /speso=\{spesoPerBooking\[booking\.id\]\}/)
   assert.doesNotMatch(leggi('components/richieste/NastroRichieste.tsx'), /speso=/)
   // il foglietto usa la stessa funzione
