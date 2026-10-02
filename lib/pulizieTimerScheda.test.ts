@@ -152,3 +152,11 @@ test('T5 · Statistiche: con meno di 4 settimane di pulizie segnate niente medie
   const pl = leggi('components/pulizie/ProvaLavanderia.tsx')
   assert.ok(pl.includes("pocheDati ? 'Costo del periodo' : 'Al mese, circa'"))
 })
+
+test('«Pulita e recuperato» dal telefono: il motivo del rifiuto sta sopra i tasti, col timer si riporta in un tocco (02/10/2026)', () => {
+  const f = leggi('components/pulizie/FoglioPulizie.tsx')
+  assert.ok(/piede=\{<>\{avviso && <p role="alert"[^>]*data-avviso-piede>/.test(f), 'l’avviso nel piede, fuori dalla parte che scorre')
+  const s = leggi('components/SchedaPulizia.tsx')
+  assert.ok(s.includes('avviso={errore ?') && s.includes('data-riporta-dal-piede'))
+  assert.ok(!s.includes('{errore && <p role="alert" className="pul-errore">{errore}</p>}\n      {conRitocchi'), 'non più in fondo al contenuto')
+})

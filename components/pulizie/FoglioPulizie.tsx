@@ -19,7 +19,7 @@ import type { Salvataggio } from '@/components/maison/SalvatoMaison'
 export const ALTEZZA_FOGLI_PULIZIE = 790
 export const DISTANZA_TASTI_DAL_FONDO = 96
 
-export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande = 30, dati, onChiudi, onAnnulla, salvato, onFineSalvato, azione, onAzione, salvando = false, disabilitato = false, mattone = false, testoAnnulla = 'Annulla', testoSalvando = 'Salvo…', children }: {
+export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande = 30, dati, onChiudi, onAnnulla, salvato, onFineSalvato, azione, onAzione, salvando = false, disabilitato = false, mattone = false, testoAnnulla = 'Annulla', testoSalvando = 'Salvo…', avviso, children }: {
   eyebrow: string
   titolo: string
   /** a destra del titolo: «fatta oggi», «giovedì 1 ottobre»… */
@@ -42,6 +42,10 @@ export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande =
   disabilitato?: boolean
   testoAnnulla?: string
   testoSalvando?: string
+  /** il motivo per cui l'azione non è partita, subito sopra i tasti: sul
+   *  telefono il contenuto scorre e un avviso in fondo non si vede (02/10/2026,
+   *  Ania non riusciva a confermare «Pulita e recuperato» e non sapeva perché) */
+  avviso?: ReactNode
   children: ReactNode
 }) {
   return (
@@ -52,10 +56,10 @@ export default function FoglioPulizie({ eyebrow, titolo, destra, sotto, grande =
         <div className={`pul-tt t${grande}`}><b>{titolo}</b>{destra && <span className="pul-dx">{destra}</span>}</div>
         {sotto && <p className="pul-su">{sotto}</p>}
       </div>}
-      piede={<div className="pul-tasti" data-piede-foglio>
+      piede={<>{avviso && <p role="alert" className="pul-errore pul-avviso-piede" data-avviso-piede>{avviso}</p>}<div className="pul-tasti" data-piede-foglio>
         <button type="button" data-annulla-foglio onClick={onAnnulla ?? onChiudi} disabled={salvando}>{testoAnnulla}</button>
         <button type="button" className={mattone ? 'p mat' : 'p'} data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>
-      </div>}>
+      </div></>}>
       {children}
     </FoglioMaison>
   )

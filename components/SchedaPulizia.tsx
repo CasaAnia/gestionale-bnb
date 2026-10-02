@@ -22,7 +22,7 @@ import { leggiOperazionePulizia, TIMER_CAMBIATO, type RispostaPulizia, type Time
 import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { ricaricaDaControllare } from '@/lib/daControllareDati'
 import { useTimerPulizie, leggiTimer, statoTimerAttuale } from '@/lib/pulizieTempiDati'
-import { chiaveTimerPulizia, testoCronometro, secondiTimer, type TimerSql } from '@/lib/tempoPulizie'
+import { chiaveTimerPulizia, testoCronometro, secondiTimer, minutiTimer, type TimerSql } from '@/lib/tempoPulizie'
 import { lettiTesto } from '@/lib/pulizieVista'
 import { fotoTimer, stessoTimer, type MinutiSegnati } from '@/lib/minutiSegnati'
 import type { Decisione, PrenotazionePulizie, TipoPulizia } from '@/lib/pulizie'
@@ -247,7 +247,8 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
     </span></>}</> : <>fatta {giornoFatta}</>}
     onChiudi={onChiudi} salvato={salvato} onFineSalvato={() => { if (salvato) onSalvato?.(salvato.risposta); ricaricaNumeriOggiOvunque(); void ricaricaDaControllare(); onChiudi() }}
     azione={pendente ? 'Riprova' : correzione ? 'Salva correzione' : 'Conferma pulizia'} onAzione={() => void salva()}
-    salvando={salvando} disabilitato={!bozza.federeScelte || !bozza.data || bozza.data > oggi || !!salvato}>
+    salvando={salvando} disabilitato={!bozza.federeScelte || !bozza.data || bozza.data > oggi || !!salvato} avviso={errore ? <>{errore}{timerNonRiportato && <> <button type="button" className="pul-az" style={{ fontSize: 10.5, marginLeft: 6 }} data-riporta-dal-piede
+      onClick={() => { riportaMinuti(minutiTimer(t!.trascorsi)); setErrore('') }}>Riporta {minutiTimer(t!.trascorsi)} min dal timer</button></>}</> : undefined}>
     <div data-scheda-pulizia={camera} data-recuperati={recuperati ?? ''}>
       <p className="pul-lb"><span>Letti preparati</span><button type="button" onClick={() => setCambiaLetti(x => !x)} aria-expanded={cambiaLetti} data-cambia-letti>{cambiaLetti ? 'Chiudi' : 'Cambia'}</button></p>
       <p className="pul-ln1" data-letti>{lettiTesto(a) || 'nessun letto'} <small>· {a.ospiti} {a.ospiti === 1 ? 'ospite' : 'ospiti'}</small>{bozza.assettoDaConfermare && <em className="dc" data-da-confermare> · da confermare</em>}</p>
@@ -275,7 +276,6 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
       {oltre.length > 0 && <p role="alert" className="pul-errore" data-recuperi-oltre>Recuperi oltre la dotazione di questi letti: {oltre.join(', ')}. Correggili prima di salvare.</p>}
             {timerNonRiportato && <p className="pul-avviso">Il timer segna {testoCronometro(t!.trascorsi)}: riporta i minuti prima di confermare.</p>}
       {pendente && <p role="status" className="pul-avviso">Un salvataggio di questa camera attende conferma: premi Riprova per verificarlo senza duplicarlo.</p>}
-      {errore && <p role="alert" className="pul-errore">{errore}</p>}
       {conRitocchi && !pendente && <button type="button" className="pul-del" data-togli onClick={() => { setErrore(''); setChiediTogli(true) }}>Segnata per sbaglio · togli</button>}
     </div>
   </FoglioPulizie>

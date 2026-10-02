@@ -17,7 +17,11 @@ test('recuperi: un foglio nuovo parte «non annotato» (null); zero solo con «N
 test('timer nel foglio: «Ferma e riporta i minuti» e «Azzera timer» come prima, niente riporto automatico', () => {
   const s = leggi('components/SchedaPulizia.tsx')
   assert.match(s, /<TimerPulizia foglio chiave=\{chiave\}[^>]*onMinuti=\{riportaMinuti\}/)
-  assert.ok(!/riportaMinuti\(minutiTimer\(/.test(s), 'nessun riporto automatico dei minuti')
+  // nessun riporto automatico: l'unico riporto diretto è il tocco esplicito su
+  // «Riporta N min dal timer» nell'avviso sopra i tasti (02/10/2026)
+  const riporti = s.match(/riportaMinuti\(minutiTimer\(/g) ?? []
+  assert.ok(riporti.length <= 1, 'nessun riporto automatico dei minuti')
+  if (riporti.length) assert.match(s, /data-riporta-dal-piede\s+onClick=\{\(\) => \{ riportaMinuti\(minutiTimer\(/)
   assert.match(s, /premi «Ferma e riporta i minuti», scrivi i minuti effettivi oppure azzera il timer/)
   const t = leggi('components/TimerPulizia.tsx')
   const foglio = t.slice(t.indexOf('if (foglio) return'), t.indexOf('if (maison) return'))

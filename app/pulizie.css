@@ -29,6 +29,8 @@
 .pul-tasti button { height: 44px; text-align: center; font-family: var(--p-sans); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; border: 1px solid var(--p-ink); background: #fff; color: var(--p-ink); border-radius: 0; text-decoration: none !important; }
 .pul-tasti button.p { background: var(--p-ink); color: #F6F2EA; }
 .pul-tasti button:disabled { opacity: .45; }
+/* l'avviso del foglio sopra i tasti, sempre in vista (02/10/2026) */
+.pul-avviso-piede { flex: none; margin: 10px 0 0; font-size: 12.5px; line-height: 1.4; }
 
 /* dentro i fogli */
 .pul-lb { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--p-sec); margin: 16px 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
