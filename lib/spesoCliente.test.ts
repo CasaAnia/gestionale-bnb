@@ -37,13 +37,13 @@ test('le forme della cifra, dalla più lunga: quella del foglietto → «1.381 �
   assert.deepEqual(formeCifra(9000), ['90 €', '90'])
 })
 
-test('la scheda del nastro: cifra a destra sulla riga del nome, Cormorant 13 peso 600, nome che non si stringe; nel Calendario sì, nelle Richieste no', () => {
+test('la scheda del nastro: cifra attaccata al nome (6 px, mai in fondo: Ania 02/10/2026), Cormorant 13 peso 600, nome che non si stringe; nel Calendario sì, nelle Richieste no', () => {
   const scheda = leggi('components/calendario/SchedaPrenotazione.tsx')
   assert.match(scheda, /<b className="con-speso"><span data-nome>/)
   assert.match(scheda, /<CifraSpeso cent=\{speso\} \/>/)
   const css = leggi('app/maison.css')
   assert.match(css, /\.cal-scheda-in \.tx > b\.con-speso > \[data-nome\] \{ flex: none; white-space: nowrap; \}/)
-  assert.match(css, /\.cal-scheda-in \.tx > b\.con-speso > \.spe \{ flex: none; margin-left: auto; padding-left: 8px; font-family: var\(--m-disp\); font-size: 13px; font-weight: 600; color: #8C3B2E; \}/)
+  assert.match(css, /\.cal-scheda-in \.tx > b\.con-speso > \.spe \{ flex: none; margin-left: 0; padding-left: 6px; font-family: var\(--m-disp\); font-size: 13px; font-weight: 600; color: #8C3B2E; \}/)
   assert.match(leggi('app/calendario/page.tsx'), /speso=\{spesoPerBooking\[booking\.id\]\}/)
   assert.doesNotMatch(leggi('components/richieste/NastroRichieste.tsx'), /speso=/)
   // il foglietto usa la stessa funzione

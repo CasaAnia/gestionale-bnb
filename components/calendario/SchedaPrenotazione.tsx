@@ -182,7 +182,7 @@ function CifraSpeso({ cent }: { cent: number }) {
       if (!tela) return
       tela.font = getComputedStyle(el).font
       const nome = riga.querySelector<HTMLElement>('[data-nome]')
-      const libero = riga.clientWidth - (nome?.offsetWidth ?? 0) - 8
+      const libero = riga.clientWidth - (nome?.offsetWidth ?? 0) - 6
       const i = elenco.findIndex(t => tela!.measureText(t).width <= libero)
       setQuale(i === -1 ? elenco.length : i)
     }
