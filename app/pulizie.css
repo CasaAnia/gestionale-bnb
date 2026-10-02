@@ -145,13 +145,11 @@ body:has(.pul-pagina) { background: #fff; }
 .pul-segnati .correggi::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 40px; transform: translateY(-50%); }
 .pul-sep { height: 1px; background: var(--p-filo); margin: 6px 0 2px; }
 .pul-sep + .pul-azioni { margin-top: 14px; }
-.pul-sc { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--p-filo); }
-.pul-sc:first-of-type { border-top: 0; }
-.pul-sc > span { font-family: var(--p-disp); font-size: 20px; }
-.pul-sc small, .pul-sc .min { font-size: 12px; color: var(--p-sec); background: none; border: 0; padding: 0; font-family: var(--p-sans); position: relative; text-decoration: none !important; }
-.pul-sc .min::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 40px; transform: translateY(-50%); }
-.pul-sc .pul-az { font-size: 11px; padding-bottom: 3px; }
-.pul-sc-timer .pul-timer .tg { margin-top: 0; padding-bottom: 6px; }
+/* Spazi comuni come le camere (riferimento del 02/10/2026, schermata 5) */
+.pul-sez + .pul-card { border-top-color: transparent; }
+.pul-spazio .hd b { font-size: 27px; white-space: nowrap; }
+.pul-oggi-spazi { position: relative; display: block; background: none; border: 0; padding: 0; text-align: left; font-family: var(--p-sans); text-decoration: none !important; cursor: pointer; }
+.pul-oggi-spazi::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 40px; transform: translateY(-50%); }
 
 /* ── Foglio «Pulita e recuperato» (P7, riferimento dei fogli, «Dopo») ───── */
 .pul-ln1 { font-size: 15px; margin: 0; }

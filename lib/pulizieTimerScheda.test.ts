@@ -63,3 +63,24 @@ test('T1 · nessun tasto pieno nero nella pagina Pulizie', () => {
   for (const f of file) assert.ok(!/pul-az p[ "']|ed-pillola["' ]/.test(f === 'components/ControlliPulizia.tsx' ? leggi(f).slice(leggi(f).indexOf('if (pagina)'), leggi(f).indexOf('if (home)')) : f === 'components/TimerPulizia.tsx' ? leggi(f).slice(leggi(f).indexOf('if (grande)'), leggi(f).indexOf('if (foglio)')) : leggi(f)), f)
   assert.ok(!leggi('app/pulizie.css').includes('.pul-card .pul-az.p'))
 })
+
+test('T2 · spazi comuni: i minuti si AGGIUNGONO a quelli di oggi (12 + 23 = 35)', async () => {
+  const { aggiuntaSpazi } = await import('./spaziComuni.ts')
+  assert.deepEqual(aggiuntaSpazi(12, 23), { totale: 35, errore: null })
+  assert.deepEqual(aggiuntaSpazi(null, 7), { totale: 7, errore: null })
+  assert.ok(aggiuntaSpazi(1430, 20).errore, 'oltre i 1440 minuti del giorno')
+})
+
+test('T2 · spazi comuni uguali alle camere: sezione, una scheda per voce, timer grande e comandi', () => {
+  const s = leggi('components/pulizie/SpaziComuniOggi.tsx')
+  assert.ok(s.includes('<p className="pul-sez">{TITOLO_SPAZI}</p>'), 'titolo maiuscoletto ottone col filo')
+  assert.ok(s.includes('vociSpaziAttive(conAltro).map'), 'una scheda per voce')
+  assert.ok(s.includes('<TimerPulizia grande chiave={chiave}') && s.includes('onAMano={apriAMano}'), 'gli stessi comandi di T1')
+  assert.ok(s.includes("className={`pul-card pul-spazio${attiva ? ' cur' : ''}`}"), 'sfondo avorio come le camere')
+  assert.ok(s.includes('testoOggiSpazi(minuti)') && s.includes('onMinuti(voce)'), '«oggi 35 minuti segnati» apre il foglio dei minuti')
+  assert.ok(s.includes('salvaFuoriCamera(giorno, attivita, conto.totale, riga?.versione ?? null, trascorsi)'), 'aggiunge e consuma il timer nella stessa transazione')
+  assert.ok(s.includes('area_comune'), 'il timer «Area comune» di prima si legge sotto il corridoio')
+  // «Cosa · facoltativo» resta nel foglio, solo per «Altro»
+  assert.ok(leggi('components/pulizie/FoglioSpaziComuni.tsx').includes("voce === 'altro' && conCosa && <label className=\"pul-fld\"><span>Cosa · facoltativo</span>"))
+  assert.ok(/\.pul-spazio \.hd b \{ font-size: 27px; white-space: nowrap; \}/.test(leggi('app/pulizie.css')))
+})

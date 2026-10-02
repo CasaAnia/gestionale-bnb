@@ -34,7 +34,8 @@ test('timer grande e spazi comuni: «Avvia» fermo con un altro timer in corso, 
   const grande = t.slice(t.indexOf('if (grande)'), t.indexOf('if (foglio) return'))
   assert.match(grande, /disabled=\{!pronto \|\| \(!inCorso && !!altro\)\}/)
   assert.match(grande, /\{altroDescritto && <p className="pul-avviso" data-altro-timer>/)
-  assert.match(leggi('components/pulizie/SpaziComuniOggi.tsx'), /disabled=\{occupato \|\| s\.stato !== 'pronto' \|\| !!altro\}/)
+  // dal 02/10/2026 gli spazi comuni usano lo stesso timer grande delle camere
+  assert.match(leggi('components/pulizie/SpaziComuniOggi.tsx'), /<TimerPulizia grande chiave=\{chiave\}/)
   assert.match(leggi('app/pulizie/page.tsx'), /^    <TimerInCorso pagina /m)
 })
 
