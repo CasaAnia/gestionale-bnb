@@ -416,6 +416,7 @@ export default function PropostaPage() {
     if (!richiesta || !soluzione || soluzione.segmenti.length === 0) return null
     const seg = soluzione.segmenti.map(s => ({
       id: `${s.camera.id}-${s.arrivo}`,
+      room_id: s.camera.id,
       check_in: s.arrivo,
       check_out: s.partenza,
       price_per_night: s.prezzoNotte,

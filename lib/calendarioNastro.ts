@@ -62,7 +62,7 @@ export function legamiCatene<T extends Riga>(bookings: T[], camere: Camera[]): L
   const outgoingIds = new Set<string>(), incomingIds = new Set<string>()
   const corta = (id: string) => (camere.find(r => r.id === bookings.find(b => b.id === id)?.room_id)?.name ?? '').split(' ').slice(-1)[0]
   const poiCamera: Record<string, string> = {}, daCamera: Record<string, string> = {}
-  changeGroups.edges.forEach(e => {
+  changeGroups.roomChangeEdges.forEach(e => {
     outgoingIds.add(e.fromId); incomingIds.add(e.toId)
     poiCamera[e.fromId] = corta(e.toId); daCamera[e.toId] = corta(e.fromId)
   })

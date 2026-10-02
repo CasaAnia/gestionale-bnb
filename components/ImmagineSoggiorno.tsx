@@ -1,4 +1,5 @@
 'use client'
+import { ospitiSoggiorno, periodoOspitiTesto, type TrattoOspiti } from '@/lib/ospitiSoggiorno'
 import { riepilogoPeriodi } from '@/lib/periodiPrenotazione'
 import type { RefObject } from 'react'
 import { roomWithType, bagnoDesc } from '@/lib/roomTypes'
@@ -22,7 +23,7 @@ export const IMG_W = 820
 const IMG_SANS = 'var(--font-manrope), Arial, Helvetica, sans-serif'
 const IMG_DISPLAY = 'var(--font-fraunces), Georgia, serif'
 
-export type SegmentoImmagine = {
+export type SegmentoImmagine = TrattoOspiti & {
   id: string
   check_in: string
   check_out: string
@@ -66,13 +67,14 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   const intestazione = variante === 'conferma'
     ? { badge: 'BENVENUTI', titolo: 'Prenotazione confermata' }
     : { badge: 'PROPOSTA', titolo: 'Proposta di soggiorno' }
-  const isGruppo = segmenti.length > 1
+  const ospitiVariabili = nottiNonDisponibili.length === 0 ? ospitiSoggiorno(segmenti, personeNotti) : null
+  const isGruppo = !ospitiVariabili && segmenti.length > 1
   const principale = segmenti[0]
   const camereDiverse = new Set(segmenti.map(s => s.rooms?.name)).size > 1
   const cin = segmenti[0].check_in
   const cout = segmenti.reduce((fine, s) => s.check_out > fine ? s.check_out : fine, segmenti[0].check_out)
   // Linea del soggiorno (solo proposta con notti scoperte): le notti contate sono quelle a Casa Ania
-  const linea = variante === 'proposta' && (nottiNonDisponibili.length > 0 || (lineaSempre && segmenti.length > 1))
+  const linea = !ospitiVariabili && variante === 'proposta' && (nottiNonDisponibili.length > 0 || (lineaSempre && segmenti.length > 1))
     ? lineaSoggiorno(segmenti.map(s => ({ arrivo: s.check_in, partenza: s.check_out, seg: s })), nottiNonDisponibili)
     : null
   const confermaMultipla = variante === 'conferma' && isGruppo
@@ -80,7 +82,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   const nottiTot = variante === 'conferma' ? periodi.notti : linea ? segmenti.reduce((n, s) => n + notti(s.check_in, s.check_out), 0) : notti(cin, cout)
   const nottiScoperteTot = linea ? linea.reduce((n, b) => n + (b.tipo === 'vuoto' ? b.notti.length : 0), 0) : 0
   // persone che cambiano da una notte all'altra (pezzo 9): la striscia compare solo allora
-  const personeVariano = variante === 'proposta' && personeNotti.length > 1 && personeNotti.some(x => x.persone !== personeNotti[0].persone)
+  const personeVariano = !ospitiVariabili && variante === 'proposta' && personeNotti.length > 1 && personeNotti.some(x => x.persone !== personeNotti[0].persone)
   const giornoBreve = (iso: string) => `${Number(iso.slice(8, 10))} ${['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'][Number(iso.slice(5, 7)) - 1]}`
   const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
   const euro = formattaImporto ?? fmtEuro
@@ -240,11 +242,20 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
                 <div style={{ fontSize: 32, color: '#3a3a35' }}>{nottiScoperteTot === 1 ? 'notte scoperta' : 'notti scoperte'}</div>
               </div>
             )}
-            {!confermaMultipla && <div>
+            {!confermaMultipla && !ospitiVariabili && <div>
               <div style={{ fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{numOspiti}</div>
               <div style={{ fontSize: 32, color: '#3a3a35' }}>{numOspiti === 1 ? 'ospite' : 'ospiti'}</div>
             </div>}
           </div>
+
+          {ospitiVariabili && <div style={{ marginBottom: 30 }}>
+            <p style={{ fontSize: 28, letterSpacing: 2, color: '#3a3a35', fontWeight: 700, margin: '0 0 16px' }}>OSPITI DURANTE IL SOGGIORNO</p>
+            <div style={{ background: 'white', border: avorio ? '1px solid #C9B98E' : '2px solid #e3ddd0', borderRadius: avorio ? 8 : 24, padding: '26px 32px' }}>
+              {ospitiVariabili.map((p, i) => <div key={p.arrivo} style={{ display: 'flex', justifyContent: 'space-between', gap: 24, padding: '14px 0', borderTop: i ? '1px solid #e3ddd0' : undefined, fontSize: 28, color: '#1F3D2F' }}>
+                <strong>{periodoOspitiTesto(p)}</strong><span>{p.persone} {p.persone === 1 ? 'persona' : 'persone'}</span>
+              </div>)}
+            </div>
+          </div>}
 
           {/* CAMERA / BAGNO (con la linea del soggiorno la camera è già in ogni blocco) */}
           {!linea && !confermaMultipla && <div style={{ background: '#F6F2EA', borderRadius: 24, padding: '30px 44px', marginBottom: 30 }}>

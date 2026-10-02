@@ -3,6 +3,7 @@
 // Dettaglio a prezzo pieno e riga sconto solo se esiste uno sconto SALVATO
 // (mai dedotto dal listino). Se per un dato storico il dettaglio non torna col
 // totale autorevole, riga unica: l'immagine deve dire lo stesso totale della scheda.
+import { ospitiSoggiorno } from './ospitiSoggiorno.ts'
 import { roomWithType, lettoInclusoNellaCamera } from './roomTypes.ts'
 import { contoSoggiorno } from './conto.ts'
 import { giorniSoggiorno, nottiConLetto, personePerNottePrenotazione, prezzoNotti, testoDettaglioNotti, type CameraTariffa, type NotteSoggiorno } from './prezzoNotti.ts'
@@ -10,6 +11,7 @@ import { giorniSoggiorno, nottiConLetto, personePerNottePrenotazione, prezzoNott
 export type RigaCosto = { label: string; amount: number; sconto?: boolean }
 
 export type SegmentoCosto = {
+  room_id?: string | null
   check_in: string
   check_out: string
   price_per_night?: number | string | null
@@ -25,7 +27,7 @@ export type SegmentoCosto = {
   // persone si ricavano da num_guests + extra_bed_dates (lib/prezzoNotti)
   persone_notti?: number[] | null
   prezzi_notti?: number[] | null
-  rooms?: (CameraTariffa & { extra_bed_price?: number | string | null }) | null
+  rooms?: (CameraTariffa & { id?: string | null; bathroom_type?: string | null; extra_bed_price?: number | string | null }) | null
 }
 
 export function fmtEuro(n: number) {
@@ -53,6 +55,28 @@ export function dettaglioNottiSegmento(s: SegmentoCosto): NotteSoggiorno[] | nul
 // `fmt` (pezzo 11): come scrivere gli importi nelle etichette («2 notti × 70,00 €»);
 // la proposta passa il formato del testo («70 €»), la conferma tiene fmtEuro
 export function righeCostiSegmenti(segmenti: SegmentoCosto[], isGruppo: boolean, fmt: (n: number) => string = fmtEuro): { righe: RigaCosto[]; totale: number } {
+  // Solo la nuova presentazione ospiti variabili: tariffa aggregata, mai
+  // ricalcolo dei totali salvati. Il percorso storico resta identico altrove.
+  if (segmenti.length > 1 && ospitiSoggiorno(segmenti)) {
+    const originali = segmenti.map(s => righeCostiSegmenti([s], isGruppo, fmt))
+    const semplice = segmenti.every((s, i) => !s.extra_bed && !s.discount_type
+      && !dettaglioNottiSegmento(s)
+      && Math.abs(originali[i].totale - Number(s.price_per_night) * contoSoggiorno(s).notti) < 0.005)
+    if (semplice) {
+      const prezzi = new Set(segmenti.map(s => Number(s.price_per_night)))
+      const gruppi = new Map<string, { prezzo: number; persone: number; notti: number }>()
+      for (const s of segmenti) {
+        const prezzo = Number(s.price_per_night), persone = Number(s.num_guests)
+        const k = `${prezzo}|${prezzi.size > 1 ? persone : ''}`
+        const g = gruppi.get(k) ?? { prezzo, persone, notti: 0 }
+        g.notti += contoSoggiorno(s).notti; gruppi.set(k, g)
+      }
+      return { righe: [...gruppi.values()].map(g => ({
+        label: `Camera ${roomWithType(segmenti[0].rooms?.name)} (${g.notti} ${g.notti === 1 ? 'notte' : 'notti'}${prezzi.size > 1 ? ` in ${g.persone}` : ''} × ${fmt(g.prezzo)})`,
+        amount: Math.round(g.notti * g.prezzo * 100) / 100,
+      })), totale: Math.round(originali.reduce((n, x) => n + x.totale, 0) * 100) / 100 }
+    }
+  }
   const righeCosti: RigaCosto[] = []
   let totale = 0
   for (const s of segmenti) {
@@ -69,7 +93,17 @@ export function righeCostiSegmenti(segmenti: SegmentoCosto[], isGruppo: boolean,
     if (dettaglio) {
       const totCamera = Math.round(dettaglio.reduce((t, x) => t + x.prezzo, 0) * 100) / 100
       sommaDettaglio += totCamera
-      righeSegmento.push({ label: `${nomeCamera} (${testoDettaglioNotti(dettaglio, fmt)})`, amount: totCamera })
+      if (ospitiSoggiorno(segmenti)) {
+        const gruppi = new Map<string, { persone: number; prezzo: number; notti: number }>()
+        for (const notte of dettaglio) {
+          const key = `${notte.persone}|${notte.prezzo}`
+          const gruppo = gruppi.get(key) ?? { persone: notte.persone, prezzo: notte.prezzo, notti: 0 }
+          gruppo.notti++; gruppi.set(key, gruppo)
+        }
+        for (const g of gruppi.values()) righeSegmento.push({ label: `${nomeCamera} (${g.notti} ${g.notti === 1 ? 'notte' : 'notti'} in ${g.persone} × ${fmt(g.prezzo)})`, amount: Math.round(g.notti * g.prezzo * 100) / 100 })
+      } else {
+        righeSegmento.push({ label: `${nomeCamera} (${testoDettaglioNotti(dettaglio, fmt)})`, amount: totCamera })
+      }
     // Lena con 3 ospiti: il terzo letto è parte della tripla, una riga sola tutto compreso
     } else if (lettoInclusoNellaCamera(s, n)) {
       const totCamera = prezzo * n + Number(s.extra_bed_total || 0)

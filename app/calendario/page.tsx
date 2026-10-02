@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeDiverso, nomeConAltri } from '@/lib/guestName'
+import { barreSoggiorno, nottiPagateBarra } from '@/lib/barreSoggiorno'
 import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { SchedaPrenotazione, SchedaTenuta } from '@/components/calendario/SchedaPrenotazione'
 import { matchPrenotazione } from '@/lib/ricerca'
@@ -526,6 +527,7 @@ export default function Calendario() {
   // attenua, come prima. Il secondo tocco sulla stessa scheda, o «Apri la
   // scheda» nel foglietto, apre la scheda prenotazione.
   function tocca(booking: CalendarBooking, chainKey: string | undefined) {
+    booking = bookings.find(r => r.id === booking.id) ?? booking
     if (aperta?.id === booking.id) { apriScheda(booking); return }
     setAperta(booking)
     setSelectedGroupId(chainKey ?? null)
@@ -548,7 +550,7 @@ export default function Calendario() {
   }
 
   function bookingsForRoom(roomId: string) {
-    return bookings.filter(b =>
+    return barreSoggiorno(bookings).filter(b =>
       b.room_id === roomId &&
       b.check_out > toStr(startDate) &&
       b.check_in < toStr(endDate)
@@ -805,7 +807,7 @@ export default function Calendario() {
                     const isDimmed = searchAttiva ? !isMatch : (selectedGroupId !== null && !isSelected)
                     return (
                       <SchedaPrenotazione key={booking.id} booking={booking} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
-                        indice={dayIndex} legami={legami} coperte={paidNightsByBooking[booking.id]}
+                        indice={dayIndex} legami={legami} coperte={nottiPagateBarra(booking, paidNightsByBooking)}
                         attenuata={isDimmed} cerca={searchAttiva} trovata={isCurrent} selezionata={isSelected}
                         larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} />
                     )

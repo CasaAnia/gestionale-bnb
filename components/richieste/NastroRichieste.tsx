@@ -38,6 +38,7 @@ import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI, RIGA_QUALSIASI } from '@/lib/richiesteCalendario'
 import { misureNastro, ARIA_SCHEDA, FILO_SINISTRO, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco } from '@/lib/calendarioSchede'
 import { areaTocco, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono, VOCI_LEGENDA, ICONE_LEGENDA, COLONNE_VISIBILI_NASTRO, GIORNI_SETTIMANA, leggiModoNastro, larghezzaGiorno, type ModoNastro } from '@/lib/calendarioMobile'
+import { barreSoggiorno, nottiPagateBarra } from '@/lib/barreSoggiorno'
 import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { barreTenute, barrePerCamera, testoTenuta, type RichiestaTenuta, type BarraTenuta } from '@/lib/calendarioOpzioni'
 import { schedeRichieste, righeSchedaRichieste, TINTA_RICHIESTA, type RichiestaNastro, type SchedaRichieste } from '@/lib/richiesteNastro'
@@ -222,6 +223,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
   // Tocco su una prenotazione (come nel Calendario): il primo apre il foglietto e
   // accende la catena del cambio camera; il secondo, o «Apri la scheda», la scheda
   function tocca(b: PrenotazioneRichieste, chainKey: string | undefined) {
+    b = prenotazioni.find(r => r.id === b.id) ?? b
     if (aperta?.id === b.id) { router.push(hrefScheda(b.id, 'richieste')); return }
     setAperta(b)
     setSelectedGroupId(chainKey ?? null)
@@ -299,7 +301,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
             {righe.map((riga, ri) => {
               const rowTop = RULER_H + ri * misure.corsia
               const qualsiasi = riga.id === RIGA_QUALSIASI
-              const sue = qualsiasi ? [] : prenotazioni.filter(b => b.room_id === riga.id)
+              const sue = qualsiasi ? [] : barreSoggiorno(prenotazioni).filter(b => b.room_id === riga.id)
               const inVista = sue.filter(b => b.check_out > toStr(startDate) && b.check_in < toStr(endDate))
               const tenute = qualsiasi || vista === 'presunta' ? [] : barrePerCamera(barre, riga.id)
               const schedeRiga = schede.filter(s => s.riga === riga.id)
@@ -344,7 +346,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
                     const attenuata = evid ? true : selectedGroupId !== null ? !isSelected : aperta !== null && !toccata
                     return (
                       <SchedaPrenotazione key={b.id} booking={b} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={DAYS_TOTAL}
-                        indice={dayIndex} legami={legami} coperte={pagate[b.id]}
+                        indice={dayIndex} legami={legami} coperte={nottiPagateBarra(b, pagate)}
                         attenuata={attenuata} cerca={!!evid || selectedGroupId !== null} trovata={false} selezionata={isSelected}
                         larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} />
                     )

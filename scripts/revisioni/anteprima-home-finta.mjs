@@ -232,7 +232,7 @@ const da_controllare_rinvii = []
 // Recupero biancheria (06/09/2026): tabella IN MEMORIA, upsert per cleaning_id;
 // GET /finto/senza-biancheria?on=1 la fa sparire (PGRST205) per provare «Non salvato, riprova»
 const biancheria_recuperata = []
-const pulizie_timer = [], pulizie_fuori_camera = []
+const pulizie_timer = [], pulizie_fuori_camera = [], prezzi_lavanderia = []
 let senzaBiancheria = false
 
 // Scenario dedicato alle pulizie, attivato solo nel collaudo locale.
@@ -280,6 +280,55 @@ if (process.env.FINTO_PULIZIE_SQL === '1') {
   await dbPulizie.query(`insert into biancheria_recuperata(cleaning_id,room_id,booking_id,data,federe,lenzuolo_sotto) values ('cccccccc-0010-4000-8000-000000000010',$1,$2,$3,2,1)`, [ROOM.allegra, b(8), O(-8)])
   await dbPulizie.query(`insert into pulizie_fuori_camera(data,attivita,minuti) values ($1,'piegatura',15)`, [O(-3)])
 }
+// Pulizie nuove (01/10/2026): la giornata del riferimento approvato.
+//   FINTO_PULIZIE_SQL=3            schema di PRIMA (0059 sì, 0064 no): niente bagagli, partenza, «Altro»
+//   FINTO_PULIZIE_SQL=3 FINTO_0064=1   schema aggiornato con la proposta 0064
+// Oggi: Lena cambio ospite (parte Esposito, arriva Serra alle 16 con i bagagli
+// alle 11), Ambra con Lucia Ferri che resta (4 notti), Amelia parte Bellini
+// senza ora e il prossimo arriva fra 4 giorni, Allegra già pulita stamattina,
+// 12 minuti di corridoio. Più avanti, per «Bagagli e partenza»: un cambio
+// camera con un tratto annullato e due camere contemporanee con partenze diverse.
+else if (process.env.FINTO_PULIZIE_SQL === '3') {
+  const con0064 = process.env.FINTO_0064 === '1'
+  const nuovo = (nome, tel) => { const o = ospite(nome, tel); guests.push(o); return o }
+  const serra = nuovo('Giovanni Serra', '+39 333 000 0101'), ferri = nuovo('Lucia Ferri', '+39 333 000 0102'), bellini = nuovo('Mario Bellini', '+39 333 000 0103')
+  const conti = nuovo('Carla Conti', '+39 333 000 0104'), moro = nuovo('Marta Moro', '+39 333 000 0105')
+  const o = con0064 ? (bagagli_alle, check_out_time) => ({ bagagli_alle, check_out_time }) : () => ({})
+  const G4 = 'cccccccc-4444-4000-8000-000000000004', P5 = 'cccccccc-5555-4000-8000-000000000005'
+  bookings.splice(0, bookings.length,
+    prenotazione(ROOM.lena, G.elena.id, O(-3), O(0), 3, { status: 'completata', pagato: true, ...o(null, '10:00:00') }),
+    prenotazione(ROOM.lena, serra.id, O(0), O(3), 3, { extra_bed: true, extra_bed_dates: [O(0), O(1), O(2)], check_in_time: '16:00', ...o('11:00:00', null) }),
+    prenotazione(ROOM.ambra, ferri.id, O(-4), O(3), 2, { ...o(null, null) }),
+    prenotazione(ROOM.amelia, bellini.id, O(-2), O(0), 1, { status: 'completata', ...o(null, null) }),
+    prenotazione(ROOM.amelia, G.anna.id, O(4), O(6), 1, { ...o(null, null) }),
+    prenotazione(ROOM.allegra, G.paola.id, O(-2), O(0), 2, { status: 'completata', ...o(null, '09:30:00') }),
+    // cambio camera Amelia → Allegra con l'ultimo tratto annullato (Ambra)
+    prenotazione(ROOM.amelia, conti.id, O(6), O(8), 2, { group_id: G4, ...o(null, null) }),
+    prenotazione(ROOM.allegra, conti.id, O(8), O(10), 2, { group_id: G4, ...o(null, null) }),
+    prenotazione(ROOM.ambra, conti.id, O(10), O(12), 2, { group_id: G4, status: 'annullata', ...o(null, '09:00:00') }),
+    // due camere nelle stesse notti, partenze diverse (una prenotazione)
+    prenotazione(ROOM.lena, moro.id, O(12), O(15), 3, { prenotazione_id: P5, group_id: 'cccccccc-5555-4000-8000-0000000000a1', ...o(null, null) }),
+    prenotazione(ROOM.ambra, moro.id, O(12), O(13), 2, { prenotazione_id: P5, group_id: 'cccccccc-5555-4000-8000-0000000000a2', ...o(null, null) }),
+    // storico per Registro e Statistiche: il mese prima e questo
+    prenotazione(ROOM.allegra, G.giulio.id, O(-12), O(-9), 2, { status: 'completata', pagato: true, ...o(null, null) }),
+    prenotazione(ROOM.lena, G.marco.id, O(-10), O(-6), 3, { status: 'completata', pagato: true, extra_bed: true, extra_bed_dates: [O(-10), O(-9), O(-8), O(-7)], ...o(null, null) }),
+    prenotazione(ROOM.amelia, G.sara.id, O(-40), O(-36), 1, { status: 'completata', pagato: true, ...o(null, null) }))
+  const b = i => bookings[i].id
+  const roma = (giorno, hm) => new Date(`${giorno}T${hm}:00${(() => { const off = -new Date(`${giorno}T12:00:00Z`).getTimezoneOffset(); return `${off >= 0 ? '+' : '-'}${due(Math.floor(Math.abs(off) / 60))}:${due(Math.abs(off) % 60)}` })()}`).toISOString()
+  const puliziaOggi = adesso.getHours() >= 10 ? roma(O(0), '09:02') : new Date(adesso.getTime() - 30 * 60000).toISOString()
+  cleanings.splice(0, cleanings.length,
+    { id: 'cccccccc-0031-4000-8000-000000000031', room_id: ROOM.allegra, booking_id: b(5), tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: O(0), data_effettiva: O(0), prossima_data: null, cambio_biancheria: true, created_at: puliziaOggi },
+    { id: 'cccccccc-0032-4000-8000-000000000032', room_id: ROOM.allegra, booking_id: b(11), tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: O(-9), data_effettiva: O(-9), prossima_data: null, cambio_biancheria: true, created_at: roma(O(-9), '10:15') },
+    { id: 'cccccccc-0033-4000-8000-000000000033', room_id: ROOM.lena, booking_id: b(12), tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: O(-6), data_effettiva: O(-6), prossima_data: null, cambio_biancheria: true, created_at: roma(O(-6), '09:40') },
+    { id: 'cccccccc-0034-4000-8000-000000000034', room_id: ROOM.lena, booking_id: b(12), tipo: 'soggiorno', stato: 'rimandata', data_prevista: O(-6), data_effettiva: null, prossima_data: O(-5), cambio_biancheria: false, created_at: roma(O(-7), '08:00') },
+    { id: 'cccccccc-0035-4000-8000-000000000035', room_id: ROOM.amelia, booking_id: b(13), tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: O(-36), data_effettiva: O(-36), prossima_data: null, cambio_biancheria: true, created_at: roma(O(-35), '18:00') })
+  dbPulizie = await databasePulizieFinto(rooms, bookings, cleanings, { con0059: true, con0064 })
+  const assetto = (m, s, ospiti) => `'{"matrimoniali":${m},"singoli":${s},"ospiti":${ospiti},"federe_matrimoniale":4}'`
+  for (const [id, a, min] of [['31', assetto(1, 0, 2), 38], ['32', assetto(1, 0, 2), 41], ['33', assetto(1, 1, 3), 62], ['35', assetto(0, 1, 1), null]])
+    await dbPulizie.query(`update cleanings set assetto=${a}, dotazione=private.dotazione_da_assetto(${a}), minuti=${min ?? 'null'} where id='cccccccc-00${id}-4000-8000-0000000000${id}'`)
+  await dbPulizie.query(`insert into biancheria_recuperata(cleaning_id,room_id,booking_id,data,federe,telo_doccia) values ('cccccccc-0031-4000-8000-000000000031',$1,$2,$3,2,1)`, [ROOM.allegra, b(5), O(0)])
+  await dbPulizie.query(`insert into pulizie_fuori_camera(data,attivita,minuti,aggiornato_at) values ($1,'corridoio',12,$2),($3,'piegatura',39,$4),($5,'area_comune',20,$6)`, [O(0), adesso.getHours() >= 9 ? roma(O(0), '08:10') : new Date(adesso.getTime() - 3600000).toISOString(), O(-6), roma(O(-6), '12:00'), O(-9), roma(O(-9), '11:00')])
+}
 const mancato_arrivo_operazioni = []
 if (process.env.FINTO_MANCATO_ARRIVO === '1') {
   if (!dbPulizie) dbPulizie = await databasePulizieFinto(rooms, bookings, cleanings, {con0059:true})
@@ -304,8 +353,9 @@ async function sincronizzaPulizie() {
 }
 await sincronizzaPulizie()
 let errorePrimaPulizia = false, letturaIncompleta = false, perdiRispostaTempo = false
+let perdiOrari = null, contaPatch = 0, perdiPrezzi = null
 
-const tabelle = { mancato_arrivo_operazioni, rooms, guests, bookings, payments, cleanings, richieste, family_documents, family_receipts, family_draft_expenses, family_categories, family_expenses, da_controllare_rinvii, strutture, biancheria_recuperata, pulizie_timer, pulizie_fuori_camera }
+const tabelle = { mancato_arrivo_operazioni, rooms, guests, bookings, payments, cleanings, richieste, family_documents, family_receipts, family_draft_expenses, family_categories, family_expenses, da_controllare_rinvii, strutture, biancheria_recuperata, pulizie_timer, pulizie_fuori_camera, prezzi_lavanderia }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 // relazioni uno-a-molti (le righe figlie puntano al documento): family_receipts(…), family_draft_expenses(…)
 const chiaveFiglia = { family_receipts: 'document_id', family_draft_expenses: 'document_id' }
@@ -433,6 +483,10 @@ const finto = createServer(async (req, res) => {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle prenotazioni di oggi', details: null, hint: null })
   }
   if (url.pathname === '/finto/perdi-risposta-pulizia') { perdiRispostaPulizia = true; return rispondi(res, 200, { pronto: true }) }
+  // Rilievi di Codex (01/10/2026): GET /finto/perdi-orari?n=1&modo=scritto|non → la n-esima PATCH di bookings
+  // da qui in poi perde la risposta (dopo aver scritto, o senza scrivere); /finto/perdi-prezzi?modo=scritto|non idem per i prezzi
+  if (url.pathname === '/finto/perdi-orari') { perdiOrari = Number(url.searchParams.get('n') || 1) > 0 ? { n: Number(url.searchParams.get('n') || 1), modo: url.searchParams.get('modo') || 'scritto' } : null; contaPatch = 0; return rispondi(res, 200, perdiOrari) }
+  if (url.pathname === '/finto/perdi-prezzi') { perdiPrezzi = url.searchParams.get('modo') === 'no' ? null : url.searchParams.get('modo') || 'scritto'; return rispondi(res, 200, { perdiPrezzi }) }
   // Guasti del collaudo: prima della scrittura, lettura incompleta dopo, risposta persa sui tempi
   if (url.pathname === '/finto/errore-prima-pulizia') { errorePrimaPulizia = true; return rispondi(res, 200, { pronto: true }) }
   if (url.pathname === '/finto/lettura-incompleta') { letturaIncompleta = true; return rispondi(res, 200, { pronto: true }) }
@@ -456,6 +510,31 @@ const finto = createServer(async (req, res) => {
       if (perdiRispostaPulizia) { perdiRispostaPulizia = false; res.destroy(); return }
       return rispondi(res, 200, result)
     } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message, details: e.detail ?? null }) }
+  }
+  if (url.pathname === '/rest/v1/rpc/ritocca_pulizia' && req.method === 'POST') {
+    if (!dbPulizie || process.env.FINTO_0064 !== '1') return rispondi(res, 404, { code: 'PGRST202', message: 'Could not find the function public.ritocca_pulizia(p_richiesta) in the schema cache' })
+    const corpo = await leggiCorpo(req)
+    try {
+      const result = (await dbPulizie.query('select ritocca_pulizia($1::jsonb) as r', [JSON.stringify(corpo.p_richiesta)])).rows[0].r
+      await sincronizzaPulizie()
+      return rispondi(res, 200, result)
+    } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message, details: e.detail ?? null }) }
+  }
+  if (url.pathname === '/rest/v1/prezzi_lavanderia' && dbPulizie && process.env.FINTO_0064 === '1' && req.method !== 'GET') {
+    const corpo = req.method === 'DELETE' ? [{ pezzo: (url.searchParams.get('pezzo') || '').replace(/^eq\./, ''), prezzo: null }] : await leggiCorpo(req)
+    // «non» resta attivo (anche sulle ripetizioni automatiche del browser) finché non si disarma con modo=no
+    const modoPerdita = perdiPrezzi; if (perdiPrezzi !== 'non') perdiPrezzi = null
+    if (modoPerdita === 'non') { console.log('[finto supabase] prezzi: risposta persa senza scrivere'); res.destroy(); return }
+    try {
+      for (const r of Array.isArray(corpo) ? corpo : [corpo]) {
+        if (r.prezzo === null) await dbPulizie.query('delete from prezzi_lavanderia where pezzo=$1', [r.pezzo])
+        else await dbPulizie.query('insert into prezzi_lavanderia(pezzo,prezzo,aggiornato_at) values ($1,$2,now()) on conflict (pezzo) do update set prezzo=excluded.prezzo, aggiornato_at=now()', [r.pezzo, r.prezzo])
+      }
+      const righe = (await dbPulizie.query('select pezzo, prezzo::float as prezzo, aggiornato_at from prezzi_lavanderia')).rows
+      prezzi_lavanderia.splice(0, prezzi_lavanderia.length, ...righe)
+      if (modoPerdita === 'scritto') { console.log('[finto supabase] prezzi: scritto, risposta persa'); res.destroy(); return }
+      return rispondi(res, 201, righe)
+    } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message }) }
   }
   if (url.pathname === '/rest/v1/rpc/gestisci_tempo_pulizie' && req.method === 'POST') {
     if (!dbPulizie) return rispondi(res, 404, { code: 'PGRST202', message: 'Attivare FINTO_PULIZIE_SQL=2' })
@@ -499,6 +578,13 @@ const finto = createServer(async (req, res) => {
   if (m && m[1] === 'richieste' && erroreRichieste) {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle richieste', details: null, hint: null })
   }
+  if (m && process.env.FINTO_PULIZIE_SQL === '3' && process.env.FINTO_0064 !== '1') {
+    const nuove = { bookings: ['bagagli_alle', 'check_out_time'], cleanings: ['ora_effettiva'], pulizie_fuori_camera: ['cosa'] }[m[1]] ?? []
+    if (m[1] === 'prezzi_lavanderia') return rispondi(res, 404, { code: 'PGRST205', message: "Could not find the table 'public.prezzi_lavanderia' in the schema cache", details: null, hint: null })
+    const chiesta = nuove.find(c => (url.searchParams.get('select') || '').split(',').includes(c))
+    if (req.method === 'GET' && chiesta) return rispondi(res, 400, { code: '42703', message: `column ${m[1]}.${chiesta} does not exist`, details: null, hint: null })
+    if (req.method === 'PATCH') { const corpo = await leggiCorpo(req); const extra = nuove.find(c => corpo && c in corpo); if (extra) return rispondi(res, 400, { code: 'PGRST204', message: `Could not find the '${extra}' column of '${m[1]}' in the schema cache`, details: null, hint: null }); req.corpoLetto = corpo }
+  }
   if (m && req.method === 'GET') {
     const righe = interroga(m[1], url)
     const accept = req.headers.accept || ''
@@ -523,11 +609,15 @@ const finto = createServer(async (req, res) => {
   }
   // Salvataggio arrivo Home: scrittura e rilettura su prenotazioni sintetiche.
   if (m && m[1] === 'bookings' && req.method === 'PATCH') {
-    const corpo = await leggiCorpo(req)
+    const corpo = req.corpoLetto ?? await leggiCorpo(req)
     const id = (url.searchParams.get('id') || '').replace(/^eq\./, '')
     const riga = bookings.find(x => x.id === id)
     if (!riga) return rispondi(res, 200, [])
-    Object.assign(riga, corpo)
+    // «non»: dalla n-esima in poi nessuna scrittura arriva (anche le ripetizioni
+    // automatiche del browser), finché non si disarma con n=0
+    const perdi = perdiOrari && (perdiOrari.modo === 'non' ? ++contaPatch >= perdiOrari.n : ++contaPatch === perdiOrari.n)
+    if (!(perdi && perdiOrari.modo === 'non')) Object.assign(riga, corpo)
+    if (perdi) { console.log(`[finto supabase] PATCH bookings ${id}: risposta persa (${perdiOrari.modo === 'non' ? 'senza scrivere' : 'scritta'})`); if (perdiOrari.modo !== 'non') perdiOrari = null; res.destroy(); return }
     return rispondi(res, 200, [riga])
   }
   // Richieste: Riapri / Rifiuta (06/09/2026) → PATCH in memoria sulla riga indicata da ?id=eq.<id>
