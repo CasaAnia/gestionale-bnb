@@ -42,10 +42,10 @@ export function orariScheda(p: Pulizia, arrivo: ProssimoArrivo | null, oggi: str
   return out
 }
 
-/** Per chi resta: «Lucia Ferri resta · 2 ospiti · cambio biancheria quando esce» */
+/** Per chi resta: «Lucia Ferri resta · 2 ospiti · cambio biancheria della 4ª notte» (Ania, 02/10/2026; prima «quando esce») */
 export function rigaResta(b: PrenotazionePulizie): string {
   const n = Number(b.num_guests)
-  return `${nomeOspite(b)} resta${Number.isInteger(n) && n > 0 ? ` · ${n} ${n === 1 ? 'ospite' : 'ospiti'}` : ''} · cambio biancheria quando esce`
+  return `${nomeOspite(b)} resta${Number.isInteger(n) && n > 0 ? ` · ${n} ${n === 1 ? 'ospite' : 'ospiti'}` : ''} · cambio biancheria della 4ª notte`
 }
 
 /** Le pillole di cosa preparare: «🛏 1 matrimoniale + 1 singolo», «6 federe», «3 completi asciugamani». */

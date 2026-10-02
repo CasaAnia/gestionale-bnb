@@ -114,3 +114,11 @@ test('T3 · fondo pagina: prossime pulizie e rinvii nella veste della pagina', a
   const css = leggi('app/pulizie.css')
   assert.ok(css.includes('.pul-pross > b { font-family: var(--p-disp); font-size: 21px;') && css.includes('.pul-pross .d { font-family: var(--p-disp); font-size: 19px; font-weight: 600;') && css.includes('.pul-pross.mu { opacity: .65; }'))
 })
+
+test('T4 · «cambio biancheria della 4ª notte», mai più «quando esce»', () => {
+  for (const f of ['lib/pulizieSchede.ts', 'lib/giornataPulizie.ts', 'app/pulizie/page.tsx', 'components/pulizie/SchedaCameraOggi.tsx']) {
+    const testo = leggi(f).replace(/prima «quando esce»/g, '')
+    assert.ok(!testo.includes('quando esce'), f)
+  }
+  assert.ok(leggi('lib/pulizieSchede.ts').includes('· cambio biancheria della 4ª notte`'))
+})

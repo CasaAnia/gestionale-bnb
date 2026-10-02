@@ -55,7 +55,7 @@ test('orari fuori dalle 8–20: disegnati sul bordo, con l\'ora vera scritta', (
 
 test('chi resta (4 notti): blocco su tutta la riga col nome intero', () => {
   const r = rigaGiornata(room('ambra'), 'Ambra', [b('ambra', '2026-09-27', '2026-10-04', 'Lucia Ferri')], [], OGGI, true)
-  assert.deepEqual(r.segmenti, [{ tipo: 'resta', testo: 'Lucia Ferri resta · biancheria quando esce' }])
+  assert.deepEqual(r.segmenti, [{ tipo: 'resta', testo: 'Lucia Ferri resta · biancheria della 4ª notte' }])
 })
 
 test('pulizia fatta oggi: un segno all\'ora in cui è stata segnata, con i minuti; mai un intervallo ricostruito', () => {

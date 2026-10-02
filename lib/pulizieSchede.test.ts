@@ -30,7 +30,7 @@ test('orari: parte · bagagli · arriva, ognuno solo se il dato c\'è; partenza 
 })
 
 test('chi resta, pillole e pulita', () => {
-  assert.equal(rigaResta(b({ guest_name: 'Lucia Ferri', num_guests: 2 })), 'Lucia Ferri resta · 2 ospiti · cambio biancheria quando esce')
+  assert.equal(rigaResta(b({ guest_name: 'Lucia Ferri', num_guests: 2 })), 'Lucia Ferri resta · 2 ospiti · cambio biancheria della 4ª notte')
   assert.deepEqual(pilloleLetti('Lena', b({ num_guests: 3, extra_bed: false }), OGGI), ['🛏 1 matrimoniale + 1 singolo', '6 federe', '3 completi asciugamani'])
   assert.deepEqual(pilloleLetti('Ambra', b({ num_guests: 2 }), OGGI), ['🛏 1 matrimoniale', '4 federe', '2 completi asciugamani'])
   assert.deepEqual(pilloleLetti('Ambra', b({ num_guests: 9 }), OGGI), ['letti da confermare'])

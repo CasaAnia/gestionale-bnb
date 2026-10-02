@@ -114,7 +114,7 @@ export function rigaGiornata(room: CameraPulizie, nome: string, prenotazioni: Pr
       if (inizio < FINE) segmenti.push({ tipo: 'finestra', da: inizio, a: FINE, libera: true, testo: `${quando} · ${NOMI_PRIORITA[pr]}` })
     }
   } else if (soggiorno) {
-    segmenti.push({ tipo: 'resta', testo: `${nomeOspite(soggiorno.booking)} resta · biancheria quando esce` })
+    segmenti.push({ tipo: 'resta', testo: `${nomeOspite(soggiorno.booking)} resta · biancheria della 4ª notte` })
   }
   for (const e of events.filter(x => x.room_id === room.id && x.stato === 'fatta' && (x.data_effettiva || x.data_prevista) === oggi)) {
     const ora = oraSegnata(e, romaDi)
