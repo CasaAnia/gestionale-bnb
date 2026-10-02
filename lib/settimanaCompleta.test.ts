@@ -84,7 +84,8 @@ test('le tre pagine usano le stesse misure e le passano a schede, tenute e buchi
   }
   for (const src of [cal, ric]) {
     // dal 02/10/2026 il Calendario passa anche lo speso del cliente
-    assert.match(src, /onTocca=\{tocca\} misure=\{misure\}( speso=\{spesoPerBooking\[booking\.id\]\})? \/>/)
+    // dal 02/10/2026 (dito premuto) il Calendario passa anche onPremi/onRilascia
+    assert.match(src, /onTocca=\{tocca\} misure=\{misure\}( speso=\{spesoPerBooking\[booking\.id\]\}\s+onPremi=\{\(b, filo\) => setPremuta\(\{ booking: b, filo \}\)\} onRilascia=\{\(\) => setPremuta\(null\)\})? \/>/)
     assert.match(src, /onTocca=\{(setBarraAperta|toccaTenuta)\} misure=\{misure\} \/>/)
   }
   assert.match(arr, /areaTocco\(rowTop \+ misure\.sopra, misure\.scheda\)/)

@@ -241,7 +241,8 @@ test('foglietto: le righe nell’ordine dato, altezza fissa, «…» finché la 
   assert.doesNotMatch(cal, /FogliettoPrenotazione|setAperta|selectedGroupId/)
   assert.match(cal, /function tocca\(booking: CalendarBooking\) \{\n    apriScheda\(bookings\.find\(r => r\.id === booking\.id\) \?\? booking\)\n  \}/)
   assert.match(cal, /router\.push\(hrefScheda\(booking\.id, 'calendario'\)\)/)
-  assert.match(pagina, /onClick=\{e => \{ e\.stopPropagation\(\); onTocca\(booking, chainKey, e\) \}\}/)
+  // dal 02/10/2026 (dito premuto) il clic che segue un dito premuto non apre la scheda
+  assert.match(pagina, /onClick=\{e => \{ e\.stopPropagation\(\); if \(premuto\.clicDaIgnorare\(\)\) return; onTocca\(booking, chainKey, e\) \}\}/)
   // le Richieste tengono il loro foglietto
   assert.match(leggi('components/richieste/NastroRichieste.tsx'), /<FogliettoPrenotazione /)
   // una sola lettura al tocco, la stessa della scheda

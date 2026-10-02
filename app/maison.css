@@ -790,6 +790,15 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-scheda { position: absolute; cursor: pointer; transition: filter .15s; }
 .cal-scheda::before { content: ""; position: absolute; inset: 0; background: var(--m-bg); border-radius: var(--cal-raggio, 6px); clip-path: var(--cal-taglio, none); pointer-events: none; }
 .cal-scheda > .cal-scheda-in { transition: opacity .15s; }
+/* Il dito premuto (Ania, 02/10/2026): niente menu di iOS, niente selezione né
+   lente; lo scorrimento del calendario resta al browser */
+.cal-scheda.premibile { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: pan-x pan-y; }
+/* Il riquadro del dito premuto (components/calendario/RiquadroPremuto) */
+.cal-pk-velo { position: fixed; inset: 0; background: rgba(36,31,26,.18); pointer-events: none; z-index: 90; animation: cal-pk-entra .12s ease-out; }
+.cal-pk { position: fixed; left: 14px; right: 14px; top: 120px; max-height: calc(100dvh - 32px); overflow: hidden; background: #fff; border-radius: 14px; box-shadow: 0 14px 40px rgba(36,31,26,.28); border-top: 4px solid var(--pk-filo, var(--m-acc)); pointer-events: none; z-index: 91; animation: cal-pk-entra .12s ease-out; }
+.cal-pk.centro { top: 50%; transform: translateY(-50%); }
+.cal-pk.mac { left: 50%; right: auto; width: min(420px, calc(100vw - 28px)); top: 50%; transform: translate(-50%, -50%); }
+@keyframes cal-pk-entra { from { opacity: 0; } to { opacity: 1; } }
 .cal-scheda.dim > .cal-scheda-in { opacity: .3; }
 .cal-scheda.scaduta > .cal-scheda-in { opacity: .55; }
 .cal-scheda.catena { filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }

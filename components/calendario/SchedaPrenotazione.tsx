@@ -9,7 +9,7 @@
 // del letto, il taglio obliquo del cambio camera. La pagina dice solo dove sta
 // (riga, colonne), se è attenuata o trovata dalla ricerca e cosa fa il tocco.
 // ============================================================================
-import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react'
 import { percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { nomeConAltri } from '@/lib/guestName'
 import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
@@ -35,7 +35,7 @@ type Prenotazione = {
   guests?: { rating?: string | null; vuole_ricevuta?: boolean | null } | null
 }
 
-export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, colonnaCamere, giorno, giorni, indice, legami, coperte, attenuata, cerca, trovata, selezionata, larghezzaTesto, onTocca, misure = MISURE_NASTRO.normale, speso }: {
+export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, colonnaCamere, giorno, giorni, indice, legami, coperte, attenuata, cerca, trovata, selezionata, larghezzaTesto, onTocca, onPremi, onRilascia, misure = MISURE_NASTRO.normale, speso }: {
   booking: T
   /** il bordo alto della corsia */
   rigaTop: number
@@ -57,11 +57,16 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
   selezionata: boolean
   larghezzaTesto: (da: number, a: number) => number
   onTocca: (booking: T, chainKey: string | undefined, e: MouseEvent<HTMLDivElement>) => void
+  /** Calendario (02/10/2026): il dito (o il tasto del mouse) premuto 500 ms apre il riquadro; `filo` = il colore della scheda */
+  onPremi?: (booking: T, filo: string) => void
+  /** il dito si alza (o il gesto si interrompe): il riquadro sparisce */
+  onRilascia?: () => void
   /** corsia/scheda: normali, o compatte col telefono in orizzontale a «Sett.» (lib/calendarioSchede) */
   misure?: MisureNastro
   /** Calendario (02/10/2026): quanto ha speso il cliente, questa compresa, in centesimi; null/assente = niente cifra */
   speso?: number | null
 }) {
+  const premuto = useDitoPremuto()
   const startIdx = Math.max(0, indice(booking.check_in))
   const endIdx = Math.min(giorni, indice(booking.check_out))
   if (endIdx - startIdx <= 0) return null
@@ -98,7 +103,8 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
   }
   return (
     <SchedaNastro id={booking.id} dati={{ stato }}
-      onClick={e => { e.stopPropagation(); onTocca(booking, chainKey, e) }}
+      onClick={e => { e.stopPropagation(); if (premuto.clicDaIgnorare()) return; onTocca(booking, chainKey, e) }}
+      gesti={onPremi && !isWebPending ? premuto.gesti(() => onPremi(booking, tinta.filo), () => onRilascia?.()) : undefined}
       classi={`${attenuata ? (cerca ? 'dim cerca' : 'dim') : ''} ${selezionata ? 'catena' : ''} ${trovata ? 'trovata' : ''}`}
       top={tocco.top} height={tocco.height} altezzaScheda={misure.scheda} left={colonnaCamere + g.left} width={g.width} zIndex={trovata ? 16 : selezionata ? 15 : 5}
       sito={isWebPending} cutLeft={cutLeft} letto={hasExtraBed ? lettiPoolPrenotazione(booking) : undefined}
@@ -114,6 +120,47 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
       {righe.arrivo && <small className="ar2">{righe.arrivo}</small>}
     </SchedaNastro>
   )
+}
+
+// ── Il dito premuto (Ania, 02/10/2026) ──────────────────────────────────────
+// Pointer events, così vale per il dito e per il mouse: 500 ms fermi aprono
+// il riquadro, alzando il dito sparisce e il clic che segue non apre la
+// scheda. Uno spostamento di più di 8 px prima dei 500 ms è uno scorrimento:
+// si lascia al browser (niente preventDefault sul pointerdown).
+export const ATTESA_PREMUTO_MS = 500
+export const SOGLIA_SCORRIMENTO_PX = 8
+function useDitoPremuto() {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inizio = useRef<{ x: number; y: number } | null>(null)
+  const aperto = useRef(false)
+  const ignoraClic = useRef(false)
+  const ferma = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; inizio.current = null }
+  useEffect(() => ferma, [])
+  return {
+    /** il clic dopo un dito premuto non apre la scheda: si guarda e si azzera */
+    clicDaIgnorare() { const si = ignoraClic.current; ignoraClic.current = false; return si },
+    gesti(apri: () => void, chiudi: () => void) {
+      const rilascia = () => { ferma(); if (aperto.current) { aperto.current = false; chiudi() } }
+      return {
+        onPointerDown: (e: PointerEvent<HTMLDivElement>) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return
+          ferma()
+          ignoraClic.current = false
+          inizio.current = { x: e.clientX, y: e.clientY }
+          timer.current = setTimeout(() => { timer.current = null; aperto.current = true; apri() }, ATTESA_PREMUTO_MS)
+        },
+        onPointerMove: (e: PointerEvent<HTMLDivElement>) => {
+          const p = inizio.current
+          if (!p || !timer.current) return
+          if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > SOGLIA_SCORRIMENTO_PX) ferma()
+        },
+        onPointerUp: () => { if (aperto.current) ignoraClic.current = true; rilascia() },
+        onPointerCancel: rilascia,
+        onPointerLeave: rilascia,
+        onContextMenu: (e: MouseEvent<HTMLDivElement>) => e.preventDefault(),
+      }
+    },
+  }
 }
 
 // La cifra sulla riga del nome, allineata a destra, senza parole davanti

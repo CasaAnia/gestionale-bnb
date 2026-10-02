@@ -12,7 +12,7 @@
 //   · SchedaNastro   — la scheda: filo a sinistra, taglio obliquo del cambio
 //                      camera, testo che resta in vista sulle schede lunghe
 // ============================================================================
-import type { CSSProperties, MouseEvent, ReactNode } from 'react'
+import type { CSSProperties, DOMAttributes, MouseEvent, ReactNode } from 'react'
 import { SCHEDA_H, FILO_SINISTRO, filoObliquo } from '@/lib/calendarioSchede'
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -95,7 +95,7 @@ export function BucoNastro({ chiave, etichetta, riga, left, top, width, testoLef
  * taglio stesso è `clipPath`. Il testo (`children`) sta nello `.tx` che resta
  * in vista quando la scheda comincia fuori, a sinistra.
  */
-export function SchedaNastro({ id, dati, classi, top, height, altezzaScheda = SCHEDA_H, left, width, zIndex, onClick, sito, cutLeft, letto, lettoTratti, fondo, testo, filo, clipPath, cuneoDestra, cuneoSinistra, testoLeft, testoWidth, stileInterno, children }: {
+export function SchedaNastro({ id, dati, classi, top, height, altezzaScheda = SCHEDA_H, left, width, zIndex, onClick, gesti, sito, cutLeft, letto, lettoTratti, fondo, testo, filo, clipPath, cuneoDestra, cuneoSinistra, testoLeft, testoWidth, stileInterno, children }: {
   id: string
   /** attributi data-* in più (data-stato, data-arrivo…) */
   dati?: Record<string, string | number | undefined>
@@ -104,6 +104,8 @@ export function SchedaNastro({ id, dati, classi, top, height, altezzaScheda = SC
   /** l'altezza disegnata della scheda, per il filo obliquo del cambio camera (normale 72, compatta 44) */
   altezzaScheda?: number
   onClick: (e: MouseEvent<HTMLDivElement>) => void
+  /** il dito premuto (Calendario, 02/10/2026): pointer events e contextmenu sul contenitore; con loro la scheda non si seleziona e non apre il menu di iOS */
+  gesti?: Pick<DOMAttributes<HTMLDivElement>, 'onPointerDown' | 'onPointerMove' | 'onPointerUp' | 'onPointerCancel' | 'onPointerLeave' | 'onContextMenu'>
   /** richiesta dal sito da confermare: bordo tratteggiato del colore del filo */
   sito?: boolean
   cutLeft?: boolean
@@ -121,7 +123,7 @@ export function SchedaNastro({ id, dati, classi, top, height, altezzaScheda = SC
 }) {
   return (
     <div data-tocco data-scheda={id} {...Object.fromEntries(Object.entries(dati ?? {}).map(([k, v]) => [`data-${k}`, v]))}
-      onClick={onClick} className={`cal-scheda ${classi}`}
+      onClick={onClick} {...gesti} className={`cal-scheda ${classi}${gesti ? ' premibile' : ''}`}
       style={{ top, height, left, width, zIndex, ...(clipPath ? { '--cal-taglio': clipPath, '--cal-raggio': '0' } : {}) } as CSSProperties}>
       <div className={`cal-scheda-in ${sito ? 'sito' : ''} ${cutLeft ? 'cl' : ''}`} data-letto={letto || undefined}
         style={{

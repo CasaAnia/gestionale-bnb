@@ -7,6 +7,7 @@ import { nomeDiverso, nomeConAltri } from '@/lib/guestName'
 import { barreSoggiorno, nottiPagateBarra } from '@/lib/barreSoggiorno'
 import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { SchedaPrenotazione, SchedaTenuta } from '@/components/calendario/SchedaPrenotazione'
+import RiquadroPremuto from '@/components/calendario/RiquadroPremuto'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { EXTRA_BED_MAX } from '@/lib/tariffe'
 import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
@@ -249,6 +250,9 @@ export default function Calendario() {
   const [confermaLibera, setConfermaLibera] = useState<{ barra: BarraTenuta; prenotaDopo: boolean } | null>(null)
   const [liberando, setLiberando] = useState(false)
   const [avvisoTenuta, setAvvisoTenuta] = useState<string | null>(null)
+  // Il dito premuto su una scheda (Ania, 02/10/2026): la prenotazione del
+  // riquadro aperto e il colore della sua scheda; null = nessun riquadro
+  const [premuta, setPremuta] = useState<{ booking: CalendarBooking; filo: string } | null>(null)
 
   // Notti coperte dagli acconti per prenotazione (-1 = tutte), lungo tutta la
   // catena del cambio camera (lib/calendarioNastro, gli stessi conti delle Richieste)
@@ -811,7 +815,8 @@ export default function Calendario() {
                       <SchedaPrenotazione key={booking.id} booking={booking} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
                         indice={dayIndex} legami={legami} coperte={nottiPagateBarra(booking, paidNightsByBooking)}
                         attenuata={isDimmed} cerca={searchAttiva} trovata={isCurrent} selezionata={false}
-                        larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} speso={spesoPerBooking[booking.id]} />
+                        larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} speso={spesoPerBooking[booking.id]}
+                        onPremi={(b, filo) => setPremuta({ booking: b, filo })} onRilascia={() => setPremuta(null)} />
                     )
                   })}
 
@@ -948,6 +953,9 @@ export default function Calendario() {
           </FoglioMaison>
         )
       })()}
+
+      {/* ── IL DITO PREMUTO (Ania, 02/10/2026): il riquadro resta finché il dito è giù ── */}
+      {premuta && <RiquadroPremuto filo={premuta.filo} mac={isDesktop && !orizzontale} />}
     </div>
   )
 }
