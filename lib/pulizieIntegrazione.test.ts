@@ -166,8 +166,9 @@ test('rifiuti del database in italiano corretto; guardie: niente elementi della 
   const pagina = readFileSync(new URL('../app/pulizie/page.tsx', import.meta.url), 'utf8')
   for (const vietato of ['PROPOSTA DA PROVARE', 'Giorno della prova', 'giornata di esempio', 'localStorage', "'2026-09-25'"]) assert.ok(!pagina.includes(vietato), vietato)
   // Dal 01/10/2026 la pagina del riferimento nuovo (docs/design/pulizie-riferimento.html):
-  // il giorno, il grafico; sotto restano «Prossime pulizie» e «Rinvii e salti»
-  for (const approvato of ['<GraficoGiornata', 'giornoLungo(td)', 'Prossime pulizie', 'Rinvii e salti']) assert.ok(pagina.includes(approvato), approvato)
+  // il giorno, il grafico; sotto restano «Prossime pulizie» e «Rinvii e salti».
+  // Dal 02/10/2026 (pulizie-domani-riferimento.html) la data è quella del giorno guardato, oggi o dopo.
+  for (const approvato of ['<GraficoGiornata', 'giornoLungo(giorno)', 'Prossime pulizie', 'Rinvii e salti']) assert.ok(pagina.includes(approvato), approvato)
   const scheda = readFileSync(new URL('../components/SchedaPulizia.tsx', import.meta.url), 'utf8')
   // Dal 28/09/2026 la veste «Maison» (riferimento approvato da Ania): foglio dal basso, chip del recuperato sempre visibili
   // Dal 01/10/2026 la veste dei fogli delle Pulizie (pulizie-fogli-riferimento.html, «Dopo»)

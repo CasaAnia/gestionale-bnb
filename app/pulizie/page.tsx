@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import TestaMac from '@/components/TestaMac'
 import { giornoDaParametro } from '@/lib/daControllare'
+import { giornoDaMostrare, giornoPrima, giornoDopo, indirizzoGiorno, contoGiornoFuturo } from '@/lib/pulizieGiorni'
 import SalvataggiPulizie from '@/components/SalvataggiPulizie'
 import SchedaPulizia from '@/components/SchedaPulizia'
 import TimerInCorso from '@/components/TimerInCorso'
@@ -61,6 +62,22 @@ export default function Pulizie() {
   const [foglioSpazi, setFoglioSpazi] = useState<{ giorno: string; voce: VoceSpazi; righe: FuoriCameraSql[] } | null>(null)
   const [correzione, setCorrezione] = useState<Record<string, string>>({})
   const [td, setTd] = useState(todayStr)
+  // Il giorno guardato nella linguetta «Oggi» (riferimento del 02/10/2026,
+  // pulizie-domani-riferimento.html): sta nell'indirizzo, ?giorno=…; senza è oggi.
+  const [scelto, setScelto] = useState<string | null>(null)
+  const giorno = giornoDaMostrare(scelto, td)
+  const futuro = giorno !== td
+  useEffect(() => {
+    const leggi = () => setScelto(giornoDaParametro(window.location.search))
+    leggi()
+    window.addEventListener('popstate', leggi)
+    return () => window.removeEventListener('popstate', leggi)
+  }, [])
+  const vaiAlGiorno = (g: string) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    window.history.pushState(null, '', indirizzoGiorno(g, td))
+    setScelto(g === td ? null : g)
+  }
   // Bagagli e partenza (proposta 0064): senza le colonne il grafico non le disegna
   const orari0064 = useParte0064('orari')
   const altro0064 = useParte0064('altro')
@@ -78,14 +95,12 @@ export default function Pulizie() {
   useEffect(() => osservaAggiornamentiPulizie(window, () => setRilettura(x => x + 1)), [])
   // Cambio di giornata con la pagina aperta: si rilegge tutto col giorno nuovo.
   useEffect(() => { const t = window.setInterval(() => { const g = todayStr(); if (g !== td) { setTd(g); setRilettura(x => x + 1) } }, 30000); return () => window.clearInterval(t) }, [td])
-  // Dalla Home: ?giorno=… porta al giorno; #statistiche apre le statistiche.
+  // Dalla Home: ?giorno=… apre quel giorno (qui sopra); #statistiche apre le statistiche.
   useEffect(() => { const t = window.setTimeout(() => { if (window.location.hash === '#statistiche') setVista('resoconto') }, 0); return () => window.clearTimeout(t) }, [])
   useEffect(() => {
     if (loading) return
-    const giorno = giornoDaParametro(window.location.search)
-    if (giorno) document.getElementById(`pulizie-giorno-${giorno}`)?.scrollIntoView({ behavior: 'auto', block: 'start' })
     // Dalla Home «Tempi fuori dalle camere ↗» (e i vecchi link #fuori-camera): gli spazi comuni
-    else if (window.location.hash === '#spazi-comuni' || window.location.hash === '#fuori-camera') document.getElementById('spazi-comuni')?.scrollIntoView({ behavior: 'auto', block: 'start' })
+    if (window.location.hash === '#spazi-comuni' || window.location.hash === '#fuori-camera') document.getElementById('spazi-comuni')?.scrollIntoView({ behavior: 'auto', block: 'start' })
   }, [loading])
 
   useEffect(() => {
@@ -129,6 +144,9 @@ export default function Pulizie() {
     return { room, nome: breve(room.id), aperte, arrivo, priorita, cronologia: cronologiaCamera(prenotazioni, room.id, td, events, rooms) }
   }).filter(r => r.aperte.length > 0).sort((a, b) => RANK[a.priorita!] - RANK[b.priorita!]), [rooms, prenotazioni, events, td, breve])
   const daFare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
+  // Su un giorno che deve venire: lo stesso numero della striscia della Home
+  const daFareNelGiorno = futuro ? conteggioGiorno(rooms, prenotazioni, events, giorno, td).daFare : daFare
+  const prima = giornoPrima(giorno, td), dopo = giornoDopo(giorno, td)
   const confermate = confermateNelGiorno(events, td)
   // Il grafico: una riga per OGNI camera attiva, nell'ordine di sempre
   const grafico = useMemo(() => rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, events as Parameters<typeof rigaGiornata>[3], td, conOrari)), [rooms, prenotazioni, events, td, conOrari, breve])
@@ -180,7 +198,18 @@ export default function Pulizie() {
     {avviso && <p role="alert" className="text-red-800 my-3">{avviso}</p>}
     {loading && !errore ? <p>Lettura del registro…</p> : pronta && <>
     {vista === 'oggi' && <>
-      <div className="pul-giorno" id={`pulizie-giorno-${td}`}><b>{giornoLungo(td)}</b><small><span data-da-fare={daFare}>{conto.daFare}</span> · <em data-confermate={confermate}>{conto.fatte}</em></small></div>
+      {/* La data con le frecce ‹ ›: «‹» mai prima di oggi, «›» fino a 13 giorni avanti */}
+      <div className="pul-giorno" id={`pulizie-giorno-${giorno}`} data-giorno-pulizie={giorno}>
+        <div className="pul-giorno-nav" data-senza-sottolinea>
+          {prima ? <a href={indirizzoGiorno(prima, td)} className="pul-freccia" aria-label="Giorno prima" data-freccia="prima" onClick={vaiAlGiorno(prima)}>‹</a> : <span className="pul-freccia" aria-hidden />}
+          <b>{giornoLungo(giorno)}</b>
+          {dopo ? <a href={indirizzoGiorno(dopo, td)} className="pul-freccia" aria-label="Giorno dopo" data-freccia="dopo" onClick={vaiAlGiorno(dopo)}>›</a> : <span className="pul-freccia" aria-hidden />}
+        </div>
+        {futuro
+          ? <small data-conto-futuro><span data-da-fare={daFareNelGiorno}>{contoGiornoFuturo(giorno, td, daFareNelGiorno)}</span><a href="/pulizie" className="pul-torna-oggi" data-torna-oggi onClick={vaiAlGiorno(td)}>Oggi</a></small>
+          : <small><span data-da-fare={daFare}>{conto.daFare}</span> · <em data-confermate={confermate}>{conto.fatte}</em></small>}
+      </div>
+      {!futuro && <>
       <GraficoGiornata righe={grafico} spazi={spaziOggi} />
       {/* Le camere da fare, nell'ordine di urgenza (RANK di prioritaDi) */}
       {camereOggi.flatMap(c => c.aperte.map((p, i) => <SchedaCameraOggi key={`${p.tipo}:${p.booking.id}:${p.due}`} id={i === 0 ? `camera-${c.room.id}` : undefined}
@@ -202,6 +231,7 @@ export default function Pulizie() {
           <b>{breve(d.room_id)}<small>{r.tipo}</small></b><span className="d">{r.data}</span><span className="x">{r.sotto}</span>
         </div> })}</section>}
       <p className="pul-nota-fondo" data-nota-fondo>{NOTA_FONDO}</p>
+      </>}
     </>}
     {vista === 'registro' && <RegistroPulizie camere={rooms.filter(r => r.active !== false).map(r => ({ id: r.id, nome: breve(r.id) }))}
       events={events} recuperi={recuperi} automatiche={automatiche} oggi={td} rilettura={rilettura} nomeCamera={breve}

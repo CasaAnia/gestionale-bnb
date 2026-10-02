@@ -301,3 +301,10 @@ button.pul-rr { cursor: pointer; }
 .mz[data-foglio-maison^="pul-"] .pul-nota { overflow-wrap: anywhere; }
 .pul-timer-foglio .pul-az { white-space: normal; text-align: left; max-width: 100%; }
 .mz[data-foglio-maison="pul-recupero"] .pul-timer-foglio { margin-top: 6px; }
+
+/* ── Pulizie di domani e dei giorni dopo (riferimento approvato da Ania il
+   02/10/2026, pulizie-domani-riferimento.html, colonna 2) ─────────────── */
+.pul-giorno-nav { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; }
+.pul-freccia { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; font-family: var(--p-sans); font-size: 26px; font-weight: 300; line-height: 1; color: var(--p-ink); text-decoration: none !important; }
+.pul-giorno small .pul-torna-oggi { color: var(--p-ink); border-bottom: 1.5px solid var(--p-ott); padding-bottom: 2px; margin-left: 10px; text-decoration: none !important; position: relative; }
+.pul-giorno small .pul-torna-oggi::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; transform: translateY(-50%); }
