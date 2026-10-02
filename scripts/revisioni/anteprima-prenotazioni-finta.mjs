@@ -404,6 +404,34 @@ const payments = [
   // conto è 260 − 100 = 160, e i dati bonifico devono chiedere 160, non 260.
   { id: 'ffffffff-0007-4000-8000-000000000007', booking_id: 'bbbbbbbb-2901-4000-8000-000000002901', amount: 100, method: 'bonifico', paid_on: '2026-09-20', created_at: ora },
 ]
+// Scenario opt-in del dito premuto sul Calendario (02/10/2026, versione D):
+// ANTEPRIMA_RIQUADRO_PREMUTO=1, date relative a oggi, dati solo sintetici.
+//   «Susanna Esempio» — tutte e sei le voci del Da fare: letto in più solo la
+//     seconda notte, Ambra in 2 poi in 1, cambio in Allegra, niente orari,
+//     caparra col bonifico (acconto in contanti), vuole la ricevuta, una nota
+//   «Marco Esempio»   — nessuna voce: orari scritti, contanti, niente letto
+if (process.env.ANTEPRIMA_RIQUADRO_PREMUTO === '1') {
+  const oggiR = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const g = delta => new Date(Date.parse(oggiR + 'T12:00:00Z') + delta * 86400000).toISOString().slice(0, 10)
+  const susanna = { ...ospite('aaaaaaaa-3201-4000-8000-000000003201', 'Susanna Esempio', '+39 351 222 4410'), vuole_ricevuta: true, provenienza: 'google' }
+  const marco = { ...ospite('aaaaaaaa-3202-4000-8000-000000003202', 'Marco Esempio', '+39 340 111 2233'), provenienza: 'passaparola' }
+  guests.push(susanna, marco)
+  const PS = 'dddddddd-3201-4000-8000-000000003201', GS = 'cccccccc-3201-4000-8000-000000003201'
+  // le notti di Ambra e Allegra libere in quei giorni: via le prenotazioni fisse che si accavallano
+  for (let i = bookings.length - 1; i >= 0; i--) {
+    const b = bookings[i]
+    if ([ROOM.ambra, ROOM.allegra, ROOM.lena].includes(b.room_id) && b.check_in < g(9) && b.check_out > g(1)) bookings.splice(i, 1)
+  }
+  bookings.push(
+    prenotazione(ROOM.ambra, susanna.id, g(1), g(2), 2, { id: 'bbbbbbbb-3201-4000-8000-000000003201', prenotazione_id: PS, group_id: GS, price_per_night: 70, total_amount: 70, accordo_pagamento: 'caparra_meta', notes: 'vuole il cuscino basso' }),
+    prenotazione(ROOM.ambra, susanna.id, g(2), g(3), 1, { id: 'bbbbbbbb-3202-4000-8000-000000003202', prenotazione_id: PS, group_id: GS, price_per_night: 60, total_amount: 70, extra_bed: true, extra_bed_dates: [g(2)], extra_bed_total: 10, accordo_pagamento: 'caparra_meta' }),
+    prenotazione(ROOM.allegra, susanna.id, g(3), g(5), 1, { id: 'bbbbbbbb-3203-4000-8000-000000003203', prenotazione_id: PS, group_id: GS, price_per_night: 50, total_amount: 100, accordo_pagamento: 'caparra_meta' }),
+    prenotazione(ROOM.lena, marco.id, g(5), g(8), 2, { id: 'bbbbbbbb-3204-4000-8000-000000003204', prenotazione_id: 'dddddddd-3202-4000-8000-000000003202', price_per_night: 80, total_amount: 240, check_in_time: '15:00', shuttle: 'no', check_out_time: '10:00', accordo_pagamento: 'contanti' }),
+  )
+}
+if (process.env.ANTEPRIMA_RIQUADRO_PREMUTO === '1') {
+  payments.push({ id: 'ffffffff-3201-4000-8000-000000003201', booking_id: 'bbbbbbbb-3201-4000-8000-000000003201', amount: 60, method: 'contanti', paid_on: '2026-10-01', created_at: ora })
+}
 // Scenario opt-in della scheda «Maison» (28/09/2026): date RELATIVE a oggi,
 // dati solo sintetici. ANTEPRIMA_SCHEDA_MAISON=1 aggiunge i casi del
 // riferimento (docs/design/scheda-riferimento.html) e toglie le prenotazioni

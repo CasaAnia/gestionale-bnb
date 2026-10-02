@@ -13,6 +13,7 @@
 // ============================================================================
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import type { ContenutoRiquadro, PezzoRiquadro } from '@/lib/riquadroPremuto'
 
 export default function RiquadroPremuto({ filo, mac, children }: {
   /** il colore della scheda premuta: il filo in alto */
@@ -37,5 +38,37 @@ export default function RiquadroPremuto({ filo, mac, children }: {
       </div>
     </div>,
     document.body,
+  )
+}
+
+// ── Il contenuto (versione D): occhiello, nome, telefono, «Da fare» col filo
+// mattone a sinistra, poi le righe etichetta/valore (lib/riquadroPremuto) ──
+const Pezzi = ({ pezzi }: { pezzi: PezzoRiquadro[] }) => (
+  <>{pezzi.map((p, i) => p.tipo === 'b' ? <b key={i}>{p.testo}</b> : p.tipo === 'gr' ? <i key={i} className="gr">{p.testo}</i> : <span key={i}>{p.testo}</span>)}</>
+)
+
+export function ContenutoPremuto({ contenuto: c }: { contenuto: ContenutoRiquadro }) {
+  return (
+    <div className="pk">
+      <div className="ey" data-pk-occhiello>{c.occhiello}</div>
+      <h3 data-pk-nome>{c.titolo}</h3>
+      {c.telefono && <div className="tel" data-pk-telefono>{c.telefono}</div>}
+      {c.daFare.length > 0 && (
+        <div className="df" data-pk-dafare>
+          <span>Da fare</span>
+          <span>{c.daFare.map(v => <span key={v.testo} className={`it${v.letto ? ' lt' : ''}`}>{v.testo}</span>)}</span>
+        </div>
+      )}
+      {c.righe.map(r => (
+        <div key={r.etichetta} className="rw3" data-pk-riga={r.etichetta}>
+          <span>{r.etichetta}</span>
+          <span className={r.etichetta === 'Note' ? 'nt' : undefined}>
+            {r.linee.length > 1
+              ? r.linee.map((l, i) => <span key={i} className="gp"><Pezzi pezzi={l} /></span>)
+              : <Pezzi pezzi={r.linee[0] ?? []} />}
+          </span>
+        </div>
+      ))}
+    </div>
   )
 }

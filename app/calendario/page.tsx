@@ -7,7 +7,9 @@ import { nomeDiverso, nomeConAltri } from '@/lib/guestName'
 import { barreSoggiorno, nottiPagateBarra } from '@/lib/barreSoggiorno'
 import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { SchedaPrenotazione, SchedaTenuta } from '@/components/calendario/SchedaPrenotazione'
-import RiquadroPremuto from '@/components/calendario/RiquadroPremuto'
+import RiquadroPremuto, { ContenutoPremuto } from '@/components/calendario/RiquadroPremuto'
+import { contenutoRiquadro, type RigaRiquadroDati } from '@/lib/riquadroPremuto'
+import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { EXTRA_BED_MAX } from '@/lib/tariffe'
 import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
@@ -95,6 +97,7 @@ type CalendarBooking = Omit<Booking, 'guests' | 'rooms'> & {
 type PaymentRow = {
   booking_id: string
   amount: number | string
+  method?: string | null
 }
 
 function addDays(date: Date, n: number) {
@@ -239,6 +242,8 @@ export default function Calendario() {
 
   // Somma acconti per prenotazione (vuota se la tabella payments non è ancora migrata)
   const [accontiByBooking, setAccontiByBooking] = useState<Record<string, number>>({})
+  // I pagamenti uno per uno, col metodo: il conto e il «Da fare» del riquadro del dito premuto
+  const [pagamenti, setPagamenti] = useState<PaymentRow[]>([])
   // Le righe annullate con un mancato arrivo: contano nel conto della
   // prenotazione (come nel foglietto), anche se sul nastro non si vedono
   const [annullateConto, setAnnullateConto] = useState<CalendarBooking[]>([])
@@ -273,7 +278,7 @@ export default function Calendario() {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
       supabase.from('bookings').select('*, guests(*)').neq('status', 'annullata'),
-      supabase.from('payments').select('booking_id, amount'),
+      supabase.from('payments').select('booking_id, amount, method'),
     ]).then(([{ data: r }, { data: b }, { data: p }]) => {
       const sorted = ([...(r || [])] as Room[]).sort((a, b) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
@@ -285,6 +290,7 @@ export default function Calendario() {
       const sums: Record<string, number> = {}
       for (const x of (p || []) as PaymentRow[]) sums[x.booking_id] = (sums[x.booking_id] || 0) + Number(x.amount)
       setAccontiByBooking(sums)
+      setPagamenti((p || []) as PaymentRow[])
       setLoading(false)
     })
     leggiTenute().then(setRichiesteTenute)
@@ -546,6 +552,36 @@ export default function Calendario() {
     const intero = Math.max(0, Math.ceil(sl / CELL_W - 0.01))
     setColonnaSinistra(prev => (prev === intero ? prev : intero))
   }
+
+  // Il contenuto del riquadro del dito premuto (versione D, Ania 02/10/2026):
+  // con i dati che il calendario ha già, nessuna lettura in più (lib/riquadroPremuto)
+  const contenutoPremuto = useMemo(() => {
+    if (!premuta) return null
+    const b = premuta.booking
+    const oggi = oggiARoma()
+    const chiave = chiavePrenotazione(b)
+    const conCamera = (r: CalendarBooking) => ({ ...r, rooms: rooms.find(c => c.id === r.room_id) ?? null }) as unknown as RigaRiquadroDati
+    const righe = [...bookings, ...annullateConto].filter(r => chiavePrenotazione(r) === chiave).map(conCamera)
+    // i cambi camera della catena: la stessa fonte dell'icona ⇄ (legami.poiCamera)
+    const catena = legami.changeGroups.chainKeyOf[b.id]
+    const cambi = catena
+      ? legami.changeGroups.roomChangeEdges
+          .filter(e => legami.changeGroups.chainKeyOf[e.fromId] === catena)
+          .map(e => ({ da: bookings.find(x => x.id === e.fromId), a: bookings.find(x => x.id === e.toId), camera: legami.poiCamera[e.fromId] ?? '' }))
+          // solo i passaggi veri: una camera lasciata il giorno in cui comincia l'altra
+          // (due camere nelle stesse notti stanno nella catena ma non sono un cambio)
+          .filter(c => c.da && c.a && c.camera && c.da.check_out === c.a.check_in)
+          .map(c => ({ giorno: c.a!.check_in, camera: c.camera }))
+      : []
+    // i soggiorni conclusi della stessa persona fuori da questa prenotazione (come la scheda)
+    const altre = b.guest_id ? bookings.filter(x => x.guest_id === b.guest_id && chiavePrenotazione(x) !== chiave).map(conCamera) : []
+    const persona = { guest_id: b.guest_id ?? null, telefono: b.guests?.phone ?? null, full_name: b.guest_name || b.guests?.full_name || null }
+    const volte = elencoSoggiorniPersona(persona, altre as unknown as SoggiornoStorico[], oggi, chiave).length
+    return contenutoRiquadro({
+      premuta: conCamera(b), camera: rooms.find(c => c.id === b.room_id)?.name, coperte: nottiPagateBarra(b, paidNightsByBooking),
+      righe, pagamenti, cambi, volte, spesoCent: spesoPerBooking[b.id] ?? null, oggi,
+    })
+  }, [premuta, bookings, annullateConto, rooms, legami, pagamenti, paidNightsByBooking, spesoPerBooking])
 
   // Tocco su una scheda (Ania, 02/10/2026): apre DIRETTAMENTE la scheda della
   // prenotazione, con la provenienza «‹ Calendario». Niente più foglietto in
@@ -955,7 +991,7 @@ export default function Calendario() {
       })()}
 
       {/* ── IL DITO PREMUTO (Ania, 02/10/2026): il riquadro resta finché il dito è giù ── */}
-      {premuta && <RiquadroPremuto filo={premuta.filo} mac={isDesktop && !orizzontale} />}
+      {premuta && <RiquadroPremuto filo={premuta.filo} mac={isDesktop && !orizzontale}>{contenutoPremuto && <ContenutoPremuto contenuto={contenutoPremuto} />}</RiquadroPremuto>}
     </div>
   )
 }

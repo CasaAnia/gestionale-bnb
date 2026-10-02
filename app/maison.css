@@ -799,6 +799,23 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-pk.centro { top: 50%; transform: translateY(-50%); }
 .cal-pk.mac { left: 50%; right: auto; width: min(420px, calc(100vw - 28px)); top: 50%; transform: translate(-50%, -50%); }
 @keyframes cal-pk-entra { from { opacity: 0; } to { opacity: 1; } }
+/* Il contenuto, versione D (riferimento approvato da Ania il 02/10/2026) */
+.cal-pk .pk { padding: 16px 18px 18px; font-family: var(--m-ui); color: var(--m-ink); overflow-y: auto; max-height: calc(100dvh - 36px); }
+.cal-pk .pk .ey { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--m-acc); }
+.cal-pk .pk h3 { font-family: var(--m-disp); font-weight: 500; font-size: 28px; line-height: 1.1; margin: 4px 0 2px; }
+.cal-pk .pk .tel { font-family: var(--m-disp); font-size: 18px; font-variant-numeric: oldstyle-nums; }
+/* Da fare: niente fondo, tenuto insieme da un filo mattone a sinistra */
+.cal-pk .pk .df { display: grid; grid-template-columns: 96px 1fr; gap: 6px; margin: 6px 0 0 -12px; padding: 8px 0 8px 10px; border-left: 2px solid var(--m-mat); font-size: 13.5px; color: var(--m-ink); }
+.cal-pk .pk .df > span:first-child { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; font-weight: 500; color: var(--m-mat); padding-top: 3px; }
+.cal-pk .pk .df .it { display: block; padding: 1px 0; }
+.cal-pk .pk .df .it.lt { color: #D0261B; font-weight: 600; }
+/* le righe */
+.cal-pk .pk .rw3 { display: grid; grid-template-columns: 96px 1fr; gap: 6px; padding: 7px 0; border-top: 1px solid #E8E3DA; font-size: 13.5px; }
+.cal-pk .pk .rw3 > span:first-child { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #6E6558; padding-top: 3px; }
+.cal-pk .pk .rw3 b { font-family: var(--m-disp); font-weight: 600; font-size: 17px; font-variant-numeric: oldstyle-nums; }
+.cal-pk .pk .gp { display: block; }
+.cal-pk .pk .gr { font-style: normal; color: #6E6558; }
+.cal-pk .pk .nt { color: var(--m-mat); }
 .cal-scheda.dim > .cal-scheda-in { opacity: .3; }
 .cal-scheda.scaduta > .cal-scheda-in { opacity: .55; }
 .cal-scheda.catena { filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
