@@ -26,12 +26,15 @@ function carica(file) {
   const modulo = { exports: {} }
   const localRequire = name => {
     if (name === './SalvataggiPulizie') return { __esModule: true, default: () => React.createElement('aside', { 'data-ripresa-pendente': true }) }
+    // La sonda dello schema è un adattatore di rete, come gli altri sopra.
+    if (name === '@/lib/schema0064Dati') return { useParte0064: () => ({ stato: 'no', riprova: () => {} }) }
     if (name === '@/lib/pulizieTempiDati') return { useTimerPulizie: () => ({ timer: [], stato: 'pronto', scarto: 0 }) }
     if (name.startsWith('@/lib/') && adapters.has(name.slice(6))) return {}
     if (!name.startsWith('.') && !name.startsWith('@/')) return require(name)
     const base = name.startsWith('@/') ? resolve(root, name.slice(2)) : resolve(dirname(file), name)
     const target = [base, `${base}.ts`, `${base}.tsx`].find(existsSync)
     assert.ok(target, `Modulo trovato: ${name}`)
+    if (target === resolve(root, 'lib/supabase.ts')) return {} // anche gli import relativi restano senza rete
     return carica(target)
   }
   const output = ts.transpileModule(readFileSync(file, 'utf8'), {

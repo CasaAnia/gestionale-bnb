@@ -18,7 +18,9 @@ import { testoRitardo, ETICHETTA_PROSSIMO_ARRIVO, ETICHETTA_CAMBIO_BIANCHERIA } 
 import { chiaveTimerFuori } from '@/lib/tempoPulizie'
 
 export const TITOLO_PULIZIE_OGGI = 'Pulizie di oggi'
-export const RIGA_AREA_COMUNE = 'Area comune, corridoio e biancheria'
+// Dal 01/10/2026 (Ania) il timer della Home è la voce «Corridoio e angolo
+// caffè» degli spazi comuni: area_comune non si propone più per i tempi nuovi.
+export const RIGA_AREA_COMUNE = 'Corridoio e angolo caffè'
 export const LINK_TEMPI_FUORI = 'Tempi fuori dalle camere ↗'
 
 export default function PulizieOggi({ dati }: { dati: StatoNumeriOggi }) {
@@ -43,11 +45,11 @@ export default function PulizieOggi({ dati }: { dati: StatoNumeriOggi }) {
         : v.prossimo && <p className="pr" data-prossimo-arrivo><small>{ETICHETTA_PROSSIMO_ARRIVO}</small>{v.prossimo}</p>}
       {v.tipo !== 'soggiorno' && <p className="de">{v.descrizione ?? v.riga}</p>}
       <ControlliPulizia home
-        camera={v.camera} oggi={oggi} ultimaId={v.ultimaId ?? null} persone={v.persone} partenza={v.partenza}
+        camera={v.camera} oggi={oggi} ultimaId={v.ultimaId ?? null} persone={v.persone} partenza={v.partenza} chi={v.biancheria?.split(' · ')[0].replace(', ', ' · ')}
         pulizia={v.decisione ?? { ...v.daSegnare!, stato: 'fatta' }} />
     </div>)}
     <div className="mz-fuori">
-      <TimerPulizia compatto etichetta={RIGA_AREA_COMUNE} chiave={chiaveTimerFuori(oggi, 'area_comune')} nome={RIGA_AREA_COMUNE} onMinuti={() => {}} nomeCamera={nomeCamera} />
+      <TimerPulizia compatto etichetta={RIGA_AREA_COMUNE} chiave={chiaveTimerFuori(oggi, 'corridoio')} nome={RIGA_AREA_COMUNE} onMinuti={() => {}} nomeCamera={nomeCamera} />
       <Link href="/pulizie#fuori-camera" className="mz-lnk q">{LINK_TEMPI_FUORI}</Link>
     </div>
   </section>

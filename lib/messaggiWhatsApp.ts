@@ -3,6 +3,7 @@
 // orario» vive SOLO qui, così i due bottoni mandano parole identiche.
 // Funzioni pure, senza Supabase: si provano con `node --test`.
 import { salutoOspite } from './guestName.ts'
+import { MESI_LUNGHI } from './dateItaliane.ts'
 
 // Testo di «Richiesta orario» (era in app/prenotazioni/[id]/page.tsx,
 // buildWhatsappMsg, tipo richiesta_orario): spostato, non copiato.
@@ -25,6 +26,26 @@ Grazie e a presto,
 Ania`
 }
 
+// «Richiesta orario di partenza» (Ania, 01/10/2026): accanto a «Richiesta
+// orario», stessa struttura e stesso saluto. Le parole sono quelle dettate da
+// Ania; il giorno si scrive per esteso, «domenica 4 ottobre».
+export function messaggioRichiestaPartenza(nomeSaluto: string, giornoPartenza: string): string {
+  return `Gentile ${nomeSaluto},
+
+per organizzare al meglio la sua partenza da Casa Ania, può indicarmi a che ora prevede di lasciare la camera ${giornoPartenzaLungo(giornoPartenza)}? Anche un orario indicativo va benissimo.
+
+Grazie mille,
+Ania`
+}
+
+const GIORNI_SETTIMANA = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato']
+/** «2026-10-04» → «domenica 4 ottobre» */
+export function giornoPartenzaLungo(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const giorno = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+  return `${GIORNI_SETTIMANA[giorno]} ${d} ${MESI_LUNGHI[m - 1]}`
+}
+
 // Numero per WhatsApp dal telefono della scheda cliente, come nella scheda
 // prenotazione: solo cifre, prefisso 39 se manca; null senza numero.
 export function numeroWhatsAppPrenotazione(phone: string | null | undefined): string | null {
@@ -45,5 +66,13 @@ export function whatsappRichiestaOrario(b: { guest_name?: string | null; guests?
   const numero = numeroWhatsAppPrenotazione(b.guests?.phone)
   if (!numero) return null
   const testo = messaggioRichiestaOrario(salutoOspite(b).nome)
+  return { href: waHrefTesto(numero, testo), numero, testo }
+}
+
+// «Chiedi orario» della partenza: stesso nome, stesso link, null senza telefono.
+export function whatsappRichiestaPartenza(b: { guest_name?: string | null; guests?: { full_name?: string | null; phone?: string | null } | null }, giornoPartenza: string): LinkWhatsApp | null {
+  const numero = numeroWhatsAppPrenotazione(b.guests?.phone)
+  if (!numero) return null
+  const testo = messaggioRichiestaPartenza(salutoOspite(b).nome, giornoPartenza)
   return { href: waHrefTesto(numero, testo), numero, testo }
 }

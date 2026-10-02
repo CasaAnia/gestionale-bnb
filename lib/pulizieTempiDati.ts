@@ -9,7 +9,7 @@ import { osservaAggiornamentiPulizie } from './aggiornamentiPulizie'
 import { raccogliPagine } from './statistiche/paginazione'
 import { chiaveTimerFuori, type AttivitaFuori, type TimerSql } from './tempoPulizie'
 
-export type FuoriCameraSql = { data: string; attivita: AttivitaFuori; minuti: number; versione: number; aggiornato_at?: string }
+export type FuoriCameraSql = { data: string; attivita: AttivitaFuori; minuti: number; versione: number; aggiornato_at?: string; cosa?: string | null }
 export type StatoTimer = { stato: 'caricamento' | 'pronto' | 'errore'; timer: TimerSql[]; scarto: number; nonSincronizzato: boolean; errore: string | null }
 type Risposta = { adesso: string; timer: TimerSql[]; fuori: FuoriCameraSql | null }
 
@@ -68,8 +68,10 @@ export async function azioneTimer(azione: 'avvia' | 'pausa' | 'azzera', chiave: 
 }
 
 export type EsitoFuori = { errore: string | null; riga: FuoriCameraSql | null; verificato?: boolean; incerto?: boolean }
-export async function salvaFuoriCamera(data: string, attivita: AttivitaFuori, minuti: number, versione: number | null, timerTrascorsi: number): Promise<EsitoFuori> {
-  const r = await chiama({ azione: 'salva_fuori', data, attivita, minuti, versione, timer_trascorsi: timerTrascorsi })
+// `cosa` (solo «Altro», proposta 0064): undefined = la richiesta di prima, senza
+// la chiave, che non tocca il testo già scritto; null = cancellalo.
+export async function salvaFuoriCamera(data: string, attivita: AttivitaFuori, minuti: number, versione: number | null, timerTrascorsi: number, cosa?: string | null): Promise<EsitoFuori> {
+  const r = await chiama({ azione: 'salva_fuori', data, attivita, minuti, versione, timer_trascorsi: timerTrascorsi, ...(cosa !== undefined ? { cosa } : {}) })
   void leggiTimer()
   window.dispatchEvent(new Event('pulizie-salvataggi'))
   // Risposta persa, oppure «cambiato» perché il browser ha ripetuto da solo

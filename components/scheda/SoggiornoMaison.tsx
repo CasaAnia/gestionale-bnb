@@ -15,6 +15,7 @@
 // ============================================================================
 import { arrivoGrande, luogoInSoggiorno, navettaInSoggiorno, type RigaCameraSoggiorno } from '@/lib/schedaMaison'
 import type { Arrivo } from '@/lib/arrivo'
+import { giornoBreve, testoBagagli, periodoCatena } from '@/lib/bagagliPartenza'
 
 export function ArrivoMaison({ arrivo, checkIn, oggi, etichetta, onModifica, ariaModifica }: {
   arrivo: Arrivo
@@ -64,4 +65,32 @@ export function CamereMaison({ righe }: { righe: RigaCameraSoggiorno[] }) {
       ))}
     </>
   )
+}
+
+// ── «Bagagli» e «Partenza» (Ania, 01/10/2026) ──────────────────────────────
+// Sotto l'arrivo, due righe nello stesso stile: a sinistra la parola, a
+// destra l'orario con «›»; un tocco su una delle due apre il foglio
+// «Bagagli e partenza». Con più arrivi (camere contemporanee, o un soggiorno
+// con un buco) una coppia per catena, con l'etichetta «Lena · 1 → 4 ott».
+// Senza la proposta 0064 le righe non ci sono; se il controllo non riesce lo
+// si dice (non si fa finta che la funzione non esista).
+export function OrariMaison({ catene, stato, onApri, onRiprova }: {
+  catene: { chiave: string; camere: string[]; arrivo: string; partenza: string; bagagli: string | null; oraPartenza: string | null }[]
+  stato: 'si' | 'no' | 'errore' | null
+  onApri: (chiave: string) => void
+  onRiprova: () => void
+}) {
+  if (stato === 'errore') return <p className="mz-errore" data-orari-errore>Bagagli e partenza: non riesco a controllare il database. <button type="button" className="mz-lnk q" onClick={onRiprova}>Riprova</button></p>
+  if (stato !== 'si' || !catene.length) return null
+  return <div className="sch-orari" data-orari-soggiorno>
+    {catene.map(c => <div key={c.chiave} data-orari-catena={c.chiave}>
+      {catene.length > 1 && <p className="sch-k" style={{ marginTop: 10 }}>{c.camere.join(' → ')} · {periodoCatena(c.arrivo, c.partenza)}</p>}
+      <button type="button" className="sch-orario" data-riga-bagagli onClick={() => onApri(c.chiave)}>
+        <span>Bagagli</span><span className="v">{testoBagagli(c)} ›</span>
+      </button>
+      <button type="button" className="sch-orario" data-riga-partenza onClick={() => onApri(c.chiave)}>
+        <span>Partenza</span><span className="v">{giornoBreve(c.partenza)} · {c.oraPartenza ? c.oraPartenza : <em className="mat">da chiedere</em>} ›</span>
+      </button>
+    </div>)}
+  </div>
 }
