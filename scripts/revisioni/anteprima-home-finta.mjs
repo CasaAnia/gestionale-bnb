@@ -295,10 +295,15 @@ else if (process.env.FINTO_PULIZIE_SQL === '3') {
   const conti = nuovo('Carla Conti', '+39 333 000 0104'), moro = nuovo('Marta Moro', '+39 333 000 0105')
   const o = con0064 ? (bagagli_alle, check_out_time) => ({ bagagli_alle, check_out_time }) : () => ({})
   const G4 = 'cccccccc-4444-4000-8000-000000000004', P5 = 'cccccccc-5555-4000-8000-000000000005'
+  // FINTO_DOMANI=1 (Pulizie di domani, 02/10/2026): Lucia Ferri entra un giorno
+  // dopo (biancheria della 4ª notte domani) e in Allegra Rita Fontana parte
+  // domani alle 10 e arriva Bruno Serafini (bagagli 11:00, arrivo 16:00);
+  // dopodomani niente; fra 3 giorni parte Serra senza ora.
+  const domani = process.env.FINTO_DOMANI === '1'
   bookings.splice(0, bookings.length,
     prenotazione(ROOM.lena, G.elena.id, O(-3), O(0), 3, { status: 'completata', pagato: true, ...o(null, '10:00:00') }),
     prenotazione(ROOM.lena, serra.id, O(0), O(3), 3, { extra_bed: true, extra_bed_dates: [O(0), O(1), O(2)], check_in_time: '16:00', ...o('11:00:00', null) }),
-    prenotazione(ROOM.ambra, ferri.id, O(-4), O(3), 2, { ...o(null, null) }),
+    prenotazione(ROOM.ambra, ferri.id, domani ? O(-3) : O(-4), domani ? O(4) : O(3), 2, { ...o(null, null) }),
     prenotazione(ROOM.amelia, bellini.id, O(-2), O(0), 1, { status: 'completata', ...o(null, null) }),
     prenotazione(ROOM.amelia, G.anna.id, O(4), O(6), 1, { ...o(null, null) }),
     prenotazione(ROOM.allegra, G.paola.id, O(-2), O(0), 2, { status: 'completata', ...o(null, '09:30:00') }),
@@ -313,6 +318,11 @@ else if (process.env.FINTO_PULIZIE_SQL === '3') {
     prenotazione(ROOM.allegra, G.giulio.id, O(-12), O(-9), 2, { status: 'completata', pagato: true, ...o(null, null) }),
     prenotazione(ROOM.lena, G.marco.id, O(-10), O(-6), 3, { status: 'completata', pagato: true, extra_bed: true, extra_bed_dates: [O(-10), O(-9), O(-8), O(-7)], ...o(null, null) }),
     prenotazione(ROOM.amelia, G.sara.id, O(-40), O(-36), 1, { status: 'completata', pagato: true, ...o(null, null) }))
+  if (domani) {
+    const fontana = nuovo('Rita Fontana', '+39 333 000 0106'), serafini = nuovo('Bruno Serafini', '+39 333 000 0107')
+    bookings.push(prenotazione(ROOM.allegra, fontana.id, O(0), O(1), 2, { ...o(null, '10:00:00') }),
+      prenotazione(ROOM.allegra, serafini.id, O(1), O(4), 2, { check_in_time: '16:00', ...o('11:00:00', null) }))
+  }
   const b = i => bookings[i].id
   const roma = (giorno, hm) => new Date(`${giorno}T${hm}:00${(() => { const off = -new Date(`${giorno}T12:00:00Z`).getTimezoneOffset(); return `${off >= 0 ? '+' : '-'}${due(Math.floor(Math.abs(off) / 60))}:${due(Math.abs(off) % 60)}` })()}`).toISOString()
   const puliziaOggi = adesso.getHours() >= 10 ? roma(O(0), '09:02') : new Date(adesso.getTime() - 30 * 60000).toISOString()
