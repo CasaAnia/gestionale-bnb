@@ -122,3 +122,33 @@ test('T4 · «cambio biancheria della 4ª notte», mai più «quando esce»', ()
   }
   assert.ok(leggi('lib/pulizieSchede.ts').includes('· cambio biancheria della 4ª notte`'))
 })
+
+test('T5 · Statistiche: con meno di 4 settimane di pulizie segnate niente medie, i totali del periodo', async () => {
+  const { statisticheNuove, NOTA_MEDIE, provaLavanderia } = await import('./statistichePulizieNuove.ts')
+  const { interventiDaTabelle } = await import('./pulizieDotazioneStatistiche.ts')
+  const c = (id: string, data: string, assetto: Record<string, number> | null) => ({ id, room_id: 'a', tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: data, data_effettiva: data, minuti: 30, assetto: assetto ? { federe_matrimoniale: 4, ...assetto } : null })
+  const M2 = { matrimoniali: 1, singoli: 0, ospiti: 2 }
+  const due = interventiDaTabelle([c('1', '2026-10-01', M2)] as never, [])
+  const nome = () => 'Allegra'
+  // un periodo di 2 giorni
+  const corto = statisticheNuove({ interventi: due, tempi: [], rinvii: [], dal: '2026-10-01', al: '2026-10-02', prima: null, nomeCamera: nome })
+  assert.equal(corto.pocheDati, true)
+  assert.deepEqual(corto.completi.totali, { matrimoniali: 1, singole: 0, asciugamani: 2 })
+  // tre mesi, ma le pulizie coi letti segnati coprono pochi giorni
+  const treMesi = statisticheNuove({ interventi: due, tempi: [], rinvii: [], dal: '2026-07-01', al: '2026-09-30', prima: null, nomeCamera: nome })
+  assert.equal(treMesi.pocheDati, true, 'una pulizia sola coi letti non fa 4 settimane')
+  // tre mesi con pulizie segnate dal 1/7 al 30/9: le medie ci sono
+  const lunghe = interventiDaTabelle([c('1', '2026-07-01', M2), c('2', '2026-09-30', M2)] as never, [])
+  const ok = statisticheNuove({ interventi: lunghe, tempi: [], rinvii: [], dal: '2026-07-01', al: '2026-09-30', prima: null, nomeCamera: nome })
+  assert.equal(ok.pocheDati, false)
+  assert.equal(ok.copertura, 92)
+  // 27 giorni di copertura: ancora niente medie
+  const quasi = statisticheNuove({ interventi: interventiDaTabelle([c('1', '2026-09-01', M2), c('2', '2026-09-27', M2)] as never, []), tempi: [], rinvii: [], dal: '2026-09-01', al: '2026-09-30', prima: null, nomeCamera: nome })
+  assert.equal(quasi.pocheDati, true)
+  assert.equal(NOTA_MEDIE, 'Le medie compaiono con almeno 4 settimane di pulizie segnate.')
+  assert.equal(provaLavanderia(corto.mandati, {}).periodo, 0)
+  const st = leggi('app/pulizie/Statistiche.tsx')
+  assert.ok(st.includes('<span className="k">nel periodo</span>') && st.includes("{S.pocheDati ? 'Nel periodo' : 'Al mese'}") && st.includes('{NOTA_MEDIE}'))
+  const pl = leggi('components/pulizie/ProvaLavanderia.tsx')
+  assert.ok(pl.includes("pocheDati ? 'Costo del periodo' : 'Al mese, circa'"))
+})

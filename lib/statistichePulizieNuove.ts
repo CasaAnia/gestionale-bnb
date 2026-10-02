@@ -12,6 +12,10 @@
 //   - le medie a settimana / mese / anno: totale ÷ giorni contati del periodo
 //     (fino a oggi, lib/periodoPulizie) × 7 / × 30,44 / × 365; si arrotonda
 //     solo a schermo;
+//   - con pochi dati niente medie (Ania, 02/10/2026): se il periodo contato è
+//     più corto di 28 giorni, oppure le pulizie coi letti segnati coprono meno
+//     di 28 giorni (dalla prima all'ultima), completi, mandati a lavare e
+//     prova lavanderia mostrano i totali «nel periodo» (pocheDati);
 //   - costi e totali della lavanderia si calcolano coi numeri interi, prima
 //     di arrotondare; un prezzo vuoto è «da inserire», non zero.
 // Funzioni pure, provate con node --test.
@@ -22,6 +26,10 @@ import { minutiPerVoce, VOCI_SPAZI, type VoceSpazi } from './tempoPulizie.ts'
 import { spostaGiorni } from './periodoPulizie.ts'
 
 export const GIORNI_MESE = 30.44
+/** sotto questi giorni le medie a settimana / mese / anno non si mostrano */
+export const GIORNI_PER_LE_MEDIE = 28
+export const NOTA_MEDIE = 'Le medie compaiono con almeno 4 settimane di pulizie segnate.'
+const giorniFra = (dal: string, al: string) => Math.round((Date.parse(`${al}T12:00:00Z`) - Date.parse(`${dal}T12:00:00Z`)) / 86400000) + 1
 type Tempo = { data: string; attivita: string; minuti: number }
 type Rinvio = { room_id: string; stato: string; data_prevista: string }
 
@@ -56,8 +64,12 @@ export function statisticheNuove({ interventi, tempi, rinvii, dal, al, prima, ro
   nomeCamera: (roomId: string) => string
 }) {
   const { base, spazi, minutiSpazi } = conti(interventi, tempi, dal, al, roomId)
-  const giorni = Math.round((Date.parse(`${al}T12:00:00Z`) - Date.parse(`${dal}T12:00:00Z`)) / 86400000) + 1
+  const giorni = giorniFra(dal, al)
   const righe = base.righe
+  // Quanti giorni coprono le pulizie coi letti segnati, dalla prima all'ultima
+  const date = righe.filter(r => r.assetto).map(r => r.data).sort()
+  const copertura = date.length ? giorniFra(date[0], date[date.length - 1]) : 0
+  const pocheDati = giorni < GIORNI_PER_LE_MEDIE || copertura < GIORNI_PER_LE_MEDIE
   // Spazi comuni: nel lavoro totale solo senza una camera scelta
   const lavoro = base.minuti + (roomId ? 0 : minutiSpazi)
   const aCamera = media(righe)
@@ -110,7 +122,7 @@ export function statisticheNuove({ interventi, tempi, rinvii, dal, al, prima, ro
     }
   }
   return {
-    base, giorni, pulizie: righe.length, lavoro, minutiCamere: base.minuti, minutiSpazi: roomId ? null : minutiSpazi,
+    base, giorni, copertura, pocheDati, pulizie: righe.length, lavoro, minutiCamere: base.minuti, minutiSpazi: roomId ? null : minutiSpazi,
     aCamera, rifare, biancheria, perCamera, uso, completi: { matrimoniali: scala(completi.matrimoniali), singole: scala(completi.singole), asciugamani: scala(completi.asciugamani), totali: completi },
     mandati, preparati, recuperati, aLavare: preparati - recuperati, percentuale: preparati ? recuperati / preparati * 100 : null,
     spazi: VOCI_SPAZI.map(([k, nome]) => ({ voce: k as VoceSpazi, nome, minuti: spazi[k].minuti })),

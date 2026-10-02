@@ -17,7 +17,7 @@ import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import { interventiDaTabelle, csvInterventi } from '@/lib/pulizieDotazioneStatistiche'
 import { resocontoPulizie, TIPI_PULIZIA } from '@/lib/pulizieResoconto'
 import { periodoIniziale, giorniContati, precedente, testoConfronto, type Periodo } from '@/lib/periodoPulizie'
-import { statisticheNuove, ore } from '@/lib/statistichePulizieNuove'
+import { statisticheNuove, ore, NOTA_MEDIE } from '@/lib/statistichePulizieNuove'
 import { addDaysStr, type CameraPulizie, type PrenotazionePulizie, type Decisione } from '@/lib/pulizie'
 
 const dataBreve = (s: string) => s.split('-').reverse().join('/')
@@ -105,17 +105,22 @@ export default function StatistichePulizie({ rooms, bookings, events, recuperi, 
       <p className="pul-sez">Completi usati</p>
       <div className="pul-cu" data-completi>
         <span className="h k" /><span className="h">Lenzuola<br />matrimoniali</span><span className="h">Lenzuola<br />singole</span><span className="h">Asciugamani</span>
-        {(['settimana', 'mese', 'anno'] as const).map(k => <span key={k} style={{ display: 'contents' }}>
+        {/* Con meno di 4 settimane di pulizie segnate (Ania, 02/10/2026): i totali veri, niente medie */}
+        {S.pocheDati ? <span style={{ display: 'contents' }} data-nel-periodo>
+          <span className="k">nel periodo</span>
+          <span><b>{S.completi.totali.matrimoniali}</b></span><span><b>{S.completi.totali.singole}</b></span><span><b>{S.completi.totali.asciugamani}</b></span>
+        </span> : (['settimana', 'mese', 'anno'] as const).map(k => <span key={k} style={{ display: 'contents' }}>
           <span className="k">{k === 'settimana' ? 'a settimana' : k === 'mese' ? 'al mese' : 'all’anno'}</span>
           <span><b>{Math.round(S.completi.matrimoniali[k])}</b></span><span><b>{Math.round(S.completi.singole[k])}</b></span><span><b>{Math.round(S.completi.asciugamani[k])}</b></span>
         </span>)}
       </div>
-      <p className="pul-chi">Medie sul periodo scelto ({S.giorni} {S.giorni === 1 ? 'giorno' : 'giorni'}). La matrimoniale usata da una persona sola conta un completo matrimoniale e un completo asciugamani; il letto in più conta un completo singolo e uno di asciugamani.{S.base.conAssetto < S.pulizie ? ` Letti segnati su ${S.base.conAssetto} pulizie di ${S.pulizie}.` : ''}</p>
+      {S.pocheDati && <p className="pul-chi" data-nota-medie>{NOTA_MEDIE}</p>}
+      <p className="pul-chi">{S.pocheDati ? '' : `Medie sul periodo scelto (${S.giorni} ${S.giorni === 1 ? 'giorno' : 'giorni'}). `}La matrimoniale usata da una persona sola conta un completo matrimoniale e un completo asciugamani; il letto in più conta un completo singolo e uno di asciugamani.{S.base.conAssetto < S.pulizie ? ` Letti segnati su ${S.base.conAssetto} pulizie di ${S.pulizie}.` : ''}</p>
 
       <p className="pul-sez">Mandati a lavare</p>
-      <div className="pul-pz h"><span>Pezzo</span><span>Totale</span><span>Recuperati</span><span>Al mese</span></div>
-      {S.mandati.map(m => <div key={m.pezzo} className="pul-pz" data-mandati={m.pezzo}><span>{m.nome}</span><span>{m.totale}</span><span>{m.recuperati}</span><span><b>{Math.round(m.alMese)}</b></span></div>)}
-      <p className="pul-chi">Totale = pezzi preparati nelle pulizie coi letti segnati; al mese = (totale − recuperati) diviso i giorni del periodo × 30,44.{S.base.conRecuperi < S.pulizie ? ` Recuperi annotati su ${S.base.conRecuperi} pulizie di ${S.pulizie}: dove non sono annotati, tutto conta come mandato a lavare.` : ''}</p>
+      <div className="pul-pz h"><span>Pezzo</span><span>Totale</span><span>Recuperati</span><span>{S.pocheDati ? 'Nel periodo' : 'Al mese'}</span></div>
+      {S.mandati.map(m => <div key={m.pezzo} className="pul-pz" data-mandati={m.pezzo}><span>{m.nome}</span><span>{m.totale}</span><span>{m.recuperati}</span><span><b>{S.pocheDati ? m.aLavare : Math.round(m.alMese)}</b></span></div>)}
+      <p className="pul-chi">Totale = pezzi preparati nelle pulizie coi letti segnati; {S.pocheDati ? `nel periodo = totale − recuperati. ${NOTA_MEDIE}` : 'al mese = (totale − recuperati) diviso i giorni del periodo × 30,44.'}{S.base.conRecuperi < S.pulizie ? ` Recuperi annotati su ${S.base.conRecuperi} pulizie di ${S.pulizie}: dove non sono annotati, tutto conta come mandato a lavare.` : ''}</p>
 
       <p className="pul-sez">Biancheria</p>
       <div className="pul-lin" data-biancheria><div><b>{S.preparati}</b><small>preparati</small></div><div className="g"><b>{S.base.conRecuperi ? S.recuperati : '—'}</b><small>recuperati{S.base.conRecuperi && S.percentuale !== null ? ` · ${Math.round(S.percentuale)}%` : ''}</small></div><div><b>{S.aLavare}</b><small>a lavare</small></div></div>
@@ -124,7 +129,7 @@ export default function StatistichePulizie({ rooms, bookings, events, recuperi, 
       <p className="pul-chi" data-rinvii>{S.rimandate} {S.rimandate === 1 ? 'rimandata' : 'rimandate'} · {S.saltate} {S.saltate === 1 ? 'cambio saltato' : 'cambi saltati'} · non sono lavori fatti</p>
       <button type="button" className="pul-az" style={{ marginTop: 18 }} onClick={esporta} data-esporta>Esporta il periodo</button>
 
-      <ProvaLavanderia mandati={S.mandati} giorni={S.giorni} />
+      <ProvaLavanderia mandati={S.mandati} giorni={S.giorni} pocheDati={S.pocheDati} />
 
       {(S.base.daCorreggere.length > 0 || senzaMisura > 0 || (storico && (storico.spostate.length + storico.saltate.length + storico.stime.length) > 0)) && <p className="pul-sez">Da sapere</p>}
       {S.base.daCorreggere.length > 0 && <p role="alert" className="pul-errore">{S.base.daCorreggere.length} {S.base.daCorreggere.length === 1 ? 'pulizia ha' : 'pulizie hanno'} recuperi oltre la dotazione: riaprile dal Registro e correggile. Sono escluse dal bucato.</p>}

@@ -5,6 +5,8 @@
 // restano nella tabella della proposta 0064 (lib/prezziLavanderiaCore); un
 // campo vuoto è «da inserire», mai zero, e il totale lo dice («totale
 // parziale», con i pezzi che mancano). Nessun prezzo d'esempio.
+// Con meno di 4 settimane di pulizie segnate (Ania, 02/10/2026, pocheDati)
+// niente medie: i pezzi e il costo del periodo, «Costo del periodo».
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { leggiPrezzi, salvaPrezzo, prezzoScritto, PREZZI_NON_SALVATI, type ClientPrezzi } from '@/lib/prezziLavanderiaCore'
@@ -19,7 +21,7 @@ const client: ClientPrezzi = {
 }
 const scritto = (n: number | undefined) => (n === undefined ? '' : euro(n))
 
-export default function ProvaLavanderia({ mandati, giorni }: { mandati: { pezzo: PezzoLavanderia; nome: string; aLavare: number; alMese: number }[]; giorni: number }) {
+export default function ProvaLavanderia({ mandati, giorni, pocheDati = false }: { mandati: { pezzo: PezzoLavanderia; nome: string; aLavare: number; alMese: number }[]; giorni: number; pocheDati?: boolean }) {
   const [stato, setStato] = useState<'caricamento' | 'si' | 'no' | 'errore'>('caricamento')
   const [prezzi, setPrezzi] = useState<Partial<Record<PezzoLavanderia, number>>>({})
   const [campi, setCampi] = useState<Partial<Record<PezzoLavanderia, string>>>({})
@@ -53,17 +55,17 @@ export default function ProvaLavanderia({ mandati, giorni }: { mandati: { pezzo:
   const nonConfermati = PEZZI_NOMI.filter(([k]) => esiti[k] && esiti[k]!.stato !== 'salvo').map(([, n]) => n)
   const p = provaLavanderia(mandati, prezzi)
   return <div data-prova-lavanderia>
-    <p className="pul-sez">Prova lavanderia · al mese</p>
-    <div className="pul-pz h"><span>Pezzo</span><span>Al mese</span><span>Prezzo</span><span>Costo</span></div>
+    <p className="pul-sez">{pocheDati ? 'Prova lavanderia · nel periodo' : 'Prova lavanderia · al mese'}</p>
+    <div className="pul-pz h"><span>Pezzo</span><span>{pocheDati ? 'Nel periodo' : 'Al mese'}</span><span>Prezzo</span><span>Costo</span></div>
     {p.righe.map(r => <div key={r.pezzo} className="pul-pz" data-lavanderia={r.pezzo}>
-      <span>{r.nome}</span><span>{Math.round(r.alMese)}</span>
+      <span>{r.nome}</span><span>{pocheDati ? r.aLavare : Math.round(r.alMese)}</span>
       <span><input type="text" inputMode="decimal" placeholder="da inserire" className={esiti[r.pezzo] ? `da-confermare ${esiti[r.pezzo]!.stato}` : ''} aria-label={`Prezzo ${r.nome}, euro a pezzo`} value={campi[r.pezzo] ?? ''}
         onChange={e => setCampi(c => ({ ...c, [r.pezzo]: e.target.value }))} onBlur={() => void cambia(r.pezzo)} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} /></span>
-      <span>{r.costoMese === null ? '—' : <b>{euro(r.costoMese)}</b>}</span>
+      <span>{(pocheDati ? r.costoPeriodo : r.costoMese) === null ? '—' : <b>{euro((pocheDati ? r.costoPeriodo : r.costoMese)!)}</b>}</span>
       {esiti[r.pezzo] && <span className={`nota-riga ${esiti[r.pezzo]!.stato}`} data-esito-prezzo={esiti[r.pezzo]!.stato}>{esiti[r.pezzo]!.stato === 'salvo' ? 'Salvo…' : esiti[r.pezzo]!.messaggio}</span>}
     </div>)}
-    <div className="pul-tot"><span>{p.parziale ? 'Al mese, circa · totale parziale' : 'Al mese, circa'}</span><b data-totale-lavanderia>{euro(p.alMese, 0)} €</b></div>
-    <p className="pul-chi">Sul periodo scelto ({giorni} {giorni === 1 ? 'giorno' : 'giorni'}): {euro(p.periodo, 0)} €.{p.parziale ? ` Mancano i prezzi di: ${p.mancanti.join(', ')}.` : ''} Prezzi a pezzo, scritti da te.</p>
+    <div className="pul-tot"><span>{`${pocheDati ? 'Costo del periodo' : 'Al mese, circa'}${p.parziale ? ' · totale parziale' : ''}`}</span><b data-totale-lavanderia>{euro(pocheDati ? p.periodo : p.alMese, 0)} €</b></div>
+    <p className="pul-chi">{pocheDati ? '' : `Sul periodo scelto (${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}): ${euro(p.periodo, 0)} €. `}{p.parziale ? `Mancano i prezzi di: ${p.mancanti.join(', ')}. ` : ''}Prezzi a pezzo, scritti da te.</p>
     {nonConfermati.length > 0 && <p className="pul-nota" data-prezzi-da-confermare>Nel conto ci sono anche prezzi scritti ma non confermati: {nonConfermati.join(', ')}.</p>}
     {stato === 'no' && <p className="pul-nota" data-prezzi-non-salvati>{PREZZI_NON_SALVATI}.</p>}
     {stato === 'errore' && <p role="status" className="pul-errore">Non riesco a leggere i prezzi salvati. <button type="button" className="pul-az tn" onClick={() => setGiro(x => x + 1)}>Riprova</button></p>}
