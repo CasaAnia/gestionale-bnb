@@ -1,5 +1,4 @@
 'use client'
-import type { AttivitaFuori } from '@/lib/tempoPulizie'
 // Pagina Pulizie approvata da Ania il 25/09/2026 (riferimento
 // app/anteprima-pulizie, stessa struttura, classi e testi): Oggi / Registro /
 // Statistiche sulle pulizie vere. Le regole del calendario delle pulizie sono
@@ -11,8 +10,7 @@ import BackBar from '@/components/BackBar'
 import TestaMac from '@/components/TestaMac'
 import { giornoDaParametro } from '@/lib/daControllare'
 import SalvataggiPulizie from '@/components/SalvataggiPulizie'
-import SchedaPulizia, { TIPI_INTERVENTO } from '@/components/SchedaPulizia'
-import TempiFuoriCamera from '@/components/TempiFuoriCamera'
+import SchedaPulizia from '@/components/SchedaPulizia'
 import TimerInCorso from '@/components/TimerInCorso'
 import StatistichePulizie from './Statistiche'
 import GraficoGiornata from '@/components/pulizie/GraficoGiornata'
@@ -20,7 +18,8 @@ import RegistroPulizie from '@/components/pulizie/RegistroPulizie'
 import SchedaCameraOggi from '@/components/pulizie/SchedaCameraOggi'
 import SpaziComuniOggi from '@/components/pulizie/SpaziComuniOggi'
 import FoglioSpaziComuni from '@/components/pulizie/FoglioSpaziComuni'
-import type { VoceSpazi } from '@/lib/tempoPulizie'
+import { voceSpazi, type VoceSpazi } from '@/lib/tempoPulizie'
+import { TIPO_PROSSIMA, dataProssima, sottoProssima, rigaRinvio, NOTA_FONDO } from '@/lib/pulizieFondo'
 import { testoFatta } from '@/lib/pulizieSchede'
 import { rigaGiornata, rigaSpaziComuni, giornoLungo, contoGiorno, oraSegnata, romaDi, oraTesto } from '@/lib/giornataPulizie'
 import { useParte0064 } from '@/lib/schema0064Dati'
@@ -32,7 +31,7 @@ import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
 import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { ricaricaDaControllare } from '@/lib/daControllareDati'
 import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
-import { confermateNelGiorno, prossimePulizie, rinviiInCorso, dataNumerica } from '@/lib/pulizieVista'
+import { confermateNelGiorno, prossimePulizie, rinviiInCorso } from '@/lib/pulizieVista'
 import {
   confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi, cronologiaCamera,
   pulizieAutomatiche, conteggioGiorno, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
@@ -41,7 +40,6 @@ import {
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const RANK: Record<Priorita, number> = { urgente: 0, alta: 1, flessibile: 2, nessuna_fretta: 3 }
-const classe = 'ed-pillola-contorno'
 type Vista = 'oggi' | 'registro' | 'resoconto'
 type Riga = Decisione & { assetto?: unknown; minuti?: number | null; aggiornata_at?: string | null }
 type Apertura = { camera: string; pulizia: Decisione; booking: PrenotazionePulizie | null }
@@ -57,7 +55,6 @@ export default function Pulizie() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const timerPrecedenti = useTimerPulizie().timer.filter(t => t.chiave.startsWith('fuori:') && t.chiave.endsWith(':area_comune') && !t.avviato_at && t.trascorsi > 0)
-  const [tempoDaRiprendere, setTempoDaRiprendere] = useState<{ giorno: string; attivita: AttivitaFuori } | null>(null)
   const [vista, setVista] = useState<Vista>('oggi')
   const [scheda, setScheda] = useState<Apertura | null>(null)
   // «Spazi comuni · minuti a mano»: la voce e il giorno aperti nel foglio
@@ -87,6 +84,8 @@ export default function Pulizie() {
     if (loading) return
     const giorno = giornoDaParametro(window.location.search)
     if (giorno) document.getElementById(`pulizie-giorno-${giorno}`)?.scrollIntoView({ behavior: 'auto', block: 'start' })
+    // Dalla Home «Tempi fuori dalle camere ↗» (e i vecchi link #fuori-camera): gli spazi comuni
+    else if (window.location.hash === '#spazi-comuni' || window.location.hash === '#fuori-camera') document.getElementById('spazi-comuni')?.scrollIntoView({ behavior: 'auto', block: 'start' })
   }, [loading])
 
   useEffect(() => {
@@ -146,10 +145,10 @@ export default function Pulizie() {
   const vaiA = useCallback((chiave: string) => {
     setScheda(null); setVista('oggi')
     const p = chiave.split(':')
-    if (p[0] === 'fuori' && /^\d{4}-\d{2}-\d{2}$/.test(p[1]) && ['area_comune', 'corridoio', 'piegatura', 'altro'].includes(p[2])) setTempoDaRiprendere({ giorno: p[1], attivita: p[2] as AttivitaFuori })
-    const id = p[0] === 'fuori' ? 'fuori-camera' : `camera-${bookings.find(b => b.id === p[1])?.room_id}`
-    window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'auto', block: 'start' }), 0)
-  }, [bookings, setScheda, setVista, setTempoDaRiprendere])
+    // un timer degli spazi comuni (anche l'«Area comune» di prima): la sua scheda fra gli spazi comuni
+    const id = p[0] === 'fuori' ? `spazi-${voceSpazi(p[2]) ?? 'corridoio'}` : `camera-${bookings.find(b => b.id === p[1])?.room_id}`
+    window.setTimeout(() => (document.getElementById(id) ?? document.getElementById('spazi-comuni'))?.scrollIntoView({ behavior: 'auto', block: 'start' }), 0)
+  }, [bookings, setScheda, setVista])
 
   // Registro: le pulizie automatiche di prima, con i loro due comandi
   const automatiche = useMemo(() => pulizieAutomatiche(prenotazioni, events, td), [prenotazioni, events, td])
@@ -191,14 +190,18 @@ export default function Pulizie() {
       <SpaziComuniOggi oggi={td} righe={fuoriOggi} conAltro={altro0064.stato === 'si'} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onMinuti={voce => setFoglioSpazi({ giorno: td, voce, righe: fuoriOggi })} />
       {/* Le camere già pulite oggi, in fondo e attenuate */}
       {fatteOggi.map(f => <article key={f.id} className="pul-card dn" data-pulita-oggi={breve(f.room_id)}><div className="hd"><b>{breve(f.room_id)}</b><span className="pul-pr ok">{testoFatta(f.ora, f.minuti)}</span></div></article>)}
-      <div id="fuori-camera" className="scroll-mt-20"><TempiFuoriCamera key={tempoDaRiprendere ? `${tempoDaRiprendere.giorno}:${tempoDaRiprendere.attivita}` : td} giorno={tempoDaRiprendere?.giorno ?? td} attivitaIniziale={tempoDaRiprendere?.attivita} oggi={td} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} /></div>
-      {prossime.length > 0 && <section className="mt-6"><h2 className="font-serif text-2xl">Prossime pulizie</h2>{prossime.map(p => {
+      {/* Fondo pagina (riferimento del 02/10/2026, pulizie-fondo-riferimento.html): «Fuori dalle
+          camere» non c'è più, i suoi tempi stanno negli spazi comuni qui sopra. */}
+      {prossime.length > 0 && <section data-prossime><p className="pul-sez">Prossime pulizie</p>{prossime.map(p => {
         const anticipabile = p.tipo === 'soggiorno' && diffDays(p.data, td) <= GIORNI_PREAVVISO
-        return <div key={`${p.roomId}:${p.tipo}:${p.data}`} id={`pulizie-giorno-${p.data}`} className="py-3 text-sm border-b border-card-border scroll-mt-20" data-prossima={breve(p.roomId)}>
-          <p>{breve(p.roomId)} · {dataNumerica(p.data)} · {TIPI_INTERVENTO[p.tipo].toLowerCase()}{p.rimandata ? ' · rimandata' : ''} · da fare, non ancora eseguita</p>
-          {anticipabile && <button type="button" className={`${classe} mt-2`} onClick={() => apri(breve(p.roomId), { room_id: p.roomId, booking_id: p.booking.id, tipo: 'soggiorno', stato: 'fatta', data_prevista: p.data, persone_servite: Number(p.booking.num_guests) || null }, p.booking)}>Anticipa · {breve(p.roomId)}</button>}
+        return <div key={`${p.roomId}:${p.tipo}:${p.data}`} id={`pulizie-giorno-${p.data}`} className="pul-pross scroll-mt-20" data-prossima={breve(p.roomId)}>
+          <b>{breve(p.roomId)}<small>{TIPO_PROSSIMA[p.tipo]}</small></b><span className="d">{dataProssima(p.data)}</span>
+          <span className="x">{sottoProssima(p.tipo, nomeOspite(p.booking), p.rimandata)}{anticipabile && <button type="button" className="pul-anticipa" onClick={() => apri(breve(p.roomId), { room_id: p.roomId, booking_id: p.booking.id, tipo: 'soggiorno', stato: 'fatta', data_prevista: p.data, persone_servite: Number(p.booking.num_guests) || null }, p.booking)} data-anticipa>Anticipa</button>}</span>
         </div> })}</section>}
-      {rinvii.length > 0 && <section className="mt-6"><h2 className="font-serif text-2xl">Rinvii e salti</h2>{rinvii.map(d => <p key={d.id} className="py-2 text-sm" data-rinvio={d.stato}>{breve(d.room_id)} · {d.stato === 'rimandata' ? `rimandata dal ${dataNumerica(d.data_prevista)} al ${dataNumerica(d.prossima_data!)}` : `saltato il cambio del ${dataNumerica(d.data_prevista)}`} · esclusa dalle pulizie fatte</p>)}</section>}
+      {rinvii.length > 0 && <section data-rinvii-salti><p className="pul-sez">Rinvii e salti</p>{rinvii.map(d => { const r = rigaRinvio(d); return <div key={d.id} className="pul-pross mu" data-rinvio={d.stato}>
+          <b>{breve(d.room_id)}<small>{r.tipo}</small></b><span className="d">{r.data}</span><span className="x">{r.sotto}</span>
+        </div> })}</section>}
+      <p className="pul-nota-fondo" data-nota-fondo>{NOTA_FONDO}</p>
     </>}
     {vista === 'registro' && <RegistroPulizie camere={rooms.filter(r => r.active !== false).map(r => ({ id: r.id, nome: breve(r.id) }))}
       events={events} recuperi={recuperi} automatiche={automatiche} oggi={td} rilettura={rilettura} nomeCamera={breve}

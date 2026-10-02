@@ -84,3 +84,33 @@ test('T2 · spazi comuni uguali alle camere: sezione, una scheda per voce, timer
   assert.ok(leggi('components/pulizie/FoglioSpaziComuni.tsx').includes("voce === 'altro' && conCosa && <label className=\"pul-fld\"><span>Cosa · facoltativo</span>"))
   assert.ok(/\.pul-spazio \.hd b \{ font-size: 27px; white-space: nowrap; \}/.test(leggi('app/pulizie.css')))
 })
+
+test('T3 · «Fuori dalle camere» tolta: i suoi tempi stanno negli spazi comuni, niente si perde', () => {
+  const pagina = leggi('app/pulizie/page.tsx')
+  assert.ok(!pagina.includes('TempiFuoriCamera') && !pagina.includes('Fuori dalle camere'))
+  // il link della Home porta agli spazi comuni, e la pagina ci arriva anche coi vecchi link
+  assert.ok(leggi('components/PulizieOggi.tsx').includes('href="/pulizie#spazi-comuni"'))
+  assert.ok(pagina.includes("window.location.hash === '#spazi-comuni' || window.location.hash === '#fuori-camera'"))
+  // «Vai a» e «Recupera minuti» di un timer degli spazi comuni (anche «Area comune») portano alla sua scheda
+  assert.ok(pagina.includes("`spazi-${voceSpazi(p[2]) ?? 'corridoio'}`") && pagina.includes('Recupera minuti'))
+  // i giorni passati si correggono dal Registro (riga degli spazi comuni → foglio dei minuti)
+  assert.ok(pagina.includes('onApriSpazi={(giorno, voce, righe) => setFoglioSpazi({ giorno, voce, righe })}'))
+})
+
+test('T3 · fondo pagina: prossime pulizie e rinvii nella veste della pagina', async () => {
+  const f = await import('./pulizieFondo.ts')
+  assert.deepEqual([f.TIPO_PROSSIMA.fine_soggiorno, f.TIPO_PROSSIMA.soggiorno, f.TIPO_PROSSIMA.cambio_camera], ['fine soggiorno', 'biancheria 4 notti', 'cambio camera'])
+  assert.equal(f.dataProssima('2026-10-03'), 'sab 3 ott')
+  assert.equal(f.sottoProssima('fine_soggiorno', 'Giovanni Serra', false), 'parte Giovanni Serra · da fare')
+  assert.equal(f.sottoProssima('soggiorno', 'Lucia Ferri', false), 'Lucia Ferri resta · da fare')
+  assert.equal(f.daA('2026-10-01', '2026-10-02'), '1 → 2 ott')
+  assert.equal(f.daA('2026-09-30', '2026-10-02'), '30 set → 2 ott')
+  assert.deepEqual(f.rigaRinvio({ stato: 'rimandata', data_prevista: '2026-10-01', prossima_data: '2026-10-02' }), { tipo: 'rimandata', data: '1 → 2 ott', sotto: 'non conta fra le pulizie fatte' })
+  assert.equal(f.rigaRinvio({ stato: 'saltata', data_prevista: '2026-10-01', prossima_data: '2026-10-05' }).tipo, 'cambio saltato')
+  assert.equal(f.NOTA_FONDO, 'I tempi dei giorni passati si correggono dal Registro, toccando la riga degli spazi comuni.')
+  const pagina = leggi('app/pulizie/page.tsx')
+  assert.ok(pagina.includes('<p className="pul-sez">Prossime pulizie</p>') && pagina.includes('<p className="pul-sez">Rinvii e salti</p>'))
+  assert.ok(pagina.includes('className="pul-anticipa"') && !pagina.includes('ed-pillola'), '«Anticipa» è un link sottolineato')
+  const css = leggi('app/pulizie.css')
+  assert.ok(css.includes('.pul-pross > b { font-family: var(--p-disp); font-size: 21px;') && css.includes('.pul-pross .d { font-family: var(--p-disp); font-size: 19px; font-weight: 600;') && css.includes('.pul-pross.mu { opacity: .65; }'))
+})
