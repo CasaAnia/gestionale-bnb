@@ -13,7 +13,8 @@ test('la veste comune: eyebrow a 14 px, tasti 1fr 1.6fr alti 44, 96 px dal fondo
   assert.match(css, /\.mz \.mz-foglio\.desktop \{ width: 480px; height: auto;/)
   assert.match(css, /\.mz \.mz-foot \{ display: grid; grid-template-columns: 1fr 1\.6fr;/)
   assert.match(css, /height: 44px; min-height: 44px; width: 100%;/)
-  assert.match(leggi('app/layout.tsx'), /import '\.\/maison\.css'\nimport '\.\/fogli\.css'/)
+  // fogli.css dopo maison.css (e dopo pulizie.css, unita il 02/10/2026): la veste comune vince
+  assert.match(leggi('app/layout.tsx'), /import '\.\/maison\.css'\n(import '\.\/pulizie\.css'\n)?import '\.\/fogli\.css'/)
 })
 
 test('altezza unica per sezione, data dalla pagina; i fogli delle Pulizie tengono la loro', () => {
@@ -22,7 +23,9 @@ test('altezza unica per sezione, data dalla pagina; i fogli delle Pulizie tengon
   for (const [file, sez] of [['app/scheda/layout.tsx', 'scheda'], ['app/calendario/layout.tsx', 'calendario'], ['app/arrivi/layout.tsx', 'arrivi'], ['app/richieste/layout.tsx', 'richieste'], ['app/clienti/layout.tsx', 'clienti'], ['app/nuova-prenotazione/layout.tsx', 'nuova']])
     assert.match(leggi(file), new RegExp(`<SezioneFogli sezione="${sez}">`))
   assert.match(leggi('app/page.tsx'), /<SezioneFogli sezione="home">/)
-  assert.match(leggi('components/SchedaPulizia.tsx'), /altezzaPropria/)
+  // tutti i fogli delle Pulizie passano da FoglioPulizie, che tiene la sua altezza
+  assert.match(leggi('components/pulizie/FoglioPulizie.tsx'), /<FoglioMaison [^>]*altezzaPropria/)
+  assert.match(leggi('components/SchedaPulizia.tsx'), /import FoglioPulizie/)
 })
 
 test('nessun tasto fatto a mano nei fogli della scheda: il piede comune', () => {
