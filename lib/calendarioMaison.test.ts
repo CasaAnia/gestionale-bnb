@@ -230,15 +230,20 @@ test('foglietto: le righe nell’ordine dato, altezza fissa, «…» finché la 
   assert.deepEqual(righe.map(r => r.etichetta), [...ETICHETTE_FOGLIETTO])
   // le NOTE restano come riga vuota, così il foglietto non si accorcia
   assert.deepEqual(righe.find(r => r.etichetta === 'Note')?.valore, [])
-  // la pagina: altezza fissa, larghezza dal Mac, velo, tocco → foglietto, secondo tocco → scheda
+  // il foglietto (resta nelle Richieste): altezza fissa, larghezza dal Mac, velo
   const comp = leggi('components/calendario/FogliettoPrenotazione.tsx')
   assert.match(comp, /altezza=\{ALTEZZA_FOGLIETTO\} larghezzaDesktop=\{LARGHEZZA_FOGLIETTO_MAC\}/)
   assert.match(comp, /veloChiaro onVelo=\{onVelo\}/)
   assert.doesNotMatch(comp, /documenti_cliente/)   // niente documenti
-  assert.match(pagina, /if \(aperta\?\.id === booking\.id\) \{ apriScheda\(booking\); return \}/)
-  assert.match(pagina, /setAperta\(booking\)\n    setSelectedGroupId\(chainKey \?\? null\)/)
-  assert.match(pagina, /if \(aperta && scheda\?\.dataset\.scheda === aperta\.id\) \{ apriScheda\(aperta\); return \}/)
+  // Calendario (Ania, 02/10/2026): niente foglietto, il tocco apre DIRETTAMENTE la scheda
+  // (anche sul cambio camera: niente primo tocco che accende la catena)
+  const cal = leggi('app/calendario/page.tsx')
+  assert.doesNotMatch(cal, /FogliettoPrenotazione|setAperta|selectedGroupId/)
+  assert.match(cal, /function tocca\(booking: CalendarBooking\) \{\n    apriScheda\(bookings\.find\(r => r\.id === booking\.id\) \?\? booking\)\n  \}/)
+  assert.match(cal, /router\.push\(hrefScheda\(booking\.id, 'calendario'\)\)/)
   assert.match(pagina, /onClick=\{e => \{ e\.stopPropagation\(\); onTocca\(booking, chainKey, e\) \}\}/)
+  // le Richieste tengono il loro foglietto
+  assert.match(leggi('components/richieste/NastroRichieste.tsx'), /<FogliettoPrenotazione /)
   // una sola lettura al tocco, la stessa della scheda
   assert.equal((comp.match(/supabase\.from\(/g) || []).length, 1)
   assert.match(comp, /leggiPrenotazioneUnica\(prenotazione, f => supabase\.from\('bookings'\)\.select\('\*, rooms\(\*\)'\)/)

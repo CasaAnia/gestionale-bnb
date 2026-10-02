@@ -16,7 +16,6 @@ import {
   misureNastro, ARIA_SCHEDA, geometriaScheda, buchiLiberi, rigaBuco, arrivoToccatoNelBuco, FILO_SINISTRO,
 } from '@/lib/calendarioSchede'
 import BackLink from '@/components/BackLink'
-import FogliettoPrenotazione from '@/components/calendario/FogliettoPrenotazione'
 import { RighelloNastro, FiliNastro, CorsiaNastro, BucoNastro } from '@/components/calendario/Nastro'
 import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
@@ -143,7 +142,6 @@ export default function Calendario() {
     [bookings]
   )
 
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
   // ── Ricerca nel calendario ──
   // La ricerca evidenzia la prenotazione trovata e attenua le altre, senza
@@ -237,10 +235,6 @@ export default function Calendario() {
 
   // Somma acconti per prenotazione (vuota se la tabella payments non è ancora migrata)
   const [accontiByBooking, setAccontiByBooking] = useState<Record<string, number>>({})
-  // I pagamenti uno per uno: il foglietto li usa per il conto (lib/prenotazioneUnica)
-  const [pagamenti, setPagamenti] = useState<PaymentRow[]>([])
-  // Il foglietto di dettaglio aperto (29/09/2026): la scheda toccata
-  const [aperta, setAperta] = useState<CalendarBooking | null>(null)
   // Camere tenute da una proposta (15/09/2026): le barre tratteggiate, il
   // foglietto che si apre toccandole e il pop-up di conferma.
   const [richiesteTenute, setRichiesteTenute] = useState<RichiestaTenuta[]>([])
@@ -281,7 +275,6 @@ export default function Calendario() {
       const sums: Record<string, number> = {}
       for (const x of (p || []) as PaymentRow[]) sums[x.booking_id] = (sums[x.booking_id] || 0) + Number(x.amount)
       setAccontiByBooking(sums)
-      setPagamenti((p || []) as PaymentRow[])
       setLoading(false)
     })
     leggiTenute().then(setRichiesteTenute)
@@ -521,32 +514,15 @@ export default function Calendario() {
     setColonnaSinistra(prev => (prev === intero ? prev : intero))
   }
 
-  // Tocco su una scheda (29/09/2026, novità 12g): il primo tocco apre il
-  // FOGLIETTO di dettaglio (anche con la ricerca attiva); se la scheda è di una
-  // catena di cambio camera, insieme la catena resta piena e il resto si
-  // attenua, come prima. Il secondo tocco sulla stessa scheda, o «Apri la
-  // scheda» nel foglietto, apre la scheda prenotazione.
-  function tocca(booking: CalendarBooking, chainKey: string | undefined) {
-    booking = bookings.find(r => r.id === booking.id) ?? booking
-    if (aperta?.id === booking.id) { apriScheda(booking); return }
-    setAperta(booking)
-    setSelectedGroupId(chainKey ?? null)
+  // Tocco su una scheda (Ania, 02/10/2026): apre DIRETTAMENTE la scheda della
+  // prenotazione, con la provenienza «‹ Calendario». Niente più foglietto in
+  // mezzo né primo tocco che accende la catena del cambio camera.
+  function tocca(booking: CalendarBooking) {
+    apriScheda(bookings.find(r => r.id === booking.id) ?? booking)
   }
   function apriScheda(booking: CalendarBooking) {
     ricordaPosizione()
     router.push(hrefScheda(booking.id, 'calendario'))
-  }
-  function chiudiFoglietto() {
-    setAperta(null)
-    setSelectedGroupId(null)
-  }
-  // Il tocco sul velo del foglietto: se sotto c'è la stessa scheda è il
-  // secondo tocco (si apre la scheda), altrimenti il foglietto si chiude
-  function toccoSulVelo(e: React.MouseEvent) {
-    const sotto = document.elementsFromPoint(e.clientX, e.clientY)
-    const scheda = sotto.find(el => el instanceof HTMLElement && el.dataset.scheda) as HTMLElement | undefined
-    if (aperta && scheda?.dataset.scheda === aperta.id) { apriScheda(aperta); return }
-    chiudiFoglietto()
   }
 
   function bookingsForRoom(roomId: string) {
@@ -739,7 +715,7 @@ export default function Calendario() {
         <div className="mz-caricamento">Caricamento…</div>
       ) : (
         <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className={`cal-nastro ${misure.compatta ? 'compatta' : ''}`} style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
+          <div className={`cal-nastro ${misure.compatta ? 'compatta' : ''}`} style={{ width: totalW, position: 'relative', height: totalH }}>
 
             {/* ── IL RIGHELLO DEI GIORNI: «lun 28», domeniche in terra, oggi in verde; fermo in alto ── */}
             {/* ── FILI: ottone al 1° del mese, verde su oggi (components/calendario/Nastro, condivisi con gli Arrivi) ── */}
@@ -797,18 +773,15 @@ export default function Calendario() {
                   {/* Le schede: quattro righe scritte sopra (date · icone e nome · ospiti e stato · arrivo),
                       components/calendario/SchedaPrenotazione (la stessa delle Richieste) */}
                   {prenotazioni.map(booking => {
-                    const chainKey = legami.changeGroups.chainKeyOf[booking.id]
-                    const isSelected = !!chainKey && selectedGroupId === chainKey
                     // Ricerca attiva: risultato selezionato col contorno verde, gli
                     // altri risultati pieni, tutto il resto attenuato ma leggibile.
-                    // Catena toccata: la catena piena con l'ombra, il resto attenuato.
                     const isMatch = matchedIds.has(booking.id)
                     const isCurrent = searchAttiva && currentMatch?.id === booking.id
-                    const isDimmed = searchAttiva ? !isMatch : (selectedGroupId !== null && !isSelected)
+                    const isDimmed = searchAttiva && !isMatch
                     return (
                       <SchedaPrenotazione key={booking.id} booking={booking} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
                         indice={dayIndex} legami={legami} coperte={nottiPagateBarra(booking, paidNightsByBooking)}
-                        attenuata={isDimmed} cerca={searchAttiva} trovata={isCurrent} selezionata={isSelected}
+                        attenuata={isDimmed} cerca={searchAttiva} trovata={isCurrent} selezionata={false}
                         larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} />
                     )
                   })}
@@ -817,7 +790,7 @@ export default function Calendario() {
                       «in opzione», fino a quando; smorzate quando la tenuta è scaduta */}
                   {tenute.map(barra => (
                     <SchedaTenuta key={`tenuta-${barra.richiestaId}-${barra.cameraId}-${barra.arrivo}`} barra={barra} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
-                      indice={dayIndex} attenuata={searchAttiva || selectedGroupId !== null} cerca={searchAttiva} larghezzaTesto={larghezzaTesto}
+                      indice={dayIndex} attenuata={searchAttiva} cerca={searchAttiva} larghezzaTesto={larghezzaTesto}
                       titolo={`${barra.ospite} · ${testoTenuta(barra, adesso)}`} onTocca={setBarraAperta} misure={misure} />
                   ))}
                 </div>
@@ -923,12 +896,6 @@ export default function Calendario() {
             {avvisoTenuta && <p className="avv" role="alert">{avvisoTenuta}</p>}
           </div>
         </FoglioMaison>
-      )}
-
-      {/* ── IL FOGLIETTO DI DETTAGLIO (29/09/2026): sale dal basso al primo tocco su una scheda ── */}
-      {aperta && (
-        <FogliettoPrenotazione prenotazione={aperta} tutte={bookings} camere={rooms} pagamenti={pagamenti}
-          onApri={() => apriScheda(aperta)} onChiudi={chiudiFoglietto} onVelo={toccoSulVelo} />
       )}
 
       {/* ── LA CONFERMA: niente si muove senza un sì (Ania, 15/09/2026; foglio Maison dal 29/09/2026) ── */}
