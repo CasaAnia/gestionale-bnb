@@ -37,6 +37,7 @@ import { provenienzaInParole } from '@/lib/provenienza'
 import { vuoleRicevuta } from '@/lib/valutazione'
 import { nomeConAltri } from '@/lib/guestName'
 import { oggiARoma } from '@/lib/spese/adattatore'
+import { spesoPrimaCent } from '@/lib/spesoCliente'
 import {
   ALTEZZA_FOGLIETTO, LARGHEZZA_FOGLIETTO_MAC, APRI_LA_SCHEDA, CHIUDI,
   testaFoglietto, statoFoglietto, iconeFoglietto, dormeFoglietto, righeFoglietto, righeInArrivo, arrivoDaMostrare, cameraCorta,
@@ -108,6 +109,7 @@ export default function FogliettoPrenotazione({ prenotazione, tutte, camere, pag
       : []
     const persona = { guest_id: prenotazione.guest_id ?? null, telefono: guest?.phone ?? null, full_name: prenotazione.guest_name || guest?.full_name || null }
     const soggiorni = elencoSoggiorniPersona(persona, altre as unknown as SoggiornoStorico[], oggi, chiave)
+    // lo speso prima: la stessa funzione della cifra sulle schede del Calendario (lib/spesoCliente)
     return {
       stato: statoFoglietto(statoPrenotazione(righe, prenotazione), ultimaPartenza, oggi, righe.some(mancatoArrivo)),
       righe: righeFoglietto({
@@ -122,7 +124,7 @@ export default function FogliettoPrenotazione({ prenotazione, tutte, camere, pag
         volte: soggiorni.length,
         provenienza: provenienzaInParole(guest ?? (prenotazione as { provenienza?: string | null; struttura_nome?: string | null })),
         ricevuta: vuoleRicevuta(guest),
-        spesoPrimaCent: soggiorni.reduce((t, s) => t + s.totaleCent, 0),
+        spesoPrimaCent: spesoPrimaCent(prenotazione, tutte, camere, oggi),
       }),
     }
   }, [righe, errore, pagamenti, tutte, camere, prenotazione, guest, oggi, ultimaPartenza])

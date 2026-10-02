@@ -9,7 +9,7 @@
 // del letto, il taglio obliquo del cambio camera. La pagina dice solo dove sta
 // (riga, colonne), se è attenuata o trovata dalla ricerca e cosa fa il tocco.
 // ============================================================================
-import type { MouseEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { nomeConAltri } from '@/lib/guestName'
 import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
@@ -25,6 +25,7 @@ import { TINTE_SCHEDA, areaTocco } from '@/lib/calendarioMobile'
 import type { LegamiCatene } from '@/lib/calendarioNastro'
 import type { BarraTenuta } from '@/lib/calendarioOpzioni'
 import { SchedaNastro, FiloLetto } from './Nastro'
+import { formeCifra } from '@/lib/spesoCliente'
 
 type Prenotazione = {
   id: string; check_in: string; check_out: string; status?: string | null; source?: string | null
@@ -34,7 +35,7 @@ type Prenotazione = {
   guests?: { rating?: string | null; vuole_ricevuta?: boolean | null } | null
 }
 
-export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, colonnaCamere, giorno, giorni, indice, legami, coperte, attenuata, cerca, trovata, selezionata, larghezzaTesto, onTocca, misure = MISURE_NASTRO.normale }: {
+export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, colonnaCamere, giorno, giorni, indice, legami, coperte, attenuata, cerca, trovata, selezionata, larghezzaTesto, onTocca, misure = MISURE_NASTRO.normale, speso }: {
   booking: T
   /** il bordo alto della corsia */
   rigaTop: number
@@ -58,6 +59,8 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
   onTocca: (booking: T, chainKey: string | undefined, e: MouseEvent<HTMLDivElement>) => void
   /** corsia/scheda: normali, o compatte col telefono in orizzontale a «Sett.» (lib/calendarioSchede) */
   misure?: MisureNastro
+  /** Calendario (02/10/2026): quanto ha speso il cliente, questa compresa, in centesimi; null/assente = niente cifra */
+  speso?: number | null
 }) {
   const startIdx = Math.max(0, indice(booking.check_in))
   const endIdx = Math.min(giorni, indice(booking.check_out))
@@ -104,11 +107,46 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
       cuneoDestra={cutRight ? tintaBase.filo : undefined} cuneoSinistra={cutLeft ? tinta.filo : undefined}
       testoLeft={colonnaCamere + ARIA_SCHEDA + 8} testoWidth={larghezzaTesto(startIdx, endIdx)}>
       <em>{righe.date}</em>
-      <b>{righe.icone && <span className="ic">{righe.icone} </span>}{righe.nome}</b>
+      {speso == null
+        ? <b>{righe.icone && <span className="ic">{righe.icone} </span>}{righe.nome}</b>
+        : <b className="con-speso"><span data-nome>{righe.icone && <span className="ic">{righe.icone} </span>}{righe.nome}</span><CifraSpeso cent={speso} /></b>}
       <small>{righe.sotto}</small>
       {righe.arrivo && <small className="ar2">{righe.arrivo}</small>}
     </SchedaNastro>
   )
+}
+
+// La cifra sulla riga del nome, allineata a destra, senza parole davanti
+// (Ania, 02/10/2026). Il nome non si taglia mai per lei: si misura lo spazio
+// che il nome lascia libero e si sceglie la forma più lunga che ci sta
+// («1.380 €», poi «1.380»); se non ci sta nessuna, la cifra non si vede.
+let tela: CanvasRenderingContext2D | null = null
+function CifraSpeso({ cent }: { cent: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const forme = formeCifra(cent)
+  const chiave = forme.join('|')
+  const [quale, setQuale] = useState(0)
+  useLayoutEffect(() => {
+    const el = ref.current, riga = el?.parentElement
+    if (!el || !riga) return
+    const elenco = chiave.split('|')
+    const misura = () => {
+      tela ??= document.createElement('canvas').getContext('2d')
+      if (!tela) return
+      tela.font = getComputedStyle(el).font
+      const nome = riga.querySelector<HTMLElement>('[data-nome]')
+      const libero = riga.clientWidth - (nome?.offsetWidth ?? 0) - 8
+      const i = elenco.findIndex(t => tela!.measureText(t).width <= libero)
+      setQuale(i === -1 ? elenco.length : i)
+    }
+    misura()
+    const ro = new ResizeObserver(misura)
+    ro.observe(riga)
+    void document.fonts?.ready.then(misura)
+    return () => ro.disconnect()
+  }, [chiave])
+  const nascosta = quale >= forme.length
+  return <span ref={ref} className="spe" data-speso={forme[0]} aria-hidden={nascosta || undefined} style={nascosta ? { visibility: 'hidden' } : undefined}>{forme[Math.min(quale, forme.length - 1)]}</span>
 }
 
 /** La camera tenuta da una proposta (15/09/2026): scheda in ottone, «in opzione», fino a quando; smorzata quando è scaduta */

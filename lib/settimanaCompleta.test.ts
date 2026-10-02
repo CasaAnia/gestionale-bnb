@@ -83,7 +83,8 @@ test('le tre pagine usano le stesse misure e le passano a schede, tenute e buchi
     assert.match(src, /cal-nastro .*misure\.compatta \? 'compatta'/, nome)
   }
   for (const src of [cal, ric]) {
-    assert.match(src, /onTocca=\{tocca\} misure=\{misure\} \/>/)
+    // dal 02/10/2026 il Calendario passa anche lo speso del cliente
+    assert.match(src, /onTocca=\{tocca\} misure=\{misure\}( speso=\{spesoPerBooking\[booking\.id\]\})? \/>/)
     assert.match(src, /onTocca=\{(setBarraAperta|toccaTenuta)\} misure=\{misure\} \/>/)
   }
   assert.match(arr, /areaTocco\(rowTop \+ misure\.sopra, misure\.scheda\)/)

@@ -804,6 +804,11 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-scheda-in .tx > em { display: block; font-style: normal; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin-bottom: 2px; white-space: nowrap; overflow: hidden; }
 .cal-scheda-in .tx > b { display: block; font-family: var(--m-disp); font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; }
 .cal-scheda-in .tx > b .ic { font-family: var(--home-ui-font); font-size: 10px; }
+/* Quanto ha speso il cliente, a destra sulla riga del nome (Ania, 02/10/2026):
+   Cormorant 13 px peso 600, colore del nome; il nome non si stringe mai */
+.cal-scheda-in .tx > b.con-speso { display: flex; align-items: baseline; }
+.cal-scheda-in .tx > b.con-speso > [data-nome] { flex: none; white-space: nowrap; }
+.cal-scheda-in .tx > b.con-speso > .spe { flex: none; margin-left: auto; padding-left: 8px; font-family: var(--m-disp); font-size: 13px; font-weight: 600; color: inherit; }
 .cal-scheda-in .tx > small { display: block; font-size: 9.5px; opacity: .8; margin-top: 2px; white-space: nowrap; overflow: hidden; }
 .cal-scheda-in .tx > small.ar2 { color: #7a5f2c; font-weight: 500; }
 .cal-cuneo { position: absolute; inset: 0; pointer-events: none; }

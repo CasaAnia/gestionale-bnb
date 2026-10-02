@@ -37,6 +37,9 @@ import {
 } from '@/lib/calendarioOpzioni'
 import { campiLibera, indirizzoPrenotazioneNuova, testoConferma, quandoInParole, type MotivoLibera } from '@/lib/opzioneLibera'
 import { hrefScheda } from '@/lib/provenienzaScheda'
+import { chiavePrenotazione } from '@/lib/prenotazioneUnica'
+import { spesoConQuestaCent } from '@/lib/spesoCliente'
+import { oggiARoma } from '@/lib/spese/adattatore'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
@@ -235,6 +238,9 @@ export default function Calendario() {
 
   // Somma acconti per prenotazione (vuota se la tabella payments non è ancora migrata)
   const [accontiByBooking, setAccontiByBooking] = useState<Record<string, number>>({})
+  // Le righe annullate con un mancato arrivo: contano nel conto della
+  // prenotazione (come nel foglietto), anche se sul nastro non si vedono
+  const [annullateConto, setAnnullateConto] = useState<CalendarBooking[]>([])
   // Camere tenute da una proposta (15/09/2026): le barre tratteggiate, il
   // foglietto che si apre toccandole e il pop-up di conferma.
   const [richiesteTenute, setRichiesteTenute] = useState<RichiestaTenuta[]>([])
@@ -278,7 +284,30 @@ export default function Calendario() {
       setLoading(false)
     })
     leggiTenute().then(setRichiesteTenute)
+    // senza la colonna del mancato arrivo la lettura non riesce: si va avanti senza
+    void supabase.from('bookings').select('*').eq('status', 'annullata').not('mancato_arrivo_centesimi', 'is', null)
+      .then(({ data, error }) => setAnnullateConto(error ? [] : (data || []) as CalendarBooking[]))
   }, [leggiTenute])
+
+  // Quanto ha speso il cliente, questa compresa (Ania, 02/10/2026): la cifra
+  // della riga «Cliente … con questa» del foglietto, sulla riga del nome
+  const spesoPerBooking = useMemo(() => {
+    const oggi = oggiARoma()
+    type R = Parameters<typeof spesoConQuestaCent>[0]
+    const perChiave = new Map<string, CalendarBooking[]>()
+    for (const b of [...bookings, ...annullateConto]) {
+      const k = chiavePrenotazione(b)
+      perChiave.set(k, [...(perChiave.get(k) ?? []), b])
+    }
+    const out: Record<string, number | null> = {}
+    const giaFatte = new Map<string, number | null>()
+    for (const b of bookings) {
+      const k = chiavePrenotazione(b)
+      if (!giaFatte.has(k)) giaFatte.set(k, spesoConQuestaCent(b as unknown as R, (perChiave.get(k) ?? [b]) as unknown as R[], bookings as unknown as R[], rooms, oggi))
+      out[b.id] = giaFatte.get(k) ?? null
+    }
+    return out
+  }, [bookings, annullateConto, rooms])
 
   // L'ora avanza da sola: una tenuta scade mentre guardi il calendario, e la
   // barra deve smorzarsi senza che tu ricarichi la pagina.
@@ -782,7 +811,7 @@ export default function Calendario() {
                       <SchedaPrenotazione key={booking.id} booking={booking} rigaTop={rowTop} colonnaCamere={NAME_W} giorno={CELL_W} giorni={daysTotal}
                         indice={dayIndex} legami={legami} coperte={nottiPagateBarra(booking, paidNightsByBooking)}
                         attenuata={isDimmed} cerca={searchAttiva} trovata={isCurrent} selezionata={false}
-                        larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} />
+                        larghezzaTesto={larghezzaTesto} onTocca={tocca} misure={misure} speso={spesoPerBooking[booking.id]} />
                     )
                   })}
 
