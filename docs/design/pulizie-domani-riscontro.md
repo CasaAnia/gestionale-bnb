@@ -22,9 +22,9 @@ Riferimento: `pulizie-domani-riferimento.html`. Checklist voce per voce:
 - Gli orari d'arrivo nel riquadro sono quelli delle Pulizie (ora d'arrivo
   segnata), non più la fascia «16:00–17:00 circa» di prima.
 
-## Da decidere
-- Nel riferimento la didascalia resta sotto anche col riquadro aperto; oggi,
-  come deciso il 28/09, col riquadro aperto la didascalia sparisce. Lasciata così.
+## Deciso da Ania (2 ottobre 2026, scelta B)
+- La didascalia sotto la striscia resta com'è: nascosta col riquadro aperto,
+  visibile col riquadro chiuso (nel riferimento restava sempre visibile).
 
 ## Limiti
 - Nessuna prova sui dati veri; nessuna migrazione.

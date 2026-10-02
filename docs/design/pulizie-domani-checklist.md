@@ -29,7 +29,7 @@ Esito di ogni voce in fondo alla riga: «fatta» / «non fatta» col motivo.
 - [x] D2.5 A capo «bagagli Serra 11:00 · arriva Giovanni Serra 16:00» (ore in ottone scuro; ogni pezzo solo se c'è). → **fatta — «bagagli Serafini 11:00 · arriva Bruno Serafini 16:00»**
 - [x] D2.6 Per chi resta «Lucia Ferri resta · biancheria della 4ª notte»; per il cambio camera «[Nome] passa in [Camera] ⇄». → **fatta — «Lucia Ferri resta · biancheria della 4ª notte»; «… passa in … ⇄» provato nei test (nessun cambio camera nei 7 giorni dei dati finti)**
 - [x] D2.7 Sotto le righe il link sottolineato «VEDI NELLE PULIZIE ›» che apre /pulizie?giorno=[quel giorno]. Il link «Chiudi» resta. → **fatta — «VEDI NELLE PULIZIE ›» e «CHIUDI»**
-- [x] D2.8 Didascalia sotto la striscia: «Camere da preparare nei prossimi 7 giorni · tocca un giorno per vedere chi parte e chi arriva». → **fatta — testo nuovo (si vede col riquadro chiuso: con il riquadro aperto la didascalia lascia il posto al riquadro, come già prima)**
+- [x] D2.8 Didascalia sotto la striscia: «Camere da preparare nei prossimi 7 giorni · tocca un giorno per vedere chi parte e chi arriva». → **fatta — testo nuovo (visibile col riquadro chiuso, nascosta col riquadro aperto: scelta B di Ania, 02/10/2026)**
 
 ## D3 · Mac
 - [x] D3.1 Tutto uguale anche dal Mac. → **fatta — pulizie-domani-schermate/*-mac.png**
