@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { simboliCambi, camereDaPreparare, testaRiquadro, strisciaSettimane, TESTO_MOTIVO } from './numeriOggi.ts'
+import { simboliCambi, camereDaPreparare, testaRiquadro, strisciaSettimane, PULIZIA_RIMASTA } from './numeriOggi.ts'
 import { testoSalvato, SALVATO, CHIUSURA_DA_SOLA, DURATA_SALVATO_MS } from './salvatoMaison.ts'
 
 const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
@@ -33,46 +33,65 @@ test('riquadro della striscia: un tocco non naviga, segna il giorno e apre il ri
   assert.match(bottoni, /<button key=\{g\.giorno\} type="button"/)
   assert.match(bottoni, /scelto === g\.giorno \? 'scelto' : ''/)
   const riquadro = casella.slice(casella.indexOf('function RiquadroGiorno'))
-  assert.match(riquadro, /href=\{`\/pulizie\?giorno=\$\{g\.giorno\}`\}/)
+  assert.match(riquadro, /const pulizie = `\/pulizie\?giorno=\$\{g\.giorno\}`/)
+  assert.match(riquadro, /<Link href=\{pulizie\} className="nm">\{c\.camera\}<\/Link>/)
   assert.match(riquadro, /CHIUDI_RIQUADRO/)
-  // la data non si ripete nel riquadro
-  assert.equal(/etichettaGiornoBreve|dataBreve|toLocaleDateString/.test(riquadro), false)
-  // fondo e bordo del riferimento
+  // Dal 02/10/2026 (pulizie-domani-riferimento.html) la data è nella testa
+  // del riquadro («VENERDÌ 2 OTTOBRE · 2 CAMERE»), una volta sola
+  assert.match(riquadro, /testaRiquadro\(g\.giorno, g\.oggi, camere\.length\)/)
+  // fondo e bordo del riferimento: il riquadro resta quello (cambia solo il contenuto)
   const css = leggi('app/maison.css')
   assert.match(css, /\.mz-wkin \{[^}]*background: #EFE9DD; border: 1px solid #DDD3C2;/)
   assert.match(css, /\.mz-wk > button\.scelto \{ border-bottom: 2px solid var\(--m-acc\);/)
 })
 
-test('riquadro della striscia: prima riga «N camere da preparare · N cambio camera ⇄»', () => {
-  assert.equal(testaRiquadro(2, 1), '2 camere da preparare · 1 cambio camera ⇄')
-  assert.equal(testaRiquadro(1, 0), '1 camera da preparare')
-  assert.equal(testaRiquadro(3, 2), '3 camere da preparare · 2 cambi camera ⇄')
+test('riquadro della striscia (02/10/2026): in testa «VENERDÌ 2 OTTOBRE · 2 CAMERE», per oggi «OGGI · 3 CAMERE»', () => {
+  assert.equal(testaRiquadro('2026-10-02', false, 2), 'venerdì 2 ottobre · 2 camere')
+  assert.equal(testaRiquadro('2026-10-01', true, 3), 'oggi · 3 camere')
+  assert.equal(testaRiquadro('2026-10-03', false, 1), 'sabato 3 ottobre · 1 camera')
 })
 
-test('riquadro della striscia: le camere, il motivo e il prossimo arrivo SOLO se c’è l’orario', () => {
+test('riquadro della striscia (02/10/2026): chi parte e chi arriva con gli orari, chi resta, il cambio camera', () => {
   const prenotazioni = [
-    b('p1', 'allegra', '2026-10-01', '2026-10-04'),                                            // parte il 4
-    b('a1', 'allegra', '2026-10-04', '2026-10-06', { arrivo_tipo: 'struttura', arrivo_struttura_ora_da: '16:00', arrivo_struttura_ora_a: '17:00', check_in_time: '16:00' }),
-    b('p2', 'amelia', '2026-10-01', '2026-10-04'),                                             // parte il 4
-    b('a2', 'amelia', '2026-10-04', '2026-10-06'),                                             // arriva senza orario
-    b('s1', 'lena', '2026-10-01', '2026-10-04', { guest_id: 'russo', guest_name: 'Fam. Russo' }),
-    b('s2', 'ambra', '2026-10-04', '2026-10-07', { guest_id: 'russo', guest_name: 'Fam. Russo' }), // cambio camera il 4
+    b('p1', 'lena', '2026-10-01', '2026-10-04', { guest_name: 'Elena Esposito', check_out_time: '10:00:00' }),   // parte il 4 alle 10
+    b('a1', 'lena', '2026-10-04', '2026-10-06', { guest_name: 'Giovanni Serra', check_in_time: '16:00', bagagli_alle: '11:00:00' }),
+    b('p2', 'amelia', '2026-10-01', '2026-10-04', { guest_name: 'Mario Bellini' }),                              // parte il 4 senza ora
+    b('a2', 'amelia', '2026-10-04', '2026-10-06', { guest_name: 'Anna Rossi' }),                                 // arriva senza ora né bagagli
+    b('s1', 'allegra', '2026-10-01', '2026-10-04', { guest_id: 'russo', guest_name: 'Fam. Russo' }),
+    b('s2', 'ambra', '2026-10-04', '2026-10-07', { guest_id: 'russo', guest_name: 'Fam. Russo' }),               // cambio camera il 4
   ]
   const voci = camereDaPreparare(camere, prenotazioni as never, [], '2026-10-04', OGGI)
-  const allegra = voci.find(v => v.camera === 'Allegra')!, amelia = voci.find(v => v.camera === 'Amelia')!, lena = voci.find(v => v.camera === 'Lena')!
-  assert.equal(allegra.testoMotivo, TESTO_MOTIVO.partenza)
-  assert.equal(allegra.testoMotivo, 'partenza in giornata')
-  assert.equal(allegra.arrivo, '16:00–17:00', 'con l’orario il prossimo arrivo c’è')
-  // PROSSIMO ARRIVO ASSENTE SENZA ORARIO: la riga non c'è
-  assert.equal(amelia.arrivo, undefined)
-  assert.equal(lena.motivo, 'cambio')
-  assert.equal(lena.testoMotivo, '⇄ cambio camera')
-  assert.equal(lena.chiVaDove, 'Fam. Russo va in Ambra')
+  const lena = voci.find(v => v.camera === 'Lena')!, amelia = voci.find(v => v.camera === 'Amelia')!, allegra = voci.find(v => v.camera === 'Allegra')!
+  assert.deepEqual(lena.parte, { nome: 'Elena Esposito', ora: '10:00' })
+  assert.deepEqual(lena.bagagli, { cognome: 'Serra', ora: '11:00' })
+  assert.deepEqual(lena.arriva, { nome: 'Giovanni Serra', ora: '16:00' })
+  assert.deepEqual(amelia.parte, { nome: 'Mario Bellini', ora: null }, '«parte Mario Bellini · orario da chiedere»')
+  assert.equal(amelia.bagagli, undefined, 'ogni pezzo solo se c’è')
+  assert.deepEqual(amelia.arriva, { nome: 'Anna Rossi', ora: null })
+  assert.equal(allegra.motivo, 'cambio')
+  assert.equal(allegra.passa, 'Fam. Russo passa in Ambra ⇄')
+  // chi resta: la biancheria della 4ª notte
+  const resta = camereDaPreparare(camere, [b('r1', 'ambra', '2026-09-28', '2026-10-06', { guest_name: 'Lucia Ferri' })] as never, [], '2026-10-02', OGGI)
+  assert.deepEqual(resta.map(v => [v.camera, v.resta]), [['Ambra', 'Lucia Ferri resta · biancheria della 4ª notte']])
+  // la pulizia rimasta di oggi resta «pulizia rimasta da completare»
+  const rimasta = camereDaPreparare(camere, [b('x1', 'lena', '2026-09-25', '2026-09-27')] as never, [], OGGI, OGGI)
+  assert.deepEqual(rimasta.map(v => v.rimasta), [PULIZIA_RIMASTA])
   // le camere del riquadro sono esattamente il numero della casella
   const giorno = strisciaSettimane(camere, prenotazioni as never, [], OGGI).find(g => g.giorno === '2026-10-04')!
   assert.equal(giorno.camere!.length, giorno.daFare)
+})
+
+test('riquadro della striscia (02/10/2026): nomi in Cormorant 21, testo Jost 13,5, orari Cormorant 17 peso 600, «Vedi nelle Pulizie ›», didascalia nuova', () => {
   const casella = leggi('components/StrisciaSettimana.tsx')
-  assert.match(casella, /\{c\.arrivo && <p className="de" data-prossimo-arrivo>/)
+  assert.match(casella, /export const DIDASCALIA_STRISCIA = 'Camere da preparare nei prossimi 7 giorni · tocca un giorno per vedere chi parte e chi arriva'/)
+  assert.match(casella, /<Link href=\{pulizie\} className="mz-lnk vedi" data-vedi-pulizie>\{VEDI_NELLE_PULIZIE\}<\/Link>/)
+  assert.match(casella, /parte \{c\.parte\.nome\} · \{ORARIO_DA_CHIEDERE\}/)
+  const css = leggi('app/maison.css')
+  assert.match(css, /\.mz-wkin \.ey \{[^}]*font-size: 11px; letter-spacing: \.2em; text-transform: uppercase; color: var\(--m-acc\);/)
+  assert.match(css, /\.mz-wkin \.r \.nm \{ font-size: 21px;/)
+  assert.match(css, /\.mz-wkin \.r \.de \{[^}]*font-size: 13\.5px;/)
+  assert.match(css, /\.mz-wkin \.r \.de em \{[^}]*font-family: var\(--m-disp\); font-weight: 600; font-size: 17px;/)
+  assert.match(css, /\.mz-wkin \.r \.de em\.a \{ color: #7a5f2c; \}/)
 })
 
 // ── 19bis: la conferma di salvataggio B ──────────────────────────────────

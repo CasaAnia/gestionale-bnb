@@ -9,17 +9,18 @@
 //
 // Un tocco su un giorno NON porta più a Pulizie (novità del 28/09/2026): il
 // giorno si segna col filo d'ottone sotto (nessuno sfondo) e SOTTO la
-// striscia si apre il riquadro con le camere da preparare, il perché e, se
-// c'è l'orario, «Prossimo arrivo: 16:00». Il nome della camera apre
-// /pulizie?giorno=…, come faceva prima la casella.
+// striscia si apre il riquadro con le camere da preparare. Dal 02/10/2026
+// (pulizie-domani-riferimento.html, colonna 3) il riquadro dice chi parte e
+// chi arriva, con gli orari, e «Vedi nelle Pulizie ›» apre /pulizie?giorno=…
+// su quel giorno; anche il nome della camera porta lì, come prima.
 import { useState } from 'react'
 import Link from 'next/link'
 import {
-  etichettaGiornoBreve, testoCasella, simboliCambi, testaRiquadro, PROSSIMO_ARRIVO_RIQUADRO, CHIUDI_RIQUADRO,
-  type GiornoStriscia,
+  etichettaGiornoBreve, testoCasella, simboliCambi, testaRiquadro, CHIUDI_RIQUADRO, VEDI_NELLE_PULIZIE, ORARIO_DA_CHIEDERE,
+  type GiornoStriscia, type CameraDaPreparare,
 } from '@/lib/numeriOggi'
 
-export const DIDASCALIA_STRISCIA = 'Camere da preparare nei prossimi 7 giorni'
+export const DIDASCALIA_STRISCIA = 'Camere da preparare nei prossimi 7 giorni · tocca un giorno per vedere chi parte e chi arriva'
 
 export default function StrisciaSettimana({ giorni }: { giorni: GiornoStriscia[] }) {
   const [scelto, setScelto] = useState<string | null>(null)
@@ -53,21 +54,34 @@ export default function StrisciaSettimana({ giorni }: { giorni: GiornoStriscia[]
 
 function RiquadroGiorno({ g, onChiudi }: { g: GiornoStriscia; onChiudi: () => void }) {
   const camere = g.camere ?? []
+  const pulizie = `/pulizie?giorno=${g.giorno}`
   return (
     <div className="mz-wkin" data-riquadro-giorno={g.giorno}>
       <div className="hd">
-        <span className="sm" data-testa-riquadro>{testaRiquadro(camere.length, g.cambi)}</span>
+        <span className="ey" data-testa-riquadro>{testaRiquadro(g.giorno, g.oggi, camere.length)}</span>
         <button type="button" className="mz-lnk q" onClick={onChiudi}>{CHIUDI_RIQUADRO}</button>
       </div>
       {camere.map(c => (
         <div key={c.roomId} className="r" data-camera-riquadro={c.camera} data-motivo={c.motivo}>
-          <Link href={`/pulizie?giorno=${g.giorno}`} className="nm">
-            {c.camera} <small className={c.motivo === 'cambio' ? 'cambio' : ''}>{c.motivo === 'cambio' ? c.testoMotivo : `· ${c.testoMotivo}`}</small>
-          </Link>
-          {c.chiVaDove && <p className="de">{c.chiVaDove}</p>}
-          {c.arrivo && <p className="de" data-prossimo-arrivo>{PROSSIMO_ARRIVO_RIQUADRO} <b>{c.arrivo}</b></p>}
+          <Link href={pulizie} className="nm">{c.camera}</Link>
+          <p className="de"><CosaSuccede c={c} /></p>
         </div>
       ))}
+      <Link href={pulizie} className="mz-lnk vedi" data-vedi-pulizie>{VEDI_NELLE_PULIZIE}</Link>
     </div>
   )
+}
+
+function CosaSuccede({ c }: { c: CameraDaPreparare }) {
+  const seconda = [
+    c.bagagli && <span key="b">bagagli {c.bagagli.cognome} <em className="a">{c.bagagli.ora}</em></span>,
+    c.arriva && <span key="a">arriva {c.arriva.nome}{c.arriva.ora && <> <em className="a">{c.arriva.ora}</em></>}</span>,
+  ].filter(Boolean)
+  return <>
+    {c.parte && (c.parte.ora ? <span data-parte>parte {c.parte.nome} <em>{c.parte.ora}</em></span> : <span data-parte>parte {c.parte.nome} · {ORARIO_DA_CHIEDERE}</span>)}
+    {c.resta && <span data-resta>{c.resta}</span>}
+    {c.passa && <span data-passa>{c.passa}</span>}
+    {c.rimasta && <span data-rimasta>{c.rimasta}</span>}
+    {seconda.length > 0 && <><br /><span data-arrivo>{seconda.flatMap((x, i) => (i ? [' · ', x] : [x]))}</span></>}
+  </>
 }

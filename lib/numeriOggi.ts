@@ -53,8 +53,9 @@ export const testoOccupate = (n: NumeriOggi) => `${n.camereOccupate} su ${n.came
 // (lib/pulizie.conteggioGiorno): quante camere hanno pulizie ancora da fare
 // (il numero) e quante le hanno tutte fatte («✓»); niente = «—».
 import { conteggioGiorno, motivoCameraGiorno, attive, type Decisione, type MotivoCamera } from './pulizie.ts'
-import { nomeConAltri } from './guestName.ts'
-import { arrivoInHome, leggiArrivo } from './arrivo.ts'
+import { nomeOspite } from './guestName.ts'
+import { oraBreve } from './schema0064.ts'
+import { cognome, giornoLungo } from './giornataPulizie.ts'
 
 export const GIORNI_STRISCIA = 28
 export const GIORNI_VISIBILI_TELEFONO = 7
@@ -62,35 +63,42 @@ export const GIORNI_VISIBILI_MAC = 14
 
 export type GiornoStriscia = { giorno: string; daFare: number; fatte: number; oggi: boolean; inizioSettimana: boolean; cambi: number; camere?: CameraDaPreparare[] }
 
-// ── Il riquadro sotto la striscia (Home «Maison», 28/09/2026) ─────────────
-// Un tocco su un giorno apre, sotto la striscia, le camere da preparare
-// quel giorno: nome, perché e, se c'è davvero un orario, a che ora arriva il
-// prossimo ospite quel giorno. Le camere sono esattamente quelle contate nel
+// ── Il riquadro sotto la striscia (Home «Maison», 28/09/2026; contenuto
+// nuovo dal riferimento approvato da Ania il 02/10/2026,
+// docs/design/pulizie-domani-riferimento.html, colonna 3) ──────────────────
+// Un tocco su un giorno apre, sotto la striscia, le camere da preparare quel
+// giorno: in testa «VENERDÌ 2 OTTOBRE · 2 CAMERE» («OGGI · 3 CAMERE»), poi una
+// riga per camera con cosa succede e gli ORARI: «parte Elena Esposito 10:00»
+// (o «· orario da chiedere»), a capo «bagagli Serra 11:00 · arriva Giovanni
+// Serra 16:00» (ogni pezzo solo se c'è); chi resta «Lucia Ferri resta ·
+// biancheria della 4ª notte»; il cambio camera «Fam. Russo passa in Ambra ⇄».
+// Gli orari sono gli stessi della pagina Pulizie (check_out_time,
+// bagagli_alle, check_in_time). Le camere sono esattamente quelle contate nel
 // numero della casella (stessa regola: lib/pulizie.motivoCameraGiorno).
 export type CameraDaPreparare = {
   roomId: string
   camera: string
   motivo: MotivoCamera['tipo']
-  /** «partenza in giornata», «pulizia rimasta da completare», «cambio biancheria», «⇄ cambio camera» */
-  testoMotivo: string
-  /** solo per il cambio camera: «Fam. Russo va in Ambra» */
-  chiVaDove?: string
-  /** «16:00–17:00 circa»: solo se l'arrivo di quel giorno ha un orario */
-  arrivo?: string
+  /** la prima riga, secondo il motivo */
+  parte?: { nome: string; ora: string | null }
+  /** «Lucia Ferri resta · biancheria della 4ª notte» */
+  resta?: string
+  /** «Fam. Russo passa in Ambra ⇄» */
+  passa?: string
+  /** pulizia rimandata a quel giorno o rimasta da fare: «pulizia rimasta da completare» */
+  rimasta?: string
+  /** la seconda riga, con chi arriva quel giorno: ogni pezzo solo se c'è */
+  bagagli?: { cognome: string; ora: string }
+  arriva?: { nome: string; ora: string | null }
 }
-export const TESTO_MOTIVO: Record<MotivoCamera['tipo'], string> = {
-  partenza: 'partenza in giornata',
-  rimasta: 'pulizia rimasta da completare',
-  biancheria: 'cambio biancheria',
-  cambio: '⇄ cambio camera',
-}
-export const PROSSIMO_ARRIVO_RIQUADRO = 'Prossimo arrivo:'
+export const PULIZIA_RIMASTA = 'pulizia rimasta da completare'
+export const ORARIO_DA_CHIEDERE = 'orario da chiedere'
 export const CHIUDI_RIQUADRO = 'Chiudi'
+export const VEDI_NELLE_PULIZIE = 'Vedi nelle Pulizie ›'
 
-/** «2 camere da preparare · 1 cambio camera ⇄» */
-export function testaRiquadro(camere: number, cambi: number): string {
-  const base = `${camere} ${camere === 1 ? 'camera' : 'camere'} da preparare`
-  return cambi > 0 ? `${base} · ${cambi} ${cambi === 1 ? 'cambio camera' : 'cambi camera'} ⇄` : base
+/** «venerdì 2 ottobre · 2 camere», «oggi · 3 camere» (maiuscoletto dalla veste) */
+export function testaRiquadro(giorno: string, eOggi: boolean, camere: number): string {
+  return `${eOggi ? 'oggi' : giornoLungo(giorno)} · ${camere} ${camere === 1 ? 'camera' : 'camere'}`
 }
 
 type CameraNome = { id: string; name?: string | null }
@@ -102,13 +110,17 @@ export function camereDaPreparare(rooms: CameraNome[], prenotazioni: Parameters<
   for (const r of rooms) {
     const m = motivoCameraGiorno(prenotazioni, r.id, giorno, oggi, events)
     if (!m) continue
-    const voce: CameraDaPreparare = { roomId: r.id, camera: breve(r.name), motivo: m.tipo, testoMotivo: TESTO_MOTIVO[m.tipo] }
-    if (m.tipo === 'cambio' && m.verso) voce.chiVaDove = `${nomeConAltri(m.booking)} va in ${breve(rooms.find(x => x.id === m.verso!.room_id)?.name) || 'un’altra camera'}`
+    const voce: CameraDaPreparare = { roomId: r.id, camera: breve(r.name), motivo: m.tipo }
+    if (m.tipo === 'partenza') voce.parte = { nome: nomeOspite(m.booking), ora: oraBreve(m.booking.check_out_time) }
+    else if (m.tipo === 'biancheria') voce.resta = `${nomeOspite(m.booking)} resta · biancheria della 4ª notte`
+    else if (m.tipo === 'cambio') voce.passa = `${nomeOspite(m.booking)} passa in ${breve(rooms.find(x => x.id === m.verso?.room_id)?.name) || 'un’altra camera'} ⇄`
+    else voce.rimasta = PULIZIA_RIMASTA
     // L'arrivo di QUEL giorno in quella camera (non un prolungamento né chi arriva col cambio camera)
     const arriva = valide.find(b => b.room_id === r.id && b.check_in === giorno && !valide.some(x => x.id !== b.id && x.guest_id && x.guest_id === b.guest_id && x.check_out === b.check_in))
     if (arriva) {
-      const a = arrivoInHome(leggiArrivo(arriva as unknown as Parameters<typeof leggiArrivo>[0]))
-      if (a.numerico) voce.arrivo = `${a.grande}${a.circa ? ' circa' : ''}`
+      const bag = oraBreve(arriva.bagagli_alle)
+      if (bag) voce.bagagli = { cognome: cognome(arriva), ora: bag }
+      voce.arriva = { nome: nomeOspite(arriva), ora: oraBreve(arriva.check_in_time) }
     }
     out.push(voce)
   }

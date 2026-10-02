@@ -145,6 +145,16 @@ body:has(.mz-home) { background: var(--home-bg); }
 .mz-wkin .r .nm small.cambio { color: var(--m-acc); font-weight: 500; }
 .mz-wkin .r .de { font-size: calc(var(--home-fs-sec) + .5px); color: var(--m-mut); margin-top: 3px; }
 .mz-wkin .r .de b { color: var(--m-ink); font-weight: 500; }
+/* Dal 02/10/2026 (pulizie-domani-riferimento.html, colonna 3): testa
+   maiuscoletta ottone, una riga per camera col nome a sinistra (Cormorant 21)
+   e a destra cosa succede (Jost 13,5) con gli orari in Cormorant 17 peso 600 */
+.mz-wkin .ey { font-family: var(--m-ui); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-acc); }
+.mz-wkin .r { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: baseline; }
+.mz-wkin .r .nm { font-size: 21px; line-height: 1.1; }
+.mz-wkin .r .de { margin-top: 0; font-family: var(--m-ui); font-size: 13.5px; line-height: 1.45; color: var(--m-ink); }
+.mz-wkin .r .de em { font-style: normal; font-family: var(--m-disp); font-weight: 600; font-size: 17px; color: var(--m-ink); }
+.mz-wkin .r .de em.a { color: #7a5f2c; }
+.mz-wkin .vedi { margin-top: 12px; }
 
 /* ── La giornata: arrivi, partenze, cambi ─────────────────────────────── */
 .mz-arr { padding: 10px 0 12px; border-bottom: 1px solid var(--m-line); }
