@@ -18,7 +18,7 @@
 //     mezzo, e dall'ora e dai minuti non si ricostruisce quando è cominciata.
 // Funzioni pure, provate con node --test.
 // ============================================================================
-import { pulizieAperte, prossimoArrivo, prioritaDi, type PrenotazionePulizie, type CameraPulizie, type Decisione, type Priorita } from './pulizie.ts'
+import { pulizieAperte, prossimoArrivo, prioritaDi, type PrenotazionePulizie, type CameraPulizie, type Decisione, type Priorita, type Pulizia } from './pulizie.ts'
 import { minutiDa, oraBreve } from './schema0064.ts'
 import { nomeOspite, spezzaNome } from './guestName.ts'
 import { MESI_BREVI, MESI_LUNGHI } from './dateItaliane.ts'
@@ -81,10 +81,13 @@ export function romaDi(istante: string): { giorno: string; minuti: number } | nu
   return { giorno: `${p.year}-${p.month}-${p.day}`, minuti: Number(p.hour) * 60 + Number(p.minute) }
 }
 
-export function rigaGiornata(room: CameraPulizie, nome: string, prenotazioni: PrenotazionePulizie[], events: (Decisione & { minuti?: number | null; ora_effettiva?: unknown })[], oggi: string, conOrari: boolean): RigaGiornata {
+// `oggi` è il giorno disegnato. Per un giorno che deve venire (Pulizie di
+// domani, 02/10/2026) il chiamante passa le pulizie di quel giorno
+// (lib/pulizie.pulizieDelGiorno): il disegno è lo stesso.
+export function rigaGiornata(room: CameraPulizie, nome: string, prenotazioni: PrenotazionePulizie[], events: (Decisione & { minuti?: number | null; ora_effettiva?: unknown })[], oggi: string, conOrari: boolean, delGiorno?: Pulizia[]): RigaGiornata {
   const segmenti: Segmento[] = [], segni: Segno[] = []
   let nota: string | null = null
-  const aperte = pulizieAperte(prenotazioni, room.id, oggi, events)
+  const aperte = delGiorno ?? pulizieAperte(prenotazioni, room.id, oggi, events)
   const arrivo = prossimoArrivo(prenotazioni, room.id, oggi)
   const arrivaOggi = arrivo && arrivo.giorni === 0 ? arrivo.booking : null
   const oraArrivo = arrivaOggi ? minutiDa(arrivaOggi.check_in_time) : null

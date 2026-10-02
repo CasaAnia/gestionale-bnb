@@ -37,7 +37,9 @@ function Adesso() {
   return <div className="now" style={{ left: sx(min) }} data-adesso={oraTesto(min)}><span style={posizione(min) > 85 ? { left: 'auto', right: 2 } : undefined}>ORA {oraTesto(min)}</span></div>
 }
 
-export default function GraficoGiornata({ righe, spazi }: { righe: RigaGiornata[]; spazi: { ora: number | null; testo: string; attivita: string }[] }) {
+// Su un giorno che deve venire (02/10/2026): niente linea rossa dell'ora e la
+// camera senza niente dice «niente domani» / «niente quel giorno».
+export default function GraficoGiornata({ righe, spazi, adesso = true, niente = 'niente oggi' }: { righe: RigaGiornata[]; spazi: { ora: number | null; testo: string; attivita: string }[]; adesso?: boolean; niente?: string }) {
   const fili = <>{FILI.map(h => <span key={h} className="g" style={{ left: sx(h * 60) }} />)}</>
   return <div className="tl" data-grafico-giornata>
     <div className="ru"><span /><div className="h">{ORE_RIGHELLO.map(h => <span key={h} style={{ left: sx(h * 60) }}>{h}</span>)}</div></div>
@@ -47,7 +49,7 @@ export default function GraficoGiornata({ righe, spazi }: { righe: RigaGiornata[
         {r.segmenti.map((s, k) => <Blocco key={k} s={s} />)}
         {r.segni.map((s, k) => <Segnale key={`s${k}`} s={s} />)}
         {r.nota && <span className="nota-rg" data-nota-grafico>{r.nota}</span>}
-        {r.vuota && <span className="vuota">niente oggi</span>}
+        {r.vuota && <span className="vuota">{niente}</span>}
       </div>
     </div>)}
     <div className="rw ultima" data-riga-grafico="Spazi comuni">
@@ -57,6 +59,6 @@ export default function GraficoGiornata({ righe, spazi }: { righe: RigaGiornata[
       </div>
     </div>
     {/* la linea di adesso attraversa tutte le righe, con «ORA 9:15» in fondo */}
-    <div className="tl-ora" aria-hidden><Adesso /></div>
+    {adesso && <div className="tl-ora" aria-hidden><Adesso /></div>}
   </div>
 }

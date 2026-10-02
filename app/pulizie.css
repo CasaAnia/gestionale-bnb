@@ -308,3 +308,4 @@ button.pul-rr { cursor: pointer; }
 .pul-freccia { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; font-family: var(--p-sans); font-size: 26px; font-weight: 300; line-height: 1; color: var(--p-ink); text-decoration: none !important; }
 .pul-giorno small .pul-torna-oggi { color: var(--p-ink); border-bottom: 1.5px solid var(--p-ott); padding-bottom: 2px; margin-left: 10px; text-decoration: none !important; position: relative; }
 .pul-giorno small .pul-torna-oggi::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; transform: translateY(-50%); }
+.pul-prev { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--p-ott2); margin-top: 10px; }

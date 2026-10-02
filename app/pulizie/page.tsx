@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import TestaMac from '@/components/TestaMac'
 import { giornoDaParametro } from '@/lib/daControllare'
-import { giornoDaMostrare, giornoPrima, giornoDopo, indirizzoGiorno, contoGiornoFuturo } from '@/lib/pulizieGiorni'
+import { giornoDaMostrare, giornoPrima, giornoDopo, indirizzoGiorno, contoGiornoFuturo, daFareIl, nienteNelGiorno } from '@/lib/pulizieGiorni'
 import SalvataggiPulizie from '@/components/SalvataggiPulizie'
 import SchedaPulizia from '@/components/SchedaPulizia'
 import TimerInCorso from '@/components/TimerInCorso'
@@ -35,7 +35,7 @@ import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import { confermateNelGiorno, prossimePulizie, rinviiInCorso } from '@/lib/pulizieVista'
 import {
   confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi, cronologiaCamera,
-  pulizieAutomatiche, conteggioGiorno, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
+  pulizieAutomatiche, conteggioGiorno, pulizieDelGiorno, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
   type PrenotazionePulizie, type CameraPulizie, type Priorita, type Decisione, type PuliziaAutomatica,
 } from '@/lib/pulizie'
 
@@ -158,6 +158,17 @@ export default function Pulizie() {
   const prossime = useMemo(() => prossimePulizie(prenotazioni, rooms.filter(r => r.active !== false).map(r => r.id), td, events)
     .filter(p => !camereOggi.some(c => c.room.id === p.roomId && c.aperte.some(a => a.tipo === p.tipo && a.booking.id === p.booking.id && a.due === p.data))), [prenotazioni, rooms, td, events, camereOggi])
   const rinvii = useMemo(() => rinviiInCorso(events, td), [events, td])
+  // Un giorno che deve venire: lo stesso grafico e le stesse schede di quel
+  // giorno, solo da guardare. Le camere sono quelle della striscia della Home
+  // e di «Prossime pulizie» (pulizieDelGiorno): nessuna regola nuova.
+  const camereFuture = !futuro ? [] : rooms.filter(r => r.active !== false).map(room => {
+    const aperte = pulizieDelGiorno(prenotazioni, room.id, giorno, td, events)
+    const arrivo = prossimoArrivo(prenotazioni, room.id, giorno)
+    const priorita = aperte.length ? aperte.map(p => prioritaDi(p, arrivo)).sort((a, b) => RANK[a] - RANK[b])[0] : null
+    return { room, nome: breve(room.id), aperte, arrivo, priorita }
+  }).filter(r => r.aperte.length > 0).sort((a, b) => RANK[a.priorita!] - RANK[b.priorita!])
+  const graficoFuturo = !futuro ? [] : rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, events as Parameters<typeof rigaGiornata>[3], giorno, conOrari,
+    pulizieDelGiorno(prenotazioni, r.id, giorno, td, events)))
 
   const apri = (camera: string, pulizia: Decisione, booking: PrenotazionePulizie | null) => setScheda({ camera, pulizia, booking })
   const vaiA = useCallback((chiave: string) => {
@@ -209,6 +220,13 @@ export default function Pulizie() {
           ? <small data-conto-futuro><span data-da-fare={daFareNelGiorno}>{contoGiornoFuturo(giorno, td, daFareNelGiorno)}</span><a href="/pulizie" className="pul-torna-oggi" data-torna-oggi onClick={vaiAlGiorno(td)}>Oggi</a></small>
           : <small><span data-da-fare={daFare}>{conto.daFare}</span> · <em data-confermate={confermate}>{conto.fatte}</em></small>}
       </div>
+      {futuro && <>
+        <GraficoGiornata righe={graficoFuturo} spazi={[]} adesso={false} niente={nienteNelGiorno(giorno, td)} />
+        {camereFuture.flatMap(c => c.aperte.map((p, i) => <SchedaCameraOggi key={`${p.tipo}:${p.booking.id}:${p.due}`} id={i === 0 ? `camera-${c.room.id}` : undefined}
+          nome={c.nome} pulizia={p} arrivo={c.arrivo} priorita={prioritaDi(p, c.arrivo)} oggi={giorno} conOrari={conOrari} daFare={daFareIl(giorno, td)}
+          ultimaId={ultimaId(c.room.id)} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onSalvato={aggiornato} />))}
+        {camereFuture.length === 0 && <p className="font-serif text-xl py-6" data-nessuna-pulizia>Nessuna pulizia da fare nella giornata.</p>}
+      </>}
       {!futuro && <>
       <GraficoGiornata righe={grafico} spazi={spaziOggi} />
       {/* Le camere da fare, nell'ordine di urgenza (RANK di prioritaDi) */}

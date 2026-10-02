@@ -698,6 +698,26 @@ export function motivoCameraGiorno(tutteLePrenotazioni: Prenotazioni, roomId: st
   return [...motivi].sort((a, b) => ORDINE_MOTIVO.indexOf(a.tipo) - ORDINE_MOTIVO.indexOf(b.tipo))[0] ?? null
 }
 
+// Le pulizie di una camera in un giorno che deve venire (Pulizie di domani,
+// riferimento approvato da Ania il 02/10/2026): esattamente quelle contate
+// dalla striscia della Home e da «Prossime pulizie» per quella data (stessa
+// regola, esameCameraGiorno), nella forma delle pulizie aperte. Una pulizia di
+// oggi rimasta da fare NON si sposta da sola ai giorni dopo. Per oggi (e prima)
+// restano le pulizie aperte di sempre.
+export function pulizieDelGiorno(tutteLePrenotazioni: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): Pulizia[] {
+  const bookings = attive(tutteLePrenotazioni)
+  if (giorno <= oggi) return pulizieAperte(bookings, roomId, oggi, events)
+  const { motivi } = esameCameraGiorno(bookings, roomId, giorno, oggi, events)
+  return motivi.map(m => {
+    if (m.tipo === 'biancheria') {
+      const ciclo = cicloCambio(bookings, m.booking, events)
+      return { roomId, tipo: 'soggiorno' as const, booking: m.booking, prevista: ciclo.prevista || giorno, due: giorno, ritardo: 0, rinvii: ciclo.rinvii }
+    }
+    const st = statoFineSoggiorno(bookings, m.booking, events)
+    return { roomId, tipo: st.tipo, booking: m.booking, prevista: m.booking.check_out, due: giorno, ritardo: 0, rinvii: st.rinvii, cambioCameraVerso: st.cambioCameraVerso }
+  })
+}
+
 // Quante camere hanno pulizie ancora da fare e quante le hanno tutte fatte
 // quel giorno: È IL numero della striscia in Home e della pagina Pulizie.
 export function conteggioGiorno(rooms: { id: string }[], tutteLePrenotazioni: Prenotazioni, events: Decisione[], giorno: string, oggi: string): ConteggioGiorno {
