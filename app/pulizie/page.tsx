@@ -35,12 +35,11 @@ import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import { confermateNelGiorno, prossimePulizie, rinviiInCorso } from '@/lib/pulizieVista'
 import {
   confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi, cronologiaCamera,
-  pulizieAutomatiche, conteggioGiorno, pulizieDelGiorno, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
-  type PrenotazionePulizie, type CameraPulizie, type Priorita, type Decisione, type PuliziaAutomatica,
+  pulizieAutomatiche, conteggioGiorno, pulizieDelGiorno, prioritaCamera, confrontaUrgenza, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
+  type PrenotazionePulizie, type CameraPulizie, type Decisione, type PuliziaAutomatica,
 } from '@/lib/pulizie'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
-const RANK: Record<Priorita, number> = { urgente: 0, alta: 1, flessibile: 2, nessuna_fretta: 3 }
 type Vista = 'oggi' | 'registro' | 'resoconto'
 type Riga = Decisione & { assetto?: unknown; minuti?: number | null; aggiornata_at?: string | null }
 type Apertura = { camera: string; pulizia: Decisione; booking: PrenotazionePulizie | null }
@@ -140,9 +139,9 @@ export default function Pulizie() {
   const camereOggi = useMemo(() => rooms.filter(r => r.active !== false).map(room => {
     const aperte = pulizieAperte(prenotazioni, room.id, td, events)
     const arrivo = prossimoArrivo(prenotazioni, room.id, td)
-    const priorita = aperte.length ? aperte.map(p => prioritaDi(p, arrivo)).sort((a, b) => RANK[a] - RANK[b])[0] : null
+    const priorita = prioritaCamera(aperte, arrivo)
     return { room, nome: breve(room.id), aperte, arrivo, priorita, cronologia: cronologiaCamera(prenotazioni, room.id, td, events, rooms) }
-  }).filter(r => r.aperte.length > 0).sort((a, b) => RANK[a.priorita!] - RANK[b.priorita!]), [rooms, prenotazioni, events, td, breve])
+  }).filter(r => r.aperte.length > 0).sort(confrontaUrgenza), [rooms, prenotazioni, events, td, breve])
   const daFare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
   // Su un giorno che deve venire: lo stesso numero della striscia della Home
   const daFareNelGiorno = futuro ? conteggioGiorno(rooms, prenotazioni, events, giorno, td).daFare : daFare
@@ -164,9 +163,9 @@ export default function Pulizie() {
   const camereFuture = !futuro ? [] : rooms.filter(r => r.active !== false).map(room => {
     const aperte = pulizieDelGiorno(prenotazioni, room.id, giorno, td, events)
     const arrivo = prossimoArrivo(prenotazioni, room.id, giorno)
-    const priorita = aperte.length ? aperte.map(p => prioritaDi(p, arrivo)).sort((a, b) => RANK[a] - RANK[b])[0] : null
+    const priorita = prioritaCamera(aperte, arrivo)
     return { room, nome: breve(room.id), aperte, arrivo, priorita }
-  }).filter(r => r.aperte.length > 0).sort((a, b) => RANK[a.priorita!] - RANK[b.priorita!])
+  }).filter(r => r.aperte.length > 0).sort(confrontaUrgenza)
   const graficoFuturo = !futuro ? [] : rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, events as Parameters<typeof rigaGiornata>[3], giorno, conOrari,
     pulizieDelGiorno(prenotazioni, r.id, giorno, td, events)))
 
@@ -229,7 +228,7 @@ export default function Pulizie() {
       </>}
       {!futuro && <>
       <GraficoGiornata righe={grafico} spazi={spaziOggi} />
-      {/* Le camere da fare, nell'ordine di urgenza (RANK di prioritaDi) */}
+      {/* Le camere da fare, nell'ordine di urgenza (confrontaUrgenza: prioritaDi, poi chi arriva prima) */}
       {camereOggi.flatMap(c => c.aperte.map((p, i) => <SchedaCameraOggi key={`${p.tipo}:${p.booking.id}:${p.due}`} id={i === 0 ? `camera-${c.room.id}` : undefined}
         nome={c.nome} cronologia={i === 0 ? c.cronologia : undefined} chi={p.tipo === 'soggiorno' ? `${nomeOspite(p.booking)} · ${diffDays(td, soggiornoContinuativo(prenotazioni, p.booking).inizio.check_in)}ª notte` : undefined} pulizia={p} arrivo={c.arrivo} priorita={prioritaDi(p, c.arrivo)} oggi={td} conOrari={conOrari}
         ultimaId={ultimaId(c.room.id)} nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} onSalvato={aggiornato} />))}

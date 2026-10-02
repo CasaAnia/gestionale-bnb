@@ -52,7 +52,7 @@ export const testoOccupate = (n: NumeriOggi) => `${n.camereOccupate} su ${n.came
 // Ogni giorno: STESSA regola e stessa fonte della pagina Pulizie
 // (lib/pulizie.conteggioGiorno): quante camere hanno pulizie ancora da fare
 // (il numero) e quante le hanno tutte fatte («✓»); niente = «—».
-import { conteggioGiorno, motivoCameraGiorno, attive, type Decisione, type MotivoCamera } from './pulizie.ts'
+import { conteggioGiorno, motivoCameraGiorno, attive, pulizieDelGiorno, prossimoArrivo, prioritaCamera, confrontaUrgenza, type Decisione, type MotivoCamera } from './pulizie.ts'
 import { nomeOspite } from './guestName.ts'
 import { oraBreve } from './schema0064.ts'
 import { cognome, giornoLungo } from './giornataPulizie.ts'
@@ -74,7 +74,8 @@ export type GiornoStriscia = { giorno: string; daFare: number; fatte: number; og
 // biancheria della 4ª notte»; il cambio camera «Fam. Russo passa in Ambra ⇄».
 // Gli orari sono gli stessi della pagina Pulizie (check_out_time,
 // bagagli_alle, check_in_time). Le camere sono esattamente quelle contate nel
-// numero della casella (stessa regola: lib/pulizie.motivoCameraGiorno).
+// numero della casella (stessa regola: lib/pulizie.motivoCameraGiorno), nello
+// stesso ordine di urgenza della pagina Pulizie (confrontaUrgenza, 02/10/2026).
 export type CameraDaPreparare = {
   roomId: string
   camera: string
@@ -106,7 +107,7 @@ const breve = (nome: string | null | undefined) => String(nome ?? '').split(' ')
 
 export function camereDaPreparare(rooms: CameraNome[], prenotazioni: Parameters<typeof conteggioGiorno>[1], events: Decisione[], giorno: string, oggi: string): CameraDaPreparare[] {
   const valide = attive(prenotazioni)
-  const out: CameraDaPreparare[] = []
+  const out: (CameraDaPreparare & { urgenza: Parameters<typeof confrontaUrgenza>[0] })[] = []
   for (const r of rooms) {
     const m = motivoCameraGiorno(prenotazioni, r.id, giorno, oggi, events)
     if (!m) continue
@@ -122,9 +123,10 @@ export function camereDaPreparare(rooms: CameraNome[], prenotazioni: Parameters<
       if (bag) voce.bagagli = { cognome: cognome(arriva), ora: bag }
       voce.arriva = { nome: nomeOspite(arriva), ora: oraBreve(arriva.check_in_time) }
     }
-    out.push(voce)
+    const arrivo = prossimoArrivo(valide, r.id, giorno)
+    out.push({ ...voce, urgenza: { priorita: prioritaCamera(pulizieDelGiorno(valide, r.id, giorno, oggi, events), arrivo), arrivo } })
   }
-  return out
+  return out.sort((a, b) => confrontaUrgenza(a.urgenza, b.urgenza)).map(v => { const voce: CameraDaPreparare & { urgenza?: unknown } = { ...v }; delete voce.urgenza; return voce })
 }
 
 // Cambi camera per giorno (incarico del 06/09/2026): un ospite che quel giorno

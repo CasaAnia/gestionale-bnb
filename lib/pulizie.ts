@@ -18,6 +18,8 @@
 //   SALTA            → quella pulizia si chiude; la successiva è proposta
 //                      a prevista + 4, modificabile prima della conferma
 
+import { minutiDa } from './schema0064.ts'
+
 export type PrenotazionePulizie = {
   id: string; room_id: string; check_in: string; check_out: string; status?: string
   guest_id?: string | null; guest_name?: string | null; num_guests?: number | string | null
@@ -303,6 +305,24 @@ export function prioritaDi(pulizia: Pulizia, arrivo: ProssimoArrivo | null): Pri
   if (arrivo && arrivo.giorni === 1) return 'alta'
   if (arrivo && arrivo.giorni <= 3) return 'flessibile'
   return 'nessuna_fretta'
+}
+
+// Ordine di urgenza delle camere (pagina Pulizie, oggi e giorni futuri, e
+// riquadro della striscia in Home; Ania, 02/10/2026): prima la priorità di
+// prioritaDi (urgente, priorità alta, flessibile, nessuna fretta), a parità
+// chi arriva prima (giorno, poi ora d'arrivo; senza ora dopo chi l'ha, senza
+// arrivo in fondo); a parità ancora, l'ordine di sempre delle camere.
+export const RANK_PRIORITA: Record<Priorita, number> = { urgente: 0, alta: 1, flessibile: 2, nessuna_fretta: 3 }
+export function prioritaCamera(pulizie: Pulizia[], arrivo: ProssimoArrivo | null): Priorita | null {
+  return pulizie.length ? pulizie.map(p => prioritaDi(p, arrivo)).sort((a, b) => RANK_PRIORITA[a] - RANK_PRIORITA[b])[0] : null
+}
+export function confrontaUrgenza(a: { priorita: Priorita | null; arrivo: ProssimoArrivo | null }, b: { priorita: Priorita | null; arrivo: ProssimoArrivo | null }): number {
+  const r = RANK_PRIORITA[a.priorita ?? 'nessuna_fretta'] - RANK_PRIORITA[b.priorita ?? 'nessuna_fretta']
+  if (r) return r
+  if (!a.arrivo || !b.arrivo) return (a.arrivo ? 0 : 1) - (b.arrivo ? 0 : 1)
+  const g = a.arrivo.booking.check_in.localeCompare(b.arrivo.booking.check_in)
+  if (g) return g
+  return (minutiDa(a.arrivo.booking.check_in_time) ?? 24 * 60) - (minutiDa(b.arrivo.booking.check_in_time) ?? 24 * 60)
 }
 
 // ------------------------------------------------- cambio ospite automatico

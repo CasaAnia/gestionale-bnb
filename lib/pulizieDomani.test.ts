@@ -126,3 +126,38 @@ test('D1 · la pagina su un giorno futuro: grafico senza linea dell’ora, sched
   assert.match(grafico, /\{adesso && <div className="tl-ora" aria-hidden><Adesso \/><\/div>\}/)
   assert.match(leggi('app/pulizie.css'), /\.pul-prev \{ font-size: 11px; letter-spacing: \.16em; text-transform: uppercase; color: var\(--p-ott2\);/)
 })
+
+// ── Ordine di urgenza (Ania, 02/10/2026): riquadro della Home e pagina Pulizie ──
+import { confrontaUrgenza } from './pulizie.ts'
+import { camereDaPreparare } from './numeriOggi.ts'
+
+test('ordine di urgenza: priorità, poi chi arriva prima (giorno, ora; senza ora dopo), poi l’ordine delle camere', () => {
+  const arr = (check_in: string, check_in_time?: string) => ({ booking: { check_in, check_in_time } as never, giorni: 0, cambioDa: null })
+  const v = [
+    { k: 'nessuna', priorita: 'nessuna_fretta' as const, arrivo: null },
+    { k: 'alta-tardi', priorita: 'alta' as const, arrivo: arr('2026-10-02', '18:00') },
+    { k: 'urg-senza-ora', priorita: 'urgente' as const, arrivo: arr('2026-10-01') },
+    { k: 'urg-14', priorita: 'urgente' as const, arrivo: arr('2026-10-01', '14:00') },
+    { k: 'alta-presto', priorita: 'alta' as const, arrivo: arr('2026-10-02', '9:30') },
+    { k: 'alta-senza-arrivo', priorita: 'alta' as const, arrivo: null },
+    { k: 'flessibile', priorita: 'flessibile' as const, arrivo: arr('2026-10-04') },
+  ]
+  assert.deepEqual([...v].sort(confrontaUrgenza).map(x => x.k), ['urg-14', 'urg-senza-ora', 'alta-presto', 'alta-tardi', 'alta-senza-arrivo', 'flessibile', 'nessuna'])
+})
+
+test('riquadro della striscia: camere nell’ordine di urgenza della pagina Pulizie, non più nell’ordine fisso', () => {
+  const camere = ['amelia', 'allegra', 'ambra', 'lena'].map(id => ({ id, name: id[0].toUpperCase() + id.slice(1) }))
+  const p = [
+    pr('amelia', '2026-09-29', DOMANI, 'Mario Rossi'),                                   // parte domani, nessun arrivo: nessuna fretta
+    pr('ambra', '2026-09-28', '2026-10-06', 'Lucia Ferri'),                              // 4ª notte domani: priorità alta
+    pr('allegra', '2026-09-30', DOMANI, 'Rita Fontana'),
+    pr('allegra', DOMANI, '2026-10-04', 'Bruno Serafini', { check_in_time: '18:00' }),   // cambio ospite, arriva alle 18: urgente
+    pr('lena', '2026-09-30', DOMANI, 'Elena Esposito'),
+    pr('lena', DOMANI, '2026-10-04', 'Giovanni Serra', { check_in_time: '15:00' }),      // cambio ospite, arriva alle 15: urgente, prima
+  ]
+  assert.deepEqual(camereDaPreparare(camere, p as never, [], DOMANI, OGGI).map(c => c.camera), ['Lena', 'Allegra', 'Ambra', 'Amelia'])
+  // la pagina Pulizie usa la stessa regola, oggi e nei giorni futuri
+  const pagina = leggi('app/pulizie/page.tsx')
+  assert.equal((pagina.match(/\.sort\(confrontaUrgenza\)/g) ?? []).length, 2)
+  assert.ok(!/RANK\[/.test(pagina))
+})
