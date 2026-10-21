@@ -247,11 +247,20 @@ export async function scegliSoluzioneInviata(id: string, soluzione: unknown): Pr
 // la forma con cui lo STESSO numero è salvato sulla scheda del cliente, così
 // la RPC (che confronta le cifre) usa quella scheda invece di crearne una
 // seconda. Solo sulla richiesta in «proposta inviata», solo il telefono.
-export async function allineaTelefonoRichiesta(id: string, telefono: string): Promise<{ error: string | null }> {
-  const { data, error } = await supabase.from('richieste').update({ telefono }).eq('id', id).eq('stato', 'proposta_inviata').select('id')
-  if (error) return { error: spiegaErrore(error) }
-  if (!data || data.length === 0) return { error: 'Nessuna riga aggiornata: la richiesta non è più in «proposta inviata».' }
-  return { error: null }
+// Torna il telefono come lo ha salvato il database (la verifica la fa
+// lib/confermaPassi.allineaConVerifica, con la rilettura qui sotto).
+export async function allineaTelefonoRichiesta(id: string, telefono: string): Promise<{ error: string | null; telefono: string | null }> {
+  const { data, error } = await supabase.from('richieste').update({ telefono }).eq('id', id).eq('stato', 'proposta_inviata').select('id, telefono')
+  if (error) return { error: spiegaErrore(error), telefono: null }
+  if (!data || data.length === 0) return { error: 'Nessuna riga aggiornata: la richiesta non è più in «proposta inviata».', telefono: null }
+  return { error: null, telefono: (data[0] as { telefono?: string | null }).telefono ?? null }
+}
+
+export async function rileggiTelefonoRichiesta(id: string): Promise<{ error: string | null; telefono: string | null; stato: string | null }> {
+  const { data, error } = await supabase.from('richieste').select('telefono, stato').eq('id', id).maybeSingle()
+  if (error) return { error: spiegaErrore(error), telefono: null, stato: null }
+  if (!data) return { error: 'Richiesta non trovata', telefono: null, stato: null }
+  return { error: null, telefono: (data.telefono as string | null) ?? null, stato: (data.stato as string | null) ?? null }
 }
 
 // Dopo la conferma: la prenotazione creata è davvero sulla scheda attesa?

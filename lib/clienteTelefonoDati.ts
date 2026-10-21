@@ -7,13 +7,16 @@ import { supabase } from './supabase'
 import { messaggioErroreDati } from './connessione'
 import { schemaRicercaTelefono, schedeConNumero, filtriTelefonoRicerca, sembraTelefono, INVISIBILI_TELEFONO } from './clienteTelefono'
 
-export async function cercaSchedaPerTelefono<T extends { phone?: string | null }>(raw: string): Promise<{ scheda: T | null; schede: T[]; errore: string | null }> {
+// `righe`: tutto ciò che la lettura ha portato (anche numeri diversi con le
+// stesse ultime cifre), per chi deve controllare le cifre uguali (conferma).
+export async function cercaSchedaPerTelefono<T extends { phone?: string | null }>(raw: string): Promise<{ scheda: T | null; schede: T[]; righe: T[]; errore: string | null }> {
   const schema = schemaRicercaTelefono(raw)
-  if (!schema) return { scheda: null, schede: [], errore: null }
+  if (!schema) return { scheda: null, schede: [], righe: [], errore: null }
   const { data, error } = await supabase.from('guests').select('*').ilike('phone', schema).order('created_at', { ascending: false }).limit(50)
-  if (error) return { scheda: null, schede: [], errore: messaggioErroreDati(error, 'cercare il cliente') }
-  const schede = schedeConNumero((data || []) as T[], raw)
-  return { scheda: schede[0] ?? null, schede, errore: null }
+  if (error) return { scheda: null, schede: [], righe: [], errore: messaggioErroreDati(error, 'cercare il cliente') }
+  const righe = (data || []) as T[]
+  const schede = schedeConNumero(righe, raw)
+  return { scheda: schede[0] ?? null, schede, righe, errore: null }
 }
 
 // ── La ricerca dei clienti per nome o telefono (21/10/2026) ────────────────

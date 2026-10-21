@@ -3,6 +3,7 @@
 // orario» vive SOLO qui, così i due bottoni mandano parole identiche.
 // Funzioni pure, senza Supabase: si provano con `node --test`.
 import { salutoOspite } from './guestName.ts'
+import { numeroPerContatto } from './clienteTelefono.ts'
 import { MESI_LUNGHI } from './dateItaliane.ts'
 
 // Testo di «Richiesta orario» (era in app/prenotazioni/[id]/page.tsx,
@@ -46,11 +47,12 @@ export function giornoPartenzaLungo(iso: string): string {
   return `${GIORNI_SETTIMANA[giorno]} ${d} ${MESI_LUNGHI[m - 1]}`
 }
 
-// Numero per WhatsApp dal telefono della scheda cliente, come nella scheda
-// prenotazione: solo cifre, prefisso 39 se manca; null senza numero.
+// Numero per WhatsApp e per chiamare dal telefono della scheda cliente: cifre
+// col prefisso del paese (lib/clienteTelefono numeroPerContatto). Dal
+// 21/10/2026 (T2 di Codex) un «+45…» resta danese, non diventa «3945…»;
+// i numeri italiani come prima. Null senza numero.
 export function numeroWhatsAppPrenotazione(phone: string | null | undefined): string | null {
-  const raw = (phone || '').replace(/\D/g, '')
-  return raw ? (raw.startsWith('39') ? raw : `39${raw}`) : null
+  return numeroPerContatto(phone)
 }
 
 // Lo stesso link wa.me della scheda (waHref): numero + testo già scritto

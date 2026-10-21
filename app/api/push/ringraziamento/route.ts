@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { numeroPerContatto } from '@/lib/clienteTelefono'
 import { buildChangeGroups } from '@/lib/roomChanges'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
@@ -13,9 +14,9 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// la regola comune del numero (T2, 21/10/2026: +45… resta 45…)
 function normalizePhone(p: string) {
-  const raw = p.trim().replace(/\D/g, '')
-  return raw.startsWith('39') ? raw : `39${raw}`
+  return numeroPerContatto(p) ?? ''
 }
 
 // Stesso identico testo del pulsante "Ringraziamento" nel dettaglio prenotazione

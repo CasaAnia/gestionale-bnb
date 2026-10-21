@@ -156,40 +156,73 @@ export function testoNumeroAltraScheda(altre: { full_name?: string | null }[]): 
   return `Non salvato: questo numero è già nella scheda di ${chi}. Controlla il numero; le due schede non si uniscono da qui.`
 }
 
-// ── Conferma di una richiesta senza doppioni (21/10/2026, rilievo R2) ──────
-// La RPC sceglie la scheda con le stesse CIFRE del telefono della richiesta
-// (la più vecchia, se sono più d'una). Prima di chiamarla si decide qui:
-//  · nessuna scheda con quel numero → «libera»: la RPC crea la scheda nuova;
-//  · una scheda (o quella scelta da Ania) che la RPC troverebbe da sola, e
-//    nessun'altra con le stesse cifre → «libera»;
-//  · una scheda dello stesso numero scritta in un'altra forma → «allinea»:
-//    il telefono della richiesta prende la forma della scheda (stesso numero),
-//    così la RPC la ritrova invece di crearne una seconda;
-//  · più schede dello stesso numero e nessuna scelta → «scegli»;
-//  · la scheda scelta ha le stesse cifre di un'altra → «bloccata»: la RPC non
-//    saprebbe quale usare, e prenderebbe la più vecchia.
+// ── Conferma di una richiesta senza doppioni (21/10/2026, R2 e T1) ─────────
+// La RPC conferma_richiesta sceglie la scheda con le stesse CIFRE del telefono
+// della richiesta (la più vecchia, se sono più d'una) e, se non la trova, ne
+// crea una a sole cifre: «+45 32 12 34 56» diventava «4532123456», che poi
+// non si riconosce più (T1 di Codex). Prima di chiamarla si decide qui, su
+// `schede` (stesso numero) e `righe` (tutto ciò che la lettura ha portato,
+// per vedere chi ha le stesse cifre pur essendo un altro numero):
+//  · nessuna scheda di quel numero, numero riconoscibile → «nuova»: l'app crea
+//    PRIMA la scheda col «+» (telefonoDaSalvare), la RPC poi la trova per cifre;
+//  · numero non riconoscibile → «libera»: vale la regola di sempre della RPC;
+//  · una scheda (o quella scelta) con le stesse cifre della richiesta → «libera»;
+//  · una scheda scritta in un'altra forma → «allinea»: il telefono della
+//    richiesta prende la forma della scheda (stesso numero);
+//  · più schede e nessuna scelta → «scegli»;
+//  · le cifre che userebbe la RPC sono anche di un'altra scheda → «bloccata».
 export type DecisioneConferma<T> =
   | { tipo: 'libera'; scheda: T | null }
+  | { tipo: 'nuova'; telefono: string }
   | { tipo: 'allinea'; scheda: T; telefono: string }
   | { tipo: 'scegli'; schede: T[] }
   | { tipo: 'bloccata'; motivo: string }
 
 const soloCifre = (t: string | null | undefined) => (t ?? '').replace(/\D/g, '')
+const nomeScheda = (g: { full_name?: string | null }) => (g.full_name || '').trim() || 'senza nome'
 
 export function decisioneConferma<T extends { id: string; phone?: string | null; full_name?: string | null }>(
-  telefonoRichiesta: string | null | undefined, schede: T[], sceltaId: string | null,
+  telefonoRichiesta: string | null | undefined, schede: T[], sceltaId: string | null, righe: T[] = schede,
 ): DecisioneConferma<T> {
   const cifre = soloCifre(telefonoRichiesta)
-  const stesse = schede.filter(g => stessoNumero(g.phone, telefonoRichiesta))
-  if (!cifre || stesse.length === 0) return { tipo: 'libera', scheda: null }
+  if (!cifre) return { tipo: 'libera', scheda: null }
+  const tutte = [...new Map([...righe, ...schede].map(g => [g.id, g])).values()]
+  const stesse = tutte.filter(g => stessoNumero(g.phone, telefonoRichiesta))
+  const conCifre = (c: string, tranne: string | null) => tutte.filter(g => g.id !== tranne && soloCifre(g.phone) === c)
+  if (stesse.length === 0) {
+    const chiave = chiaveTelefono(telefonoRichiesta)
+    const omonime = conCifre(cifre, null)
+    if (omonime.length) {
+      return { tipo: 'bloccata', motivo: `Non creo la prenotazione: le stesse cifre del numero sono già sulla scheda di ${omonime.map(nomeScheda).join(', ')}, ma come numero diverso. Controlla il numero della richiesta o della scheda, poi conferma.` }
+    }
+    return chiave ? { tipo: 'nuova', telefono: `+${chiave}` } : { tipo: 'libera', scheda: null }
+  }
   const scelta = stesse.length === 1 ? stesse[0] : (stesse.find(g => g.id === sceltaId) ?? null)
   if (!scelta) return { tipo: 'scegli', schede: stesse }
   const cifreScelta = soloCifre(scelta.phone)
-  const gemelle = schede.filter(g => g.id !== scelta.id && soloCifre(g.phone) === cifreScelta)
+  const gemelle = conCifre(cifreScelta, scelta.id)
   if (gemelle.length) {
-    const chi = [scelta, ...gemelle].map(g => (g.full_name || '').trim() || 'senza nome').join(', ')
-    return { tipo: 'bloccata', motivo: `Non creo la prenotazione: lo stesso numero è scritto uguale su più schede (${chi}) e la conferma non saprebbe quale usare. Correggi il numero di una delle schede, poi conferma.` }
+    return { tipo: 'bloccata', motivo: `Non creo la prenotazione: lo stesso numero è scritto uguale su più schede (${[scelta, ...gemelle].map(nomeScheda).join(', ')}) e la conferma non saprebbe quale usare. Correggi il numero di una delle schede, poi conferma.` }
   }
   if (cifreScelta === cifre) return { tipo: 'libera', scheda: scelta }
   return { tipo: 'allinea', scheda: scelta, telefono: scelta.phone ?? '' }
+}
+
+// ── Il numero per chiamare e per WhatsApp (21/10/2026, T2 di Codex) ────────
+// Cifre col prefisso del paese, senza «+»: tel:+… e wa.me/…. Prima si
+// incollava «39» davanti a tutto ciò che non cominciava per 39, anche a
+// «+4532123456» (→ 394532123456). Ora: numero riconoscibile → la sua chiave
+// (+45… resta 45…, 333… diventa 39333…); scritto col + o 00 ma non
+// riconoscibile → le cifre dopo il prefisso, senza aggiungere niente; solo
+// le cifre nude e non riconoscibili seguono la regola di prima (39 davanti),
+// come i numeri italiani vecchi in archivio. Null senza cifre.
+export function numeroPerContatto(phone: string | null | undefined): string | null {
+  const chiave = chiaveTelefono(phone)
+  if (chiave) return chiave
+  const s = (phone ?? '').replace(INVISIBILI_TELEFONO, '').replace(/[\s.\-()/]/g, '')
+  const cifre = s.replace(/\D/g, '')
+  if (!cifre) return null
+  if (s.startsWith('+')) return cifre
+  if (s.startsWith('00')) return cifre.slice(2) || null
+  return cifre.startsWith('39') ? cifre : `39${cifre}`
 }

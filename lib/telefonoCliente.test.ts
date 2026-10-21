@@ -172,8 +172,8 @@ test('R2: conferma di una richiesta — mai un doppione, scelta esplicita, blocc
   const tina2 = { id: 't2', full_name: 'Tina Due', phone: '+39 333-999-0001' }
   const gemella = { id: 'g', full_name: 'Tina Gemella', phone: '393339990001' }
   const altro = { id: 'x', full_name: 'Altro', phone: '+44 333 999 0001' }
-  // nessuna scheda: la RPC crea la nuova
-  assert.deepEqual(decisioneConferma('+39 345 111 2233', [altro], null), { tipo: 'libera', scheda: null })
+  // nessuna scheda: l'app crea la scheda col «+» prima della RPC (T1, 21/10/2026 sera)
+  assert.deepEqual(decisioneConferma('+39 345 111 2233', [altro], null), { tipo: 'nuova', telefono: '+393451112233' })
   // stessa forma: la RPC la trova da sola
   assert.deepEqual(decisioneConferma('333 999 0001', [tina], null), { tipo: 'libera', scheda: tina })
   // altra forma: il telefono della richiesta prende quella della scheda
@@ -258,9 +258,9 @@ test('guardie sui sorgenti: ogni percorso usa la regola comune e non crea doppio
   assert.match(leggi('app/api/richieste/web/route.ts'), /schedeConNumero\(/)
   // R2: la conferma decide prima della RPC e si ferma nei casi non sicuri
   const conferma = leggi('components/richieste/FinestraConferma.tsx')
-  assert.match(conferma, /decisioneConferma\(richiesta\.telefono, archivio\.schede, sceltaScheda\)/)
+  assert.match(conferma, /decisioneConferma\(telefonoRichiesta, a\.schede, sceltaScheda, a\.righe\)/)
   assert.match(conferma, /if \(fermo \|\| !decisione\) \{ setErrore/)
-  assert.match(conferma, /allineaTelefonoRichiesta\(richiesta\.id, decisione\.telefono\)[\s\S]*?confermaRichiesta\(/)
+  assert.match(conferma, /allineaTelefonoRichiesta\(richiesta\.id, allineaA\)[\s\S]*?confermaRichiesta\(/)
   assert.match(conferma, /disabilitato=\{!sol \|\| !!fermo\}/)
   // R3: la pagina vecchia /nuova non sceglie da sola e non crea alla cieca
   const vecchia = leggi('app/nuova/page.tsx')

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { decisioneConferma } from '@/lib/clienteTelefono'
 import { cercaSchedaPerTelefono } from '@/lib/clienteTelefonoDati'
 import Link from 'next/link'
@@ -9,7 +9,11 @@ import { periodoConMese, testoNotti } from '@/lib/schedaPrenotazione'
 import { condizioneDaColonne, formattaEuro } from '@/lib/richiesteTesti'
 import { ETICHETTA_CASO, type Soluzione } from '@/lib/richiesteProposta'
 import { richiesteInConflitto, erroreDiDisponibilita, conLettoExtra, type RichiestaConProposta } from '@/lib/richiesteConferma'
-import { confermaRichiesta, scegliSoluzioneInviata, allineaTelefonoRichiesta, clienteDellaPrenotazione } from '@/lib/richiesteDati'
+import { confermaRichiesta, scegliSoluzioneInviata, allineaTelefonoRichiesta, rileggiTelefonoRichiesta, clienteDellaPrenotazione } from '@/lib/richiesteDati'
+import { allineaConVerifica, creaSchedaConVerifica } from '@/lib/confermaPassi'
+import { creaClienteNuovo } from '@/lib/cambiaClienteDati'
+import type { ClienteBreve } from '@/lib/cambiaCliente'
+import { nomeDaSalvare } from '@/lib/guestName'
 import { applicaProvenienzaAlCliente } from '@/lib/provenienzaDati'
 import { prezzo as fmtPrezzo, dalAl } from '@/lib/richiesteTesti'
 import { nomeCompleto, formatDateRichiesta, nottiRichiesta, riassuntoPersone, type Richiesta } from '@/lib/richieste'
@@ -45,41 +49,88 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
   // con più schede sceglie Ania, una scheda scritta in un'altra forma viene
   // usata (il telefono della richiesta prende la sua forma), i casi che la
   // RPC non saprebbe distinguere fermano la conferma. Mai un doppione.
+  // Dal 21/10/2026 sera (T1/T3 di Codex): il cliente NUOVO non lo crea più la
+  // RPC a sole cifre (+45… diventava 4532123456, irriconoscibile): l'app crea
+  // prima la scheda col «+», poi la RPC la trova per cifre. Ogni passo si
+  // verifica sul valore salvato; un esito incerto ferma tutto. Prima di
+  // scrivere l'archivio si rilegge: se è cambiato, si mostra e ci si ferma.
   type SchedaArchivio = { id: string; phone?: string | null; full_name?: string | null }
-  const [archivio, setArchivio] = useState<{ stato: 'carico' } | { stato: 'errore'; testo: string } | { stato: 'pronto'; schede: SchedaArchivio[] }>({ stato: 'carico' })
+  type Archivio = { stato: 'carico' } | { stato: 'errore'; testo: string } | { stato: 'pronto'; schede: SchedaArchivio[]; righe: SchedaArchivio[] }
+  const [archivio, setArchivio] = useState<Archivio>({ stato: 'carico' })
   const [sceltaScheda, setSceltaScheda] = useState<string | null>(null)
+  // il telefono della richiesta com'è ADESSO (dopo un allineamento riuscito)
+  const [telefonoRichiesta, setTelefonoRichiesta] = useState(richiesta.telefono ?? '')
+  const leggiArchivio = useCallback(async (telefono: string): Promise<Archivio> => {
+    try {
+      const r = await cercaSchedaPerTelefono<SchedaArchivio>(telefono)
+      return r.errore ? { stato: 'errore', testo: r.errore } : { stato: 'pronto', schede: r.schede, righe: r.righe }
+    } catch (err) { return { stato: 'errore', testo: String((err as Error)?.message ?? err) } }
+  }, [])
   useEffect(() => {
     let vivo = true
-    void cercaSchedaPerTelefono<SchedaArchivio>(richiesta.telefono ?? '').then(r => {
-      if (!vivo) return
-      setArchivio(r.errore ? { stato: 'errore', testo: r.errore } : { stato: 'pronto', schede: r.schede })
-    }, (err: unknown) => { if (vivo) setArchivio({ stato: 'errore', testo: String((err as Error)?.message ?? err) }) })
+    void leggiArchivio(telefonoRichiesta).then(a => { if (vivo) setArchivio(a) })
     return () => { vivo = false }
-  }, [richiesta.telefono])
-  const decisione = archivio.stato === 'pronto' ? decisioneConferma(richiesta.telefono, archivio.schede, sceltaScheda) : null
+  }, [telefonoRichiesta, leggiArchivio])
+  const decidi = (a: Archivio) => (a.stato === 'pronto' ? decisioneConferma(telefonoRichiesta, a.schede, sceltaScheda, a.righe) : null)
+  const decisione = decidi(archivio)
   const fermo = archivio.stato === 'carico' ? 'Controllo se il numero è già in archivio…'
     : archivio.stato === 'errore' ? `Non creo la prenotazione: non sono riuscito a controllare se il numero è già in archivio (${archivio.testo}). Riprova.`
     : decisione?.tipo === 'scegli' ? 'Questo numero è su più schede cliente: scegli quella giusta.'
     : decisione?.tipo === 'bloccata' ? decisione.motivo
     : null
+  // dopo un errore a metà strada: si rilegge l'archivio, la prossima prova
+  // decide su quello che è davvero salvato (scheda già creata, numero allineato)
+  async function dopoErrore(testo: string) {
+    setErrore(testo)
+    setArchivio({ stato: 'carico' })
+    setArchivio(await leggiArchivio(telefonoRichiesta))
+    setOccupato(false)
+  }
 
   async function crea() {
     if (occupato) return          // secondo tocco: niente doppioni (e la RPC è idempotente)
     if (fermo || !decisione) { setErrore(fermo ?? 'Controllo del numero non pronto.'); return }
     setErrore(null); setOccupato(true)
-    if (decisione.tipo === 'allinea') {
-      const allineato = await allineaTelefonoRichiesta(richiesta.id, decisione.telefono)
-      if (allineato.error) { setErrore(`Numero non allineato alla scheda, prenotazione non creata: ${allineato.error}`); setOccupato(false); return }
+    // l'archivio è ancora quello mostrato? (una scheda nata nel frattempo cambia la decisione)
+    const ora = await leggiArchivio(telefonoRichiesta)
+    const adesso = decidi(ora)
+    const firma = (d: typeof decisione) => JSON.stringify(d && { t: d.tipo, s: 'scheda' in d ? d.scheda?.id ?? null : null, tel: 'telefono' in d ? d.telefono : null })
+    if (!adesso || firma(adesso) !== firma(decisione)) {
+      setArchivio(ora)
+      setErrore(ora.stato === 'errore' ? `Non creo la prenotazione: ${ora.testo}` : 'Nel frattempo l’archivio dei clienti è cambiato: controlla qui sopra e conferma di nuovo.')
+      setOccupato(false)
+      return
+    }
+    let attesa: string | null = decisione.tipo === 'libera' || decisione.tipo === 'allinea' ? decisione.scheda?.id ?? null : null
+    if (decisione.tipo === 'nuova') {
+      const creata = await creaSchedaConVerifica<ClienteBreve>({
+        crea: () => creaClienteNuovo({ full_name: nomeDaSalvare({ nome: richiesta.nome, cognome: richiesta.cognome }) || null, phone: decisione.telefono } as never, []),
+        cerca: () => cercaSchedaPerTelefono<ClienteBreve>(decisione.telefono),
+      })
+      if (creata.esito !== 'ok') { await dopoErrore(`Prenotazione non creata: ${creata.testo}.`); return }
+      attesa = creata.valore.id
+    }
+    // la RPC cerca per cifre: se quelle della richiesta («345 600 0001») non
+    // sono quelle della scheda («+393456000001»), la richiesta prende la forma della scheda
+    const allineaA = decisione.tipo === 'allinea' ? decisione.telefono
+      : decisione.tipo === 'nuova' && decisione.telefono.replace(/\D/g, '') !== telefonoRichiesta.replace(/\D/g, '') ? decisione.telefono : null
+    if (allineaA) {
+      const allineato = await allineaConVerifica({
+        telefono: allineaA,
+        scrivi: () => allineaTelefonoRichiesta(richiesta.id, allineaA),
+        rileggi: () => rileggiTelefonoRichiesta(richiesta.id),
+      })
+      if (allineato.esito !== 'ok') { await dopoErrore(`Prenotazione non creata: ${allineato.testo}.`); return }
+      setTelefonoRichiesta(allineaA)
     }
     if (piuCamere) {
       if (!sol) { setErrore('Scegli la camera accettata dal cliente.'); setOccupato(false); return }
       const scelto = await scegliSoluzioneInviata(richiesta.id, sol)
-      if (scelto.error) { setErrore(`Camera non registrata: ${scelto.error}`); setOccupato(false); return }
+      if (scelto.error) { await dopoErrore(`Camera non registrata: ${scelto.error}`); return }
     }
     const r = await confermaRichiesta(richiesta.id, [...spuntate])
-    if (r.error || !r.prenotazioneId) { setErrore(r.error || 'Conferma non riuscita.'); setOccupato(false); return }
+    if (r.error || !r.prenotazioneId) { await dopoErrore(r.error || 'Conferma non riuscita.'); return }
     // la prenotazione è sulla scheda attesa? (rilettura, nessuna scrittura)
-    const attesa = decisione.tipo === 'libera' || decisione.tipo === 'allinea' ? decisione.scheda?.id ?? null : null
     let avvisoCliente: string | null = null
     if (attesa) {
       const letto = await clienteDellaPrenotazione(r.prenotazioneId)
@@ -168,6 +219,9 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
         )}
         {sceltaScheda && decisione && decisione.tipo !== 'scegli' && (
           <p className="so"><button type="button" className="mz-lnk q" disabled={occupato} onClick={() => setSceltaScheda(null)}>scegli un’altra scheda</button></p>
+        )}
+        {decisione?.tipo === 'nuova' && (
+          <p className="so" data-scheda-nuova>Cliente nuovo: la scheda nasce col numero {decisione.telefono}.</p>
         )}
         {decisione?.tipo === 'allinea' && (
           <p className="so" data-va-sulla-scheda>Va sulla scheda di {(decisione.scheda.full_name || '').trim() || 'senza nome'}: stesso numero, salvato come {decisione.telefono}.</p>

@@ -8,6 +8,7 @@
 // aprirla) e, col telefono, «Apri chat». Sotto, i pagamenti registrati oggi.
 // Chi entra e con quali cifre lo decide lib/statistiche.daIncassare, come prima.
 // ============================================================================
+import { numeroPerContatto } from '@/lib/clienteTelefono'
 import { useState } from 'react'
 import Link from 'next/link'
 import PagamentoDaHome from './PagamentoDaHome'
@@ -37,7 +38,7 @@ export default function SoldiHome({ voci, incassati, onPagato }: { voci: VoceInc
         <p className="mo">{rigaConto(v, euroHome)} <span className="mat" data-residuo>{euroHome(v.residuoCent)}</span></p>
         <div className="azioni">
           <button type="button" className="mz-lnk" onClick={() => setPagamento(v.id)} data-registra-pagamento>{REGISTRA_PAGAMENTO}</button>
-          {v.telefono && <button type="button" className="mz-lnk q" onClick={() => openWhatsApp(v.telefono!, '')} data-whatsapp="apri-chat">{ICONA_WHATSAPP}{APRI_CHAT}</button>}
+          {numeroPerContatto(v.telefono) && <button type="button" className="mz-lnk q" onClick={() => openWhatsApp(numeroPerContatto(v.telefono)!, '')} data-whatsapp="apri-chat">{ICONA_WHATSAPP}{APRI_CHAT}</button>}
         </div>
       </div>)}
     </section>}

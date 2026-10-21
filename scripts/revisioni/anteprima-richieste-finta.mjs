@@ -173,6 +173,13 @@ richieste.push(
   richiesta({ nome: 'Gea', cognome: 'Scelta', arrivo: giorni(150), partenza: giorni(152), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0202', created_at: fa(5), stato: 'proposta_inviata', proposta_inviata_at: fa(4), proposta_soluzione: soluzioneFinta(ROOM.allegra, 'Allegra', giorni(150), giorni(152)) }),
   richiesta({ nome: 'Ida', cognome: 'Gemelle', arrivo: giorni(150), partenza: giorni(152), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0203', created_at: fa(5), stato: 'proposta_inviata', proposta_inviata_at: fa(4), proposta_soluzione: soluzioneFinta(ROOM.ambra, 'Ambra', giorni(150), giorni(152)) }),
 )
+// T1 (21/10/2026 sera): clienti NUOVI, nessuna scheda in archivio, numeri
+// danese, islandese e italiano. Dopo la conferma la scheda deve avere il «+».
+richieste.push(
+  richiesta({ nome: 'freja', cognome: 'nuova prova', arrivo: giorni(160), partenza: giorni(162), persone: 2, canale: 'whatsapp', telefono: '+45 32 12 34 56', created_at: fa(5), stato: 'proposta_inviata', proposta_inviata_at: fa(4), proposta_soluzione: soluzioneFinta(ROOM.amelia, 'Amelia', giorni(160), giorni(162)) }),
+  richiesta({ nome: 'Jón', cognome: 'Nuovo', arrivo: giorni(160), partenza: giorni(162), persone: 2, canale: 'whatsapp', telefono: '\u202a+354 555 1234\u202c', created_at: fa(5), stato: 'proposta_inviata', proposta_inviata_at: fa(4), proposta_soluzione: soluzioneFinta(ROOM.allegra, 'Allegra', giorni(160), giorni(162)) }),
+  richiesta({ nome: 'Italo', cognome: 'Nuovo', arrivo: giorni(160), partenza: giorni(162), persone: 2, canale: 'telefono', telefono: '345 600 0001', created_at: fa(5), stato: 'proposta_inviata', proposta_inviata_at: fa(4), proposta_soluzione: soluzioneFinta(ROOM.lena, 'Lena', giorni(160), giorni(162)) }),
+)
 const schedaFinta = (id, full_name, phone) => ({ id, phone, full_name, email: null, rating: 'normale', vuole_ricevuta: false, motivo_problematico: null, notes: null, created_at: ora, updated_at: ora })
 guests.push(
   schedaFinta('aaaaaaaa-0201-4000-8000-000000000201', 'Pia Allinea', '3330000201'),
@@ -271,6 +278,11 @@ function rispondi(res, stato, corpo, extra = {}) {
 const leggiCorpo = req => new Promise(ok => { let s = ''; req.on('data', c => { s += c }); req.on('end', () => ok(s)) })
 
 let erroreGuests = false
+// 21/10/2026 sera (T3): guasti a comando per la conferma
+//   GET /finto/perdi-risposta-richieste?on=1  il PATCH della richiesta SALVA ma la connessione cade
+//   GET /finto/errore-conferma?volte=1        la RPC conferma_richiesta fallisce N volte, senza scrivere
+let perdiRispostaRichieste = false
+let erroriConferma = 0
 const finto = createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORTA_FINTO}`)
   if (req.method === 'OPTIONS') return rispondi(res, 204)
@@ -280,6 +292,8 @@ const finto = createServer(async (req, res) => {
   // GET /finto/errore-guests?on=1|0 (21/10/2026): la lettura delle schede
   // cliente risponde 500, per provare che la conferma non parte alla cieca
   if (url.pathname === '/finto/errore-guests') { erroreGuests = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreGuests }) }
+  if (url.pathname === '/finto/perdi-risposta-richieste') { perdiRispostaRichieste = url.searchParams.get('on') === '1'; return rispondi(res, 200, { perdiRispostaRichieste }) }
+  if (url.pathname === '/finto/errore-conferma') { erroriConferma = Number(url.searchParams.get('volte') || 0); return rispondi(res, 200, { erroriConferma }) }
   if (erroreGuests && url.pathname === '/rest/v1/guests' && req.method === 'GET') return rispondi(res, 500, { code: 'FINTO', message: 'lettura clienti non riuscita (simulata)', details: null, hint: null })
   const m = url.pathname.match(/^\/rest\/v1\/(\w+)$/)
   if (m && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -307,6 +321,7 @@ const finto = createServer(async (req, res) => {
   // RPC conferma_richiesta: stessa logica della 0027, semplificata, in memoria
   if (url.pathname === '/rest/v1/rpc/conferma_richiesta' && req.method === 'POST') {
     const { p_richiesta_id, p_rifiuta_anche } = JSON.parse(await leggiCorpo(req) || '{}')
+    if (erroriConferma > 0) { erroriConferma--; return rispondi(res, 500, { code: 'FINTO', message: 'conferma non riuscita (simulata)', details: null, hint: null }) }
     const r = richieste.find(x => x.id === p_richiesta_id)
     const errore = (message) => rispondi(res, 400, { code: 'P0001', message, details: null, hint: null })
     if (!r) return errore('Richiesta non trovata')
@@ -350,8 +365,23 @@ const finto = createServer(async (req, res) => {
     if (corpo.stato === 'errore') return rispondi(res, 500, { code: 'FINTO', message: 'aggiornamento fallito (simulato)', details: null, hint: null })
     toccate.forEach(r => Object.assign(r, corpo))
     console.log(`[finto supabase] PATCH richieste: ${toccate.length} riga/e →`, JSON.stringify(corpo).slice(0, 80))
+    if (perdiRispostaRichieste) { console.log('[finto supabase] … risposta PERSA'); return res.destroy() }
     const select = url.searchParams.get('select') || '*'
     return rispondi(res, 200, toccate.map(r => applicaSelect('richieste', r, select)))
+  }
+  // Cliente nuovo creato dall'app prima della conferma (21/10/2026, T1): come
+  // il vincolo UNIQUE vero, confronta il telefono come testo esatto
+  if (m && m[1] === 'guests' && req.method === 'POST') {
+    const corpo = JSON.parse(await leggiCorpo(req) || '{}')
+    const riga = Array.isArray(corpo) ? corpo[0] : corpo
+    if (!riga?.phone) return rispondi(res, 400, { code: '23502', message: 'null value in column "phone"' })
+    if (guests.some(g => String(g.phone) === String(riga.phone))) return rispondi(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint "guests_phone_key"' })
+    const nuovo = { id: randomUUID(), email: null, rating: 'normale', vuole_ricevuta: false, motivo_problematico: null, notes: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...riga }
+    guests.push(nuovo)
+    console.log(`[finto supabase] +1 cliente ${nuovo.full_name} ${nuovo.phone}`)
+    const select = url.searchParams.get('select') || '*'
+    const accept = req.headers.accept || ''
+    return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? applicaSelect('guests', nuovo, select) : [applicaSelect('guests', nuovo, select)])
   }
   if (m) return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
   rispondi(res, 404, { message: `non gestito: ${req.method} ${url.pathname}` })

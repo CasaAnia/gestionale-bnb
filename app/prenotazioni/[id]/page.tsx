@@ -23,6 +23,8 @@ import { openWhatsApp } from '@/lib/whatsapp'
 import AvvisoSaluto from '@/components/AvvisoSaluto'
 import { avvisoSaluto } from '@/lib/avvisoSaluto'
 import { messaggioRichiestaOrario, numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
+import { numeroPerContatto } from '@/lib/clienteTelefono'
+import { telefonoDaSalvare } from '@/lib/datiCliente'
 import BackBar from '@/components/BackBar'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio, nomeConAltri, salutoOspite } from '@/lib/guestName'
@@ -54,9 +56,10 @@ import { oraDigitata, oraCompleta } from '@/lib/ora'
 import { valutazioneDi, vuoleRicevuta, ETICHETTA_VALUTAZIONE } from '@/lib/valutazione'
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
+// il telefono dei contatti come si salva: la forma comune «+» e prefisso del
+// paese (21/10/2026: prima «39» incollato anche a un +45)
 function normalizePhone(p: string) {
-  const raw = p.trim().replace(/\D/g, '')
-  return raw.startsWith('39') ? raw : `39${raw}`
+  return telefonoDaSalvare(p)
 }
 
 function formatDateIT(dateStr: string) {
@@ -2315,7 +2318,7 @@ export default function BookingDetail() {
               accanto, da dove è arrivato («Non so» se non è registrato). */}
           <div className="flex items-center gap-4 flex-wrap" style={{ marginTop: 2 }}>
             {guest?.phone && (
-              <a href={`tel:${(guest.phone || '').replace(/[^\d+]/g, '')}`} className={v.azione}
+              <a href={`tel:+${numeroPerContatto(guest.phone) ?? ''}`} className={v.azione}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, textDecoration: 'none' }}>
                 <Phone size={15} strokeWidth={1.8} aria-hidden />{guest.phone}
               </a>
@@ -2936,7 +2939,7 @@ export default function BookingDetail() {
                           {x.chiE && <span style={{ color: BLU, fontWeight: 400, fontSize: 13 }}> · {x.chiE}</span>}
                         </p>
                         {x.tel && (
-                          <a href={`tel:${String(x.tel).replace(/[^\d+]/g, '')}`} style={{ color: BLU, fontWeight: 600, fontSize: 14 }}>{x.tel}</a>
+                          <a href={`tel:+${numeroPerContatto(String(x.tel)) ?? ''}`} style={{ color: BLU, fontWeight: 600, fontSize: 14 }}>{x.tel}</a>
                         )}
                       </div>
                     ))}

@@ -90,4 +90,14 @@ $$;
 --       order by g.created_at limit 1;
 --     end if;
 --   else ...
--- e nell'insert del cliente nuovo, phone = coalesce(public.chiave_telefono(v_r.telefono), v_tel).
+-- e nell'insert del cliente nuovo, col «+» come l'app (21/10/2026 sera, T1):
+--   phone = coalesce('+' || public.chiave_telefono(v_r.telefono), v_tel)
+-- (a sole cifre «+45 32 12 34 56» diventava «4532123456», non più riconoscibile).
+--
+-- PERCHÉ RESTA FACOLTATIVA (T1 di Codex): dal candidato del 21/10 sera la
+-- finestra di conferma crea PRIMA la scheda del cliente nuovo col «+» e
+-- allinea il telefono della richiesta, quindi la RPC trova sempre una scheda
+-- per cifre e non arriva mai al proprio INSERT a sole cifre. La migrazione
+-- serve solo se la RPC viene chiamata da altri punti (oggi nessuno nel codice:
+-- lib/richiesteDati.confermaRichiesta è l'unico chiamante) o per togliere il
+-- blocco «stesse cifre su più schede».
