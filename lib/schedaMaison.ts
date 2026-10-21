@@ -246,10 +246,17 @@ export function contoInBreve(residuoCent: number, saldato: boolean, caparra: { e
 
 export const DOCUMENTO_CARICATO = 'caricato'
 export const DOCUMENTO_DA_CHIEDERE = 'da chiedere all’arrivo'
+/** Il comando sotto «Documento» nella linguetta Oggi (21/10/2026, Ania): dal
+ *  29/09 la riga diceva solo «caricato» o «da chiedere», senza modo né di
+ *  aggiungere né di aprire. Porta ai documenti della cliente, come prima. */
+export const AGGIUNGI_DOCUMENTO_BREVE = 'Aggiungi documento'
+export const APRI_DOCUMENTO_BREVE = 'Apri il documento'
+export const APRI_DOCUMENTI_BREVE = 'Apri i documenti'
 /** null = non si sa (lettura non riuscita): la riga non compare */
-export function documentoInBreve(documenti: number | null): { testo: string; manca: boolean } | null {
+export function documentoInBreve(documenti: number | null): { testo: string; manca: boolean; comando: string } | null {
   if (documenti == null) return null
-  return documenti > 0 ? { testo: DOCUMENTO_CARICATO, manca: false } : { testo: DOCUMENTO_DA_CHIEDERE, manca: true }
+  if (documenti > 0) return { testo: DOCUMENTO_CARICATO, manca: false, comando: documenti === 1 ? APRI_DOCUMENTO_BREVE : APRI_DOCUMENTI_BREVE }
+  return { testo: DOCUMENTO_DA_CHIEDERE, manca: true, comando: AGGIUNGI_DOCUMENTO_BREVE }
 }
 
 /** «Note» in breve: le due note una dopo l'altra (la pagina le tiene su una riga) */

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ZOOM_MIN, limitaScala, limitaSpostamento, distanzaDita, scalaDopoDoppioTocco, scalaDopoPasso,
 } from '@/lib/zoomImmagine'
+import { VISORE_NON_SI_APRE } from '@/lib/documentiCliente'
 
 // Documento a schermo intero, ingrandibile (21/09/2026, richiesta di Ania:
 // leggere bene la provenienza sulla carta d'identità). Il telefono ha lo zoom
@@ -17,6 +18,9 @@ export default function VisoreDocumento({ url, etichetta, onChiudi }: {
   const pdf = url.includes('.pdf')
   const [scala, setScala] = useState(ZOOM_MIN)
   const [pos, setPos] = useState({ x: 0, y: 0 })
+  // l'immagine non arriva (collegamento scaduto, rete, file non raggiungibile):
+  // si dice, mai un riquadro vuoto (21/10/2026)
+  const [rotta, setRotta] = useState(false)
   const areaRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const scalaRef = useRef(ZOOM_MIN)
@@ -173,6 +177,7 @@ export default function VisoreDocumento({ url, etichetta, onChiudi }: {
             src={url}
             alt={etichetta}
             draggable={false}
+            onError={() => setRotta(true)}
             className="max-w-full max-h-full object-contain rounded-lg select-none"
             style={{
               transform: `translate(${pos.x}px, ${pos.y}px) scale(${scala})`,
@@ -181,6 +186,12 @@ export default function VisoreDocumento({ url, etichetta, onChiudi }: {
             }}
           />
         </div>
+      )}
+
+      {rotta && (
+        <p role="alert" data-visore-errore className="absolute left-4 right-4 top-1/2 -translate-y-1/2 rounded-lg bg-white px-4 py-3 text-center text-sm text-green-dark">
+          {VISORE_NON_SI_APRE}
+        </p>
       )}
 
       <button type="button" onClick={onChiudi} aria-label="Chiudi" className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white text-green-dark font-bold">✕</button>

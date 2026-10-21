@@ -379,6 +379,43 @@ if (process.env.ANTEPRIMA_ARRIVI_HOME === '1') {
   )
 }
 
+// Documenti degli ospiti (21/10/2026), scenario opt-in ANTEPRIMA_DOCUMENTI=1,
+// date relative a oggi, SOLO dati sintetici; i «file» sono immagini SVG finte
+// in memoria (vedi «Archivio dei documenti finto» più sotto):
+//   «Francesca Esempio» Lena oggi→domani, 2 documenti caricati ieri (il caso di Ania)
+//   «Paolo Esempio»     Ambra oggi→+3, nessun documento (prova di caricamento)
+//   «Giulia Esempio»    Amelia −10→−8, soggiorno passato con 1 documento
+//   «Marta Esempio»     Allegra oggi→+1, 1 documento la cui riga c'è ma il file NO
+const fileDocumenti = new Map()   // percorso → { tipo, dati: Buffer }
+function immagineFinta(testo) {
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000"><rect width="1600" height="1000" fill="#e9efe6"/><rect x="40" y="40" width="1520" height="920" rx="40" fill="none" stroke="#405b4b" stroke-width="8"/><text x="800" y="420" font-family="Arial" font-size="96" text-anchor="middle" fill="#1f3a2c">DOCUMENTO DI PROVA</text><text x="800" y="560" font-family="Arial" font-size="64" text-anchor="middle" fill="#405b4b">${testo}</text><text x="800" y="700" font-family="Arial" font-size="40" text-anchor="middle" fill="#8b8f83">dati sintetici · nessun dato reale</text></svg>`)
+}
+if (process.env.ANTEPRIMA_DOCUMENTI === '1') {
+  const oggiD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const g = delta => new Date(Date.parse(oggiD + 'T12:00:00Z') + delta * 86400000).toISOString().slice(0, 10)
+  const francesca = ospite('aaaaaaaa-4101-4000-8000-000000004101', 'Francesca Esempio', '+39 333 000 4101')
+  const paolo = ospite('aaaaaaaa-4102-4000-8000-000000004102', 'Paolo Esempio', '+39 333 000 4102')
+  const giulia = ospite('aaaaaaaa-4103-4000-8000-000000004103', 'Giulia Esempio', '+39 333 000 4103')
+  const marta = ospite('aaaaaaaa-4104-4000-8000-000000004104', 'Marta Esempio', '+39 333 000 4104')
+  guests.push(francesca, paolo, giulia, marta)
+  bookings.push(
+    prenotazione(ROOM.lena, francesca.id, g(0), g(1), 1, { id: 'bbbbbbbb-4101-4000-8000-000000004101', check_in_time: '18:00', shuttle: 'no' }),
+    prenotazione(ROOM.ambra, paolo.id, g(0), g(3), 2, { id: 'bbbbbbbb-4102-4000-8000-000000004102', check_in_time: '15:00', shuttle: 'no' }),
+    prenotazione(ROOM.amelia, giulia.id, g(-10), g(-8), 1, { id: 'bbbbbbbb-4103-4000-8000-000000004103', check_in_time: '15:00', shuttle: 'no' }),
+    prenotazione(ROOM.allegra, marta.id, g(0), g(1), 1, { id: 'bbbbbbbb-4104-4000-8000-000000004104', check_in_time: '17:00', shuttle: 'no' }),
+  )
+  const ieri = `${g(-1)}T19:00:00+02:00`
+  const doc = (n, guest, lato, quando, conFile = true) => {
+    const id = `dddddddd-41${n}-4000-8000-0000000041${n}`
+    const percorso = `${guest.id}/${id}.jpg`
+    if (conFile) fileDocumenti.set(percorso, { tipo: 'image/svg+xml', dati: immagineFinta(`${guest.full_name} · ${lato}`) })
+    documenti_cliente.push({ id, guest_id: guest.id, percorso, etichetta: 'carta_identita', lato, nome_file: null, dimensione: 650000, created_at: quando })
+  }
+  doc('01', francesca, 'fronte', ieri); doc('02', francesca, 'retro', ieri)
+  doc('03', giulia, 'fronte', `${g(-10)}T16:00:00+02:00`)
+  doc('04', marta, 'fronte', ieri, false)
+}
+
 // Scenario visivo Home compatta: nessuna richiesta web, letto extra evidente.
 if (process.env.ANTEPRIMA_HOME_COMPATTA === '1') {
   for (const b of bookings) {
@@ -743,6 +780,8 @@ function rispondi(res, stato, corpo, extra = {}) {
 
 // Errori di salvataggio visibili (05/09/2026): interruttore per far fallire
 // la lettura delle richieste dal sito (bookings con source=eq.sito_web).
+let documentiGuasto = null   // archivio documenti finto: vedi /finto/documenti-guasto
+let generazioneFirme = 1
 let senzaCronologia = process.env.FINTO_SENZA_CRONOLOGIA === '1'
 let perdiRispostaSpese = false
 let spese503 = false   // salva la riga ma risponde 503 (il gateway dice errore dopo che il database ha scritto)
@@ -912,6 +951,64 @@ const finto = createServer((req, res) => {
   }
   if (erroreRichiesteWeb && url.pathname === '/rest/v1/bookings' && url.searchParams.get('source') === 'eq.sito_web') {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle richieste dal sito', details: null, hint: null })
+  }
+  // ── Archivio dei documenti finto (21/10/2026) ─────────────────────────────
+  // Come il bucket privato «documenti»: collegamenti firmati, caricamento,
+  // eliminazione. Tutto in memoria. Guasti a comando:
+  //   GET /finto/documenti-guasto?modo=firma|carica|riga|immagine|nessuno
+  //     firma    → createSignedUrl risponde 500 (rete/permessi)
+  //     carica   → l'upload del file risponde 500
+  //     riga     → il file si carica ma l'insert in documenti_cliente fallisce
+  //     immagine → il collegamento arriva ma il file risponde 500
+  //   GET /finto/scadi-collegamenti  i collegamenti già dati smettono di valere (come dopo un'ora)
+  if (url.pathname === '/finto/documenti-guasto') { documentiGuasto = url.searchParams.get('modo'); if (documentiGuasto === 'nessuno') documentiGuasto = null; return rispondi(res, 200, { documentiGuasto }) }
+  if (url.pathname === '/finto/scadi-collegamenti') { generazioneFirme += 1; return rispondi(res, 200, { generazioneFirme }) }
+  if (url.pathname === '/finto/documenti') return rispondi(res, 200, documenti_cliente.map(d => ({ id: d.id, guest_id: d.guest_id, lato: d.lato, file: fileDocumenti.has(d.percorso) })))
+  const firma = url.pathname.match(/^\/storage\/v1\/object\/sign\/documenti\/(.+)$/)
+  if (firma && req.method === 'POST') {
+    const percorso = decodeURIComponent(firma[1])
+    if (documentiGuasto === 'firma') return rispondi(res, 500, { statusCode: '500', error: 'internal', message: 'errore simulato sul collegamento' })
+    if (!fileDocumenti.has(percorso)) return rispondi(res, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' })
+    return rispondi(res, 200, { signedURL: `/object/sign/documenti/${firma[1]}?token=finto-${generazioneFirme}` })
+  }
+  if (firma && req.method === 'GET') {
+    const percorso = decodeURIComponent(firma[1])
+    const f = fileDocumenti.get(percorso)
+    if (documentiGuasto === 'immagine' || !f || url.searchParams.get('token') !== `finto-${generazioneFirme}`) {
+      res.writeHead(400, { 'Content-Type': 'application/json', ...cors }); return res.end(JSON.stringify({ message: 'collegamento scaduto o file non raggiungibile' }))
+    }
+    res.writeHead(200, { 'Content-Type': f.tipo, ...cors }); return res.end(f.dati)
+  }
+  const carica = url.pathname.match(/^\/storage\/v1\/object\/documenti\/(.+)$/)
+  if (carica && req.method === 'POST') {
+    const parti = []
+    req.on('data', c => parti.push(c))
+    return req.on('end', () => {
+      if (documentiGuasto === 'carica') return rispondi(res, 500, { statusCode: '500', error: 'internal', message: 'errore simulato sul caricamento' })
+      const percorso = decodeURIComponent(carica[1])
+      // il corpo può essere il file nudo o un multipart: per l'anteprima basta mostrarne uno finto
+      const nome = documenti_cliente.length + 1
+      fileDocumenti.set(percorso, { tipo: 'image/svg+xml', dati: immagineFinta(`caricato in prova n. ${nome} · ${Buffer.concat(parti).length} byte`) })
+      console.log(`[finto supabase] documento caricato: ${percorso.slice(-12)}`)
+      return rispondi(res, 200, { Key: `documenti/${percorso}`, Id: randomUUID() })
+    })
+  }
+  if (url.pathname === '/storage/v1/object/documenti' && req.method === 'DELETE') {
+    return leggiCorpo(req).then(corpo => { for (const p of corpo?.prefixes || []) fileDocumenti.delete(p); return rispondi(res, 200, []) })
+  }
+  if (url.pathname === '/rest/v1/documenti_cliente' && req.method === 'POST') {
+    return leggiCorpo(req).then(corpo => {
+      if (documentiGuasto === 'riga') return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul salvataggio della riga' })
+      const riga = { lato: null, nome_file: null, created_at: new Date().toISOString(), ...(Array.isArray(corpo) ? corpo[0] : corpo) }
+      documenti_cliente.push(riga)
+      const accept = req.headers.accept || ''
+      return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? riga : [riga])
+    })
+  }
+  if (url.pathname === '/rest/v1/documenti_cliente' && req.method === 'DELETE') {
+    const righe = righeFiltrate('documenti_cliente', url)
+    for (const r of righe) documenti_cliente.splice(documenti_cliente.indexOf(r), 1)
+    return rispondi(res, 200, righe)
   }
   if (url.pathname === '/auth/v1/token') return rispondi(res, 200, sessione())
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)

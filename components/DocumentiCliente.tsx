@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import {
-  ETICHETTE, LATO_MAX, etichettaLeggibile, percorsoDocumento, tipoAccettato, misureRidotte, dimensioneLeggibile, rigaDocumenti, raccogliAnteprime,
+  ETICHETTE, LATO_MAX, etichettaLeggibile, percorsoDocumento, tipoAccettato, misureRidotte, dimensioneLeggibile, rigaDocumenti, raccogliAnteprime, erroreApertura, APRO_DOCUMENTO,
   type DocumentoCliente, type EtichettaDocumento, type LatoDocumento,
 } from '@/lib/documentiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
@@ -50,7 +50,9 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
   const [etichetta, setEtichetta] = useState<EtichettaDocumento>('carta_identita')
   const [lato, setLato] = useState<LatoDocumento | null>(null)
   const [daCancellare, setDaCancellare] = useState<DocumentoCliente | null>(null)
-  const [aperto, setAperto] = useState<DocumentoCliente | null>(null)   // documento a schermo intero
+  // documento a schermo intero, col collegamento chiesto AL TOCCO (21/10/2026)
+  const [aperto, setAperto] = useState<{ doc: DocumentoCliente; url: string } | null>(null)
+  const [aprendo, setAprendo] = useState<string | null>(null)   // id del documento che si sta aprendo
   // Parte 3 (05/09/2026): anteprime non ottenute → avviso con Riprova, non caselle vuote
   const [erroreAnteprime, setErroreAnteprime] = useState<string | null>(null)
 
@@ -114,6 +116,23 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
     setCaricando(false)
   }
 
+  // Un collegamento NUOVO a ogni tocco: quello delle anteprime può essere scaduto
+  async function apri(d: DocumentoCliente) {
+    if (aprendo) return
+    setErrore(null)
+    setAprendo(d.id)
+    try {
+      const { data: u, error } = await supabase.storage.from(BUCKET).createSignedUrl(d.percorso, 3600)
+      if (error || !u?.signedUrl) { setErrore(erroreApertura(error)); return }
+      setAnteprime(a => ({ ...a, [d.id]: u.signedUrl }))
+      setAperto({ doc: d, url: u.signedUrl })
+    } catch (e) {
+      setErrore(erroreApertura(e as { message?: string }))
+    } finally {
+      setAprendo(null)
+    }
+  }
+
   async function cancella(d: DocumentoCliente) {
     setErrore(null)
     const { error: e1 } = await supabase.from('documenti_cliente').delete().eq('id', d.id)
@@ -145,12 +164,14 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
             <ul className="cli-doc-griglia" data-griglia-documenti>
               {documenti.map(d => (
                 <li key={d.id} data-documento={d.id}>
-                  <button type="button" onClick={() => anteprime[d.id] && setAperto(d)} className="ant" aria-label={`Apri ${etichettaLeggibile(d)}`}>
-                    {anteprime[d.id] ? (
+                  {/* il tocco apre SEMPRE (anche senza anteprima): il collegamento si chiede ora */}
+                  <button type="button" onClick={() => apri(d)} className="ant" aria-label={`Apri ${etichettaLeggibile(d)}`} data-apri-documento={d.id} aria-busy={aprendo === d.id}>
+                    {aprendo === d.id ? <span className="text-xs">{APRO_DOCUMENTO}</span> : anteprime[d.id] ? (
                       d.percorso.endsWith('.pdf')
                         ? <span className="pdf">📄</span>
                         // eslint-disable-next-line @next/next/no-img-element
-                        : <img src={anteprime[d.id]} alt={etichettaLeggibile(d)} />
+                        : <img src={anteprime[d.id]} alt={etichettaLeggibile(d)}
+                          onError={() => { setAnteprime(a => { const n = { ...a }; delete n[d.id]; return n }); setErroreAnteprime(raccogliAnteprime([{ id: d.id, url: null, error: true }]).errore) }} />
                     ) : <span>…</span>}
                   </button>
                   <p className="et">{etichettaLeggibile(d)}</p>
@@ -202,8 +223,8 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
         </FoglioMaison>
       )}
 
-      {aperto && anteprime[aperto.id] && (
-        <VisoreDocumento url={anteprime[aperto.id]} etichetta={etichettaLeggibile(aperto)} onChiudi={() => setAperto(null)} />
+      {aperto && (
+        <VisoreDocumento key={aperto.url} url={aperto.url} etichetta={etichettaLeggibile(aperto.doc)} onChiudi={() => setAperto(null)} />
       )}
     </section>
   )
