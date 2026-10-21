@@ -598,7 +598,10 @@ export default function SchedaPage() {
     inBreve.push({ chiave: 'conto', etichetta: 'Conto', valori: [CONTO_DA_RILEGGERE], tono: 'mat' })
   }
   const documentoBreve = documentoInBreve(documenti)
-  if (documentoBreve) inBreve.push({ chiave: 'documento', etichetta: 'Documento', valori: [documentoBreve.testo], tono: documentoBreve.manca ? 'mat' : undefined })
+  if (documentoBreve) inBreve.push({
+    chiave: 'documento', etichetta: 'Documento', valori: [documentoBreve.testo], tono: documentoBreve.manca ? 'mat' : undefined,
+    comando: hrefCliente ? { testo: documentoBreve.comando, href: `${hrefCliente}#documenti` } : null,
+  })
   const noteBreve = noteInBreve(note)
   if (noteBreve) inBreve.push({ chiave: 'note', etichetta: 'Note', valori: [noteBreve] })
   // «Da fare oggi»: le voci di «Da controllare», ognuna con UNA azione

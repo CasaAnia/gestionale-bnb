@@ -14,7 +14,11 @@ import Link from 'next/link'
 import { TUTTO_A_POSTO } from '@/lib/schedaPrenotazione'
 import { IN_BREVE, DA_FARE_OGGI, PROSSIMI_GIORNI, type GiornoProssimo, type AzioneDaFare } from '@/lib/schedaMaison'
 
-export type RigaInBreve = { chiave: string; etichetta: string; valori: string[]; tono?: 'mat' | 'verde' }
+export type RigaInBreve = {
+  chiave: string; etichetta: string; valori: string[]; tono?: 'mat' | 'verde'
+  /** un comando piccolo sotto il valore (per ora solo «Documento»: aggiungi o apri) */
+  comando?: { testo: string; href: string } | null
+}
 export type VoceDaFare = {
   chiave: string
   titolo: string
@@ -35,6 +39,7 @@ export default function OggiScheda({ inBreve, daFare, prossimi }: { inBreve: Rig
             <span>{r.etichetta}</span>
             <b className={r.tono ?? ''}>
               {r.valori.map((v, i) => (i === 0 ? <span key={i} className="primo">{v}</span> : <span key={i} className="sotto">{v}</span>))}
+              {r.comando && <span className="sotto"><Link href={r.comando.href} data-comando-breve={r.chiave} className="mz-lnk q sch-lnk-piccolo">{r.comando.testo}</Link></span>}
             </b>
           </div>
         ))}

@@ -81,3 +81,15 @@ export function raccogliAnteprime(
 export function rigaDocumenti(n: number): string {
   return n === 0 ? 'Nessun documento' : n === 1 ? 'Documenti · 1' : `Documenti · ${n}`
 }
+
+// Apertura (21/10/2026): il collegamento firmato vale un'ora e la pagina può
+// restare aperta di più (la PWA torna da WhatsApp con la pagina vecchia).
+// Il tocco su un documento chiede SEMPRE un collegamento nuovo; se non arriva
+// o l'immagine non si carica lo si dice, mai un vuoto né un falso «aperto».
+export const APRO_DOCUMENTO = 'Apro il documento…'
+export const VISORE_NON_SI_APRE = 'Il documento non si apre. Chiudi e toccalo di nuovo; se non si apre ancora, controlla la connessione.'
+export function erroreApertura(e: { message?: string } | null | undefined): string {
+  const m = e?.message || ''
+  if (/not.?found|404|Object not found/i.test(m)) return 'Il file di questo documento non risulta nell’archivio: avvisa chi gestisce il gestionale. La scheda del documento resta com’è.'
+  return 'Non riesco ad aprire il documento: controlla la connessione e riprova.'
+}
