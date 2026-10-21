@@ -161,6 +161,26 @@ const richieste = [
   richiesta({ nome: 'Giulia', cognome: 'Gallo', arrivo: giorni(2), partenza: giorni(4), persone: 2, canale: 'whatsapp', created_at: fa(60 * 24 * 2), stato: 'rifiutata', chiusa_at: fa(60 * 24), motivo_rifiuto: 'detto_no' }),   // rifiuto con motivo (07/09/2026): «Rifiutata da te · ha detto di no · …»
   richiesta({ nome: 'Vecchia', cognome: 'Chiusa', arrivo: giorni(-120), partenza: giorni(-118), persone: 1, canale: 'web', created_at: fa(60 * 24 * 130), stato: 'confermata', chiusa_at: fa(60 * 24 * 120) }),
 ]
+// Conferma senza doppioni (21/10/2026, rilievo R2): tre proposte inviate con
+// una camera sola, il cui numero è in archivio in forme diverse
+//   Pia  → una scheda «3330000201»: la richiesta prende quella forma
+//   Gea  → due schede dello stesso numero in forme diverse: si sceglie
+//   Ida  → due schede con le STESSE cifre: la conferma si ferma
+const soluzioneFinta = (camera, nome, arrivo, partenza) => ({ caso: 'completa', nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160,
+  segmenti: [{ camera: { id: camera, name: nome }, arrivo, partenza, notti: 2, prezzoNotte: 80, lettoTotale: 0, totale: 160 }] })
+richieste.push(
+  richiesta({ nome: 'Pia', cognome: 'Allinea', arrivo: giorni(150), partenza: giorni(152), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0201', created_at: fa(5), stato: 'proposta_inviata', proposta_inviata_at: fa(4), proposta_soluzione: soluzioneFinta(ROOM.amelia, 'Amelia', giorni(150), giorni(152)) }),
+  richiesta({ nome: 'Gea', cognome: 'Scelta', arrivo: giorni(150), partenza: giorni(152), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0202', created_at: fa(5), stato: 'proposta_inviata', proposta_inviata_at: fa(4), proposta_soluzione: soluzioneFinta(ROOM.allegra, 'Allegra', giorni(150), giorni(152)) }),
+  richiesta({ nome: 'Ida', cognome: 'Gemelle', arrivo: giorni(150), partenza: giorni(152), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0203', created_at: fa(5), stato: 'proposta_inviata', proposta_inviata_at: fa(4), proposta_soluzione: soluzioneFinta(ROOM.ambra, 'Ambra', giorni(150), giorni(152)) }),
+)
+const schedaFinta = (id, full_name, phone) => ({ id, phone, full_name, email: null, rating: 'normale', vuole_ricevuta: false, motivo_problematico: null, notes: null, created_at: ora, updated_at: ora })
+guests.push(
+  schedaFinta('aaaaaaaa-0201-4000-8000-000000000201', 'Pia Allinea', '3330000201'),
+  schedaFinta('aaaaaaaa-0202-4000-8000-000000000202', 'Gea Uno', '3330000202'),
+  schedaFinta('aaaaaaaa-0212-4000-8000-000000000212', 'Gea Due', '+39 333-000-0202'),
+  schedaFinta('aaaaaaaa-0203-4000-8000-000000000203', 'Ida Prima', '393330000203'),
+  schedaFinta('aaaaaaaa-0213-4000-8000-000000000213', 'Ida Seconda', '+39 333 000 0203'),
+)
 
 const payments = [{ id: 'pppppppp-0001-4000-8000-000000000001', booking_id: 'bbbbbbbb-0006-4000-8000-000000000006', amount: 70 }]
 const tabelle = { rooms, guests, bookings, richieste, payments }
@@ -250,12 +270,17 @@ function rispondi(res, stato, corpo, extra = {}) {
 }
 const leggiCorpo = req => new Promise(ok => { let s = ''; req.on('data', c => { s += c }); req.on('end', () => ok(s)) })
 
+let erroreGuests = false
 const finto = createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORTA_FINTO}`)
   if (req.method === 'OPTIONS') return rispondi(res, 204)
   if (url.pathname === '/auth/v1/token') return rispondi(res, 200, sessione())
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)
   if (url.pathname === '/auth/v1/logout') return rispondi(res, 204)
+  // GET /finto/errore-guests?on=1|0 (21/10/2026): la lettura delle schede
+  // cliente risponde 500, per provare che la conferma non parte alla cieca
+  if (url.pathname === '/finto/errore-guests') { erroreGuests = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreGuests }) }
+  if (erroreGuests && url.pathname === '/rest/v1/guests' && req.method === 'GET') return rispondi(res, 500, { code: 'FINTO', message: 'lettura clienti non riuscita (simulata)', details: null, hint: null })
   const m = url.pathname.match(/^\/rest\/v1\/(\w+)$/)
   if (m && (req.method === 'GET' || req.method === 'HEAD')) {
     const righe = interroga(m[1], url)

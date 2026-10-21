@@ -9,12 +9,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   chiaveTelefono, stessoNumero, schedeConNumero, schedaConNumero, filtriTelefonoRicerca, sembraTelefono, ordinaPerNumeroUguale,
-  schedeCheLaConfermaNonVede, testoNumeroGiaInArchivio, schemaRicercaTelefono,
+  decisioneConferma, testoNumeroGiaInArchivio, schemaRicercaTelefono,
 } from './clienteTelefono.ts'
 import { matchTelefono } from './ricerca.ts'
 import { filtraClienti } from './cambiaCliente.ts'
 import { filtraElenco } from './clientiElenco.ts'
-import { moduloDaRicerca, campiNuovoCliente, telefonoDaSalvare } from './datiCliente.ts'
+import { moduloDaRicerca, campiNuovoCliente, telefonoDaSalvare, campiDaModulo } from './datiCliente.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { conIniziali, conInizialiDigitando } from './maiuscole.ts'
 
@@ -156,24 +156,75 @@ test('dalla ricerca al cliente nuovo: il numero incollato da WhatsApp resta nel 
   assert.deepEqual([m.nome, m.cognome, chiaveTelefono(m.telefono)], ['Mario', 'Rossi', '393331234567'])
 })
 
-test('il telefono si salva col prefisso del paese, senza invisibili; quello che non si riconosce resta com\'è', () => {
-  assert.equal(telefonoDaSalvare(`${LRE}+39 333 123 4567${PDF}`), '393331234567')
-  assert.equal(telefonoDaSalvare('0044 7700 900123'), '447700900123')
+test('il telefono si salva con + e il prefisso del paese, senza invisibili; quello che non si riconosce resta com\'è', () => {
+  assert.equal(telefonoDaSalvare(`${LRE}+39 333 123 4567${PDF}`), '+393331234567')
+  assert.equal(telefonoDaSalvare('0044 7700 900123'), '+447700900123')
   assert.equal(telefonoDaSalvare(`333${NBSP}12`), '33312')
   const campi = campiNuovoCliente({ ...moduloDaRicerca(''), nome: 'anna', cognome: "d'angelo", telefono: '+39 333 123 4567' }, false)
-  assert.equal(campi.phone, '393331234567')
+  assert.equal(campi.phone, '+393331234567')
   assert.equal(campi.full_name, "Anna D'Angelo")
   // WhatsApp e numeroUsabile non si fanno ingannare dai segni invisibili davanti a 0039
   assert.equal(normalizzaTelefono(`${LRE}0039 333 1234567${PDF}`).numero, '393331234567')
 })
 
-test('conferma di una richiesta: avvisa quando la RPC non vedrebbe la scheda dello stesso numero', () => {
-  const schede = [{ full_name: 'Anna Prova', phone: '3331234567' }]
-  assert.equal(schedeCheLaConfermaNonVede('+393331234567', schede).length, 1)
-  // con le stesse cifre la RPC la ritrova: nessun avviso
-  assert.equal(schedeCheLaConfermaNonVede('3331234567', schede).length, 0)
-  assert.equal(schedeCheLaConfermaNonVede('+393331234567', [...schede, { full_name: 'Anna Prova', phone: '+39 333 123 4567' }]).length, 0)
-  assert.equal(schedeCheLaConfermaNonVede('', schede).length, 0)
+test('R2: conferma di una richiesta — mai un doppione, scelta esplicita, blocco nei casi indistinguibili', () => {
+  const tina = { id: 't', full_name: 'Tina Prova', phone: '3339990001' }
+  const tina2 = { id: 't2', full_name: 'Tina Due', phone: '+39 333-999-0001' }
+  const gemella = { id: 'g', full_name: 'Tina Gemella', phone: '393339990001' }
+  const altro = { id: 'x', full_name: 'Altro', phone: '+44 333 999 0001' }
+  // nessuna scheda: la RPC crea la nuova
+  assert.deepEqual(decisioneConferma('+39 345 111 2233', [altro], null), { tipo: 'libera', scheda: null })
+  // stessa forma: la RPC la trova da sola
+  assert.deepEqual(decisioneConferma('333 999 0001', [tina], null), { tipo: 'libera', scheda: tina })
+  // altra forma: il telefono della richiesta prende quella della scheda
+  assert.deepEqual(decisioneConferma('+39 333 999 0001', [tina, altro], null), { tipo: 'allinea', scheda: tina, telefono: '3339990001' })
+  // più schede: si sceglie, poi si allinea a quella scelta
+  assert.deepEqual(decisioneConferma('+39 333 999 0001', [tina, tina2], null), { tipo: 'scegli', schede: [tina, tina2] })
+  // scelta Tina Due: ha già le stesse cifre della richiesta, la RPC la trova da sola
+  assert.deepEqual(decisioneConferma('+39 333 999 0001', [tina, tina2], 't2'), { tipo: 'libera', scheda: tina2 })
+  // scelta Tina: forma diversa, il telefono della richiesta prende la sua
+  assert.deepEqual(decisioneConferma('+39 333 999 0001', [tina, tina2], 't'), { tipo: 'allinea', scheda: tina, telefono: '3339990001' })
+  // scelta che non è fra quelle dello stesso numero: si richiede la scelta
+  assert.equal(decisioneConferma('+39 333 999 0001', [tina, tina2], 'x').tipo, 'scegli')
+  // stesse cifre su due schede: la RPC non saprebbe quale → bloccata
+  const b = decisioneConferma('+39 333 999 0001', [tina2, gemella, tina], 'g')
+  assert.equal(b.tipo, 'bloccata')
+  assert.match(b.tipo === 'bloccata' ? b.motivo : '', /Non creo la prenotazione/)
+  // richiesta senza telefono: regola di sempre della RPC
+  assert.equal(decisioneConferma('', [tina], null).tipo, 'libera')
+})
+
+// La RPC simulata con la stessa regola delle cifre (migrazioni 0027/0031),
+// per provare il ciclo intero: decisione → allineamento → RPC → rilettura
+function rpcConferma(telefono: string, guests: { id: string; phone: string; created_at: number }[]) {
+  const cifre = telefono.replace(/\D/g, '')
+  const trovata = guests.filter(g => g.phone.replace(/\D/g, '') === cifre).sort((a, b) => a.created_at - b.created_at)[0]
+  if (trovata) return trovata.id
+  const nuova = { id: `n${guests.length}`, phone: cifre, created_at: Date.now() }
+  guests.push(nuova)
+  return nuova.id
+}
+
+test('R2: ciclo intero con la regola della RPC — nessuna scheda in più, prenotazione sulla scheda giusta', () => {
+  const casi: [string, { id: string; phone: string; full_name: string }[], string | null, string][] = [
+    ['+39 333 999 0001', [{ id: 'a', phone: '3339990001', full_name: 'A' }], null, 'a'],
+    [`${LRE}0039 333 999 0001${PDF}`, [{ id: 'a', phone: '+39 333 999 0001', full_name: 'A' }], null, 'a'],
+    ['+39 333 999 0001', [{ id: 'a', phone: '3339990001', full_name: 'A' }, { id: 'b', phone: '+393339990001', full_name: 'B' }], 'b', 'b'],
+    ['+45 32 12 34 56', [{ id: 'd', phone: '+4532123456', full_name: 'D' }], null, 'd'],
+  ]
+  for (const [telefono, schede, scelta, attesa] of casi) {
+    const guests = schede.map((g, i) => ({ ...g, created_at: i }))
+    const d = decisioneConferma(telefono, schede, scelta)
+    assert.ok(d.tipo === 'libera' || d.tipo === 'allinea', `${telefono}: ${d.tipo}`)
+    const telefonoRichiesta = d.tipo === 'allinea' ? d.telefono : telefono
+    const prima = guests.length
+    assert.equal(rpcConferma(telefonoRichiesta, guests), attesa, telefono)
+    assert.equal(guests.length, prima, `${telefono}: nessuna scheda nuova`)
+  }
+  // e SENZA la decisione la RPC avrebbe creato il doppione (il difetto)
+  const guests = [{ id: 'a', phone: '3339990001', created_at: 0 }]
+  rpcConferma('+39 333 999 0001', guests)
+  assert.equal(guests.length, 2)
 })
 
 test('nome e cognome: iniziale maiuscola, accenti/apostrofi/trattini conservati, il resto non si tocca', () => {
@@ -205,8 +256,78 @@ test('guardie sui sorgenti: ogni percorso usa la regola comune e non crea doppio
   assert.doesNotMatch(clienti, /`39\$\{rawP\}`/)
   assert.match(leggi('lib/provenienzaDati.ts'), /cercaSchedaPerTelefono</)
   assert.match(leggi('app/api/richieste/web/route.ts'), /schedeConNumero\(/)
-  assert.match(leggi('components/richieste/FinestraConferma.tsx'), /schedeCheLaConfermaNonVede\(richiesta\.telefono/)
+  // R2: la conferma decide prima della RPC e si ferma nei casi non sicuri
+  const conferma = leggi('components/richieste/FinestraConferma.tsx')
+  assert.match(conferma, /decisioneConferma\(richiesta\.telefono, archivio\.schede, sceltaScheda\)/)
+  assert.match(conferma, /if \(fermo \|\| !decisione\) \{ setErrore/)
+  assert.match(conferma, /allineaTelefonoRichiesta\(richiesta\.id, decisione\.telefono\)[\s\S]*?confermaRichiesta\(/)
+  assert.match(conferma, /disabilitato=\{!sol \|\| !!fermo\}/)
+  // R3: la pagina vecchia /nuova non sceglie da sola e non crea alla cieca
+  const vecchia = leggi('app/nuova/page.tsx')
+  assert.match(vecchia, /if \(erroreNumero\) \{/)
+  assert.match(vecchia, /if \(schede\.length > 1\) \{\s*setSchedeDoppie\(schede\)/)
+  assert.match(vecchia, /if \(esistenti\.length > 1\)/)
+  assert.doesNotMatch(vecchia, /`39\$\{cifre\}`/)
   assert.match(leggi('lib/clientiElenco.ts'), /matchTelefono\(g\.phone, ricerca\)/)
   // «Dati della cliente»: il numero cambiato non può finire su due schede
   assert.match(leggi('components/scheda/FoglioCliente.tsx'), /const altre = gia\.schede\.filter\(g => g\.id !== cliente\.id\)/)
+})
+
+// ── R1 di Codex (21/10/2026): il ciclo intero, non il solo confronto in memoria
+// inserimento → controllo doppioni → salvataggio → rilettura → riconoscimento
+// da ogni percorso, con numeri esteri di lunghezze diverse
+const ESTERI: [string, string[]][] = [
+  ['+45 32 12 34 56', ['0045 32123456', `${LRE}+45 3212 3456${PDF}`, '+4532123456']],           // Danimarca, 8 cifre
+  ['+354 555 1234', ['00354 555-1234', `${FSI}+354 5551234${PDI}`, '+3545551234']],             // Islanda, 7 cifre
+  ['+44 7700 900123', ['0044 7700 900 123', '+447700900123']],                                 // Regno Unito
+  ['+48 600 000 000', ['0048 600-000-000', '48600000000']],                                     // Polonia
+  ['+1 (212) 555-0100', ['001 212 555 0100', '+12125550100']],                                  // Stati Uniti
+  ['+49 30 1234567', ['0049 30 123 4567', '+49301234567']],                                     // Germania, fisso
+  ['+39 333 123 4567', ['3331234567', '0039 333-123-4567', '393331234567']],                    // Italia
+  ['+39 02 1234567', ['02 1234567', '0039 02 1234567']],                                        // Italia, fisso
+  ['+39 06 12345', ['06 12345']],                                                               // Italia, fisso corto
+]
+
+test('R1: ogni numero, salvato e riletto, resta lo stesso numero dello stesso paese', () => {
+  for (const [scritto, altre] of ESTERI) {
+    const salvato = telefonoDaSalvare(scritto)
+    assert.ok(salvato.startsWith('+'), `${scritto} → ${salvato}`)
+    assert.equal(chiaveTelefono(salvato), chiaveTelefono(scritto), `rilettura ${scritto} → ${salvato}`)
+    assert.ok(stessoNumero(salvato, scritto), scritto)
+    // salvato e risalvato (riapertura e «Salva» senza cambiare): identico
+    assert.equal(telefonoDaSalvare(salvato), salvato)
+    // dagli altri percorsi, scritto in un'altra forma
+    for (const altra of altre) {
+      assert.ok(stessoNumero(altra, salvato), `${altra} ~ ${salvato}`)
+      const filtri = filtriTelefonoRicerca(altra).map(f => f.replace(/^phone\.ilike\./, ''))
+      assert.ok(filtri.some(f => ilike(salvato, f)), `ricerca ${altra} → ${salvato}`)
+      assert.ok(ilike(salvato, schemaRicercaTelefono(altra)!), `controllo doppioni ${altra} → ${salvato}`)
+      assert.ok(matchTelefono(salvato, altra), `a schermo ${altra} → ${salvato}`)
+    }
+  }
+  // le riproduzioni di Codex
+  assert.equal(telefonoDaSalvare('+45 32 12 34 56'), '+4532123456')
+  assert.equal(chiaveTelefono(telefonoDaSalvare('+45 32 12 34 56')), '4532123456')
+  assert.equal(telefonoDaSalvare('+354 555 1234'), '+3545551234')
+  assert.notEqual(chiaveTelefono(telefonoDaSalvare('+354 555 1234')), '393545551234')
+})
+
+test('R1: paesi diversi restano distinti anche dopo il salvataggio', () => {
+  const salvati = ESTERI.map(([s]) => telefonoDaSalvare(s))
+  for (let i = 0; i < salvati.length; i++) for (let j = 0; j < salvati.length; j++)
+    if (i !== j) assert.ok(!stessoNumero(salvati[i], salvati[j]), `${salvati[i]} ≠ ${salvati[j]}`)
+  // Islanda salvata non è il cellulare italiano con le stesse cifre
+  assert.ok(!stessoNumero(telefonoDaSalvare('+354 555 1234'), '+39 354 555 1234'))
+  assert.ok(!stessoNumero(telefonoDaSalvare('+45 32 12 34 56'), '+39 3212 3456'))
+})
+
+test('R1: anche «Dati della cliente» salva il paese (campiDaModulo)', () => {
+  const c = { id: 'x', full_name: 'Prova Estera', phone: '+4532123456' }
+  const base = { ...moduloDaRicerca(''), nome: 'Prova', cognome: 'Estera' }
+  const r = campiDaModulo({ ...base, telefono: '+354 555 1234' }, c, { colonnaRicevuta: true, conProvenienza: false })
+  assert.ok(r.ok)
+  assert.equal(r.ok && r.campi.phone, '+3545551234')
+  // numero invariato: non si riscrive
+  const stesso = campiDaModulo({ ...base, telefono: '+4532123456' }, c, { colonnaRicevuta: true, conProvenienza: false })
+  assert.equal(stesso.ok && stesso.campi.phone, '+4532123456')
 })

@@ -29,6 +29,7 @@ import {
   type ClienteBreve, type PrenotazionePerCambio,
 } from '@/lib/cambiaCliente'
 import SchedeStessoNumero from '@/components/SchedeStessoNumero'
+import { creaRicercaRitardata, type RicercaRitardata } from '@/lib/ricercaRitardata'
 import { cercaClientiPerCambio, soggiorniConclusiDeiClienti, creaClienteNuovo, scriviCambioCliente, documentiDelCliente, spostaDocumenti } from '@/lib/cambiaClienteDati'
 import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
@@ -62,9 +63,7 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
   const [spostaDoc, setSpostaDoc] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // risposte della ricerca fuori tempo: vale solo l'ultima (21/10/2026)
-  const giroRicerca = useRef(0)
+  const motoreRicerca = useRef<RicercaRitardata | null>(null)
   // il numero del cliente nuovo è già su queste schede: si sceglie, non si crea
   const [schedeDoppie, setSchedeDoppie] = useState<ClienteBreve[]>([])
 
@@ -80,21 +79,23 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
 
   // La ricerca: nome o telefono, con la regola già in uso (cercaClientiPerCambio,
   // mai il cliente attuale); un quarto di secondo dopo l'ultimo tasto.
+  // ogni tasto rende subito superata la ricerca precedente (lib/ricercaRitardata, R4 del 21/10/2026)
   function scriviRicerca(v: string) {
     setRicerca(v)
-    if (timer.current) clearTimeout(timer.current)
-    const testo = v.trim()
-    if (testo.length < 2) { giroRicerca.current++; setRisultati([]); return }
-    timer.current = setTimeout(() => { void cerca(testo) }, 250)
+    if (!motoreRicerca.current) {
+      motoreRicerca.current = creaRicercaRitardata({
+        cerca: (testo: string) => cercaClientiPerCambio(testo, clienteAttuale?.id),
+        mostra: esito => {
+          if (!esito) { setRisultati([]); setErroreRicerca(null); return }
+          setErroreRicerca(esito.risultato.errore)
+          setRisultati(esito.risultato.clienti)
+          void soggiorniConclusiDeiClienti(esito.risultato.clienti.map(c => c.id), oggi).then(setSoggiorni)
+        },
+      })
+    }
+    motoreRicerca.current.scrivi(v)
   }
-  async function cerca(testo: string) {
-    const giro = ++giroRicerca.current
-    const r = await cercaClientiPerCambio(testo, clienteAttuale?.id)
-    if (giro !== giroRicerca.current) return
-    setErroreRicerca(r.errore)
-    setRisultati(r.clienti)
-    setSoggiorni(await soggiorniConclusiDeiClienti(r.clienti.map(c => c.id), oggi))
-  }
+  useEffect(() => () => motoreRicerca.current?.ferma(), [])
 
   async function spostaDocumentiPoiChiudi(cliente: ClienteBreve) {
     let avviso: string | null = null

@@ -5,10 +5,15 @@
 -- confrontando le SOLE cifre esatte del telefono:
 --     regexp_replace(g.phone, '\D', '', 'g') = regexp_replace(r.telefono, '\D', '', 'g')
 -- Una richiesta «+39 333 123 4567» (cifre 393331234567) NON ritrova la scheda
--- salvata «3331234567» e ne crea una seconda. Dal 21/10/2026 il gestionale
--- salva i numeri nuovi a sole cifre col prefisso del paese e avvisa nella
--- finestra di conferma (components/richieste/FinestraConferma), ma le schede
--- vecchie restano nelle loro forme: la correzione vera è qui.
+-- salvata «3331234567» e ne crea una seconda. Dal 21/10/2026 (rilievo R2 di
+-- Codex) il gestionale lo impedisce già dal lato dell'app, senza migrazione:
+-- prima della RPC la finestra di conferma (components/richieste/
+-- FinestraConferma, decisioneConferma in lib/clienteTelefono) allinea il
+-- telefono della richiesta alla forma della scheda, fa scegliere fra più
+-- schede e si ferma quando la RPC non saprebbe distinguerle o quando il
+-- controllo non riesce. Questa migrazione serve a non dipendere solo
+-- dall'app e a togliere il blocco «stesse cifre su più schede»: resta
+-- FACOLTATIVA e da autorizzare. I numeri nuovi si salvano «+» e cifre.
 --
 -- Cosa fa: (1) la funzione public.chiave_telefono, gemella di chiaveTelefono
 -- in lib/clienteTelefono.ts (stesse regole, stessi casi null); (2) nella RPC il

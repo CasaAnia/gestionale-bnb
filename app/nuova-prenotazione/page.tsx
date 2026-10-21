@@ -31,6 +31,7 @@ import { numeroUsabile } from '@/lib/whatsapp'
 import { chiaveTelefono, ordinaPerNumeroUguale, stessoNumero } from '@/lib/clienteTelefono'
 import { cercaSchedaPerTelefono, leggiClientiPerRicerca } from '@/lib/clienteTelefonoDati'
 import SchedeStessoNumero from '@/components/SchedeStessoNumero'
+import { creaRicercaRitardata, type RicercaRitardata } from '@/lib/ricercaRitardata'
 import type { StrutturaNota } from '@/lib/provenienza'
 import CameraSoggiorno from '@/components/nuova/CameraSoggiorno'
 import ArrivoNavetta from '@/components/ArrivoNavetta'
@@ -99,8 +100,7 @@ export default function NuovaPrenotazionePage() {
   const [struttureOk, setStruttureOk] = useState(false)
   const [salvandoCliente, setSalvandoCliente] = useState(false)
   const [avviso, setAvviso] = useState<string | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const giroRicerca = useRef(0)
+  const motoreRicerca = useRef<RicercaRitardata | null>(null)
   const giroNumero = useRef(0)
   // le schede che hanno già il numero del cliente nuovo (21/10/2026)
   const [schedeDoppie, setSchedeDoppie] = useState<ClienteRiga[]>([])
@@ -192,7 +192,7 @@ export default function NuovaPrenotazionePage() {
     if (p.prenotazione) setAggiungoA({ prenotazione: p.prenotazione, guestId: p.guestId })
     if (p.guestId) {
       void supabase.from('guests').select('*').eq('id', p.guestId).maybeSingle().then(({ data }) => {
-        if (data) { setCliente(data as ClienteRiga); setRicerca(''); setRisultati([]); void leggiStorico([String(data.id)]) }
+        if (data) { setCliente(data as ClienteRiga); scriviRicerca(''); void leggiStorico([String(data.id)]) }
       })
     }
   }
@@ -245,26 +245,31 @@ export default function NuovaPrenotazionePage() {
   // un quarto di secondo dall'ultimo tasto, come nell'inserimento di adesso.
   function scriviRicerca(v: string) {
     setRicerca(v)
-    if (timer.current) clearTimeout(timer.current)
-    const testo = v.trim()
-    if (testo.length < 2) { giroRicerca.current++; setRisultati([]); return }
-    timer.current = setTimeout(() => { void cerca(testo) }, 250)
+    ricercaInCorso().scrivi(v)
   }
 
   // Il numero si trova in qualunque forma, scritta o in archivio: +39, 0039,
   // spazi e segni invisibili di WhatsApp (lib/clienteTelefonoDati, 21/10/2026).
-  // Vale solo la risposta dell'ultima ricerca: una lettura lenta di un testo
-  // precedente non sovrascrive l'elenco.
-  async function cerca(testo: string) {
-    const giro = ++giroRicerca.current
-    setErroreRicerca(null)
-    const { righe, errore } = await leggiClientiPerRicerca<ClienteRiga>(testo, '*', 30)
-    if (giro !== giroRicerca.current) return
-    if (errore) { setErroreRicerca(messaggioLetturaNonRiuscita(errore, 'cercare il cliente')); setRisultati([]); return }
-    const trovati = ordinaPerNumeroUguale(filtraClienti(testo, righe), testo)
-    setRisultati(trovati)
-    await leggiStorico(trovati.map(c => c.id))
+  // Ogni tasto rende subito superata la ricerca precedente, anche se è già
+  // partita: i suoi risultati spariscono e non tornano (lib/ricercaRitardata,
+  // rilievo R4 del 21/10/2026).
+  function ricercaInCorso() {
+    if (!motoreRicerca.current) {
+      motoreRicerca.current = creaRicercaRitardata({
+        cerca: (testo: string) => leggiClientiPerRicerca<ClienteRiga>(testo, '*', 30),
+        mostra: esito => {
+          if (!esito) { setRisultati([]); setErroreRicerca(null); return }
+          const { testo, risultato: { righe, errore } } = esito
+          if (errore) { setErroreRicerca(messaggioLetturaNonRiuscita(errore, 'cercare il cliente')); setRisultati([]); return }
+          const trovati = ordinaPerNumeroUguale(filtraClienti(testo, righe), testo)
+          setRisultati(trovati)
+          void leggiStorico(trovati.map(c => c.id))
+        },
+      })
+    }
+    return motoreRicerca.current
   }
+  useEffect(() => () => motoreRicerca.current?.ferma(), [])
 
   // Il numero del cliente nuovo è già in archivio? Si guarda mentre si
   // scrive (mezzo secondo dopo l'ultimo tasto) e di nuovo prima di salvare.
@@ -311,8 +316,7 @@ export default function NuovaPrenotazionePage() {
 
   function scegliCliente(c: ClienteRiga) {
     setCliente(c)
-    setRicerca('')
-    setRisultati([])
+    scriviRicerca('')
     if (periodi.length === 0) aggiungiCamera()
   }
 
@@ -622,7 +626,7 @@ export default function NuovaPrenotazionePage() {
           <div className="np-sec">
             <RigaClienteMaison cliente={cliente} soggiorni={soggiorni[cliente.id] ?? 0} spesoCent={speso[cliente.id] ?? null} primo
               dati={{ 'data-cliente-scelto': '' }}
-              destra={!aggiungoA ? <button type="button" data-cambia-cliente className="mz-lnk q np-lnk" onClick={() => { setCliente(null); setRicerca(''); setRisultati([]) }}>cambia</button> : null} />
+              destra={!aggiungoA ? <button type="button" data-cambia-cliente className="mz-lnk q np-lnk" onClick={() => { setCliente(null); scriviRicerca('') }}>cambia</button> : null} />
           </div>
 
           {linee.map((linea, i) => {

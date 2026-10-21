@@ -842,6 +842,8 @@ function leggiCorpo(req) {
   return new Promise(resolve => { let t = ''; req.on('data', c => { t += c }); req.on('end', () => { try { resolve(t ? JSON.parse(t) : null) } catch { resolve(null) } }) })
 }
 
+let erroreRicercaTelefono = false
+let ritardoClienti = null
 const finto = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORTA_FINTO}`)
   if (req.method === 'OPTIONS') return rispondi(res, 204)
@@ -860,6 +862,22 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/errore-richieste-web') {
     erroreRichiesteWeb = url.searchParams.get('on') === '1'
     return rispondi(res, 200, { erroreRichiesteWeb })
+  }
+  // GET /finto/ritardo-clienti?testo=Tina&ms=150 (21/10/2026, R4): le letture
+  // dei clienti che contengono «testo» rispondono con quel ritardo; senza
+  // testo il ritardo si toglie. Serve a far arrivare la risposta di una
+  // ricerca vecchia mentre si è già scritto altro.
+  if (url.pathname === '/finto/ritardo-clienti') { ritardoClienti = url.searchParams.get('testo') ? { testo: url.searchParams.get('testo'), ms: Number(url.searchParams.get('ms') || 150) } : null; return rispondi(res, 200, { ritardoClienti }) }
+  if (ritardoClienti && !req.ritardata && url.pathname === '/rest/v1/guests' && decodeURIComponent(url.search).includes(ritardoClienti.testo)) {
+    req.ritardata = true
+    return setTimeout(() => finto.emit('request', req, res), ritardoClienti.ms)
+  }
+  // GET /finto/errore-ricerca-telefono?on=1|0 (21/10/2026): il controllo
+  // «numero già in archivio» (guests?phone=ilike…) risponde 500, per provare
+  // che nessuna scheda nasce alla cieca quando il controllo non riesce
+  if (url.pathname === '/finto/errore-ricerca-telefono') { erroreRicercaTelefono = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreRicercaTelefono }) }
+  if (erroreRicercaTelefono && url.pathname === '/rest/v1/guests' && req.method === 'GET' && url.searchParams.has('phone')) {
+    return rispondi(res, 500, { code: 'FINTO', message: 'controllo del numero non riuscito (simulato)', details: null, hint: null })
   }
   if (url.pathname === '/finto/senza-cronologia') { senzaCronologia = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaCronologia }) }
   if (senzaCronologia && url.pathname === '/rest/v1/booking_events') {

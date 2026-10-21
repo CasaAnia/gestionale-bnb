@@ -243,6 +243,24 @@ export async function scegliSoluzioneInviata(id: string, soluzione: unknown): Pr
   return { error: null }
 }
 
+// Prima della conferma (21/10/2026, R2): il telefono della richiesta prende
+// la forma con cui lo STESSO numero è salvato sulla scheda del cliente, così
+// la RPC (che confronta le cifre) usa quella scheda invece di crearne una
+// seconda. Solo sulla richiesta in «proposta inviata», solo il telefono.
+export async function allineaTelefonoRichiesta(id: string, telefono: string): Promise<{ error: string | null }> {
+  const { data, error } = await supabase.from('richieste').update({ telefono }).eq('id', id).eq('stato', 'proposta_inviata').select('id')
+  if (error) return { error: spiegaErrore(error) }
+  if (!data || data.length === 0) return { error: 'Nessuna riga aggiornata: la richiesta non è più in «proposta inviata».' }
+  return { error: null }
+}
+
+// Dopo la conferma: la prenotazione creata è davvero sulla scheda attesa?
+export async function clienteDellaPrenotazione(prenotazioneId: string): Promise<{ guestId: string | null; error: string | null }> {
+  const { data, error } = await supabase.from('bookings').select('guest_id').eq('id', prenotazioneId).maybeSingle()
+  if (error) return { guestId: null, error: spiegaErrore(error) }
+  return { guestId: (data?.guest_id as string | null) ?? null, error: null }
+}
+
 // Conferma: SOLO la RPC (transazione unica lato database). Torna l'id della
 // prenotazione creata (o esistente, se già confermata) oppure il testo dell'errore.
 export async function confermaRichiesta(id: string, rifiutaAnche: string[]): Promise<{ prenotazioneId: string | null; error: string | null }> {

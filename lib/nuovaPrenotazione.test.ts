@@ -119,10 +119,11 @@ test('la ricerca: campo a filo con la lente, «+ Nuovo cliente» sopra e in fond
   assert.match(rigaCliente, /export const NUOVO_CLIENTE = '\+ Nuovo cliente'/)
   // il tastino c'è sopra e in fondo all'elenco, e tiene quello che si è scritto
   assert.equal((pagina.match(/data-nuovo-cliente onClick=\{\(\) => setNuovo\(moduloDaRicerca\(ricerca\)\)\}>\{NUOVO_CLIENTE\}/g) || []).length, 2)
-  // la regola di sempre: dal 2º carattere, un quarto di secondo di attesa
-  assert.match(pagina, /if \(testo\.length < 2\) \{ giroRicerca\.current\+\+; setRisultati\(\[\]\); return \}\s*timer\.current = setTimeout\(\(\) => \{ void cerca\(testo\) \}, 250\)/)
-  // vale solo la risposta dell'ultima ricerca (21/10/2026)
-  assert.match(pagina, /const giro = \+\+giroRicerca\.current[\s\S]*?if \(giro !== giroRicerca\.current\) return/)
+  // la regola di sempre (dal 2º carattere, un quarto di secondo di attesa) sta
+  // in lib/ricercaRitardata, che invalida subito la ricerca precedente (R4,
+  // 21/10/2026: prova temporizzata in lib/ricercaRitardata.test.ts)
+  assert.match(pagina, /function scriviRicerca\(v: string\) \{\s*setRicerca\(v\)\s*ricercaInCorso\(\)\.scrivi\(v\)/)
+  assert.match(pagina, /creaRicercaRitardata\(\{/)
 })
 
 test('le righe dei clienti trovati hanno la forma della Home', () => {

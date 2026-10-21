@@ -34,7 +34,7 @@ test('dal modulo ai campi: il nome si rimette insieme con nomeCompleto e le iniz
 test('il telefono cambiato si normalizza; vuoto o troppo corto non si salva', () => {
   const m = moduloDaCliente(CARMELA)
   const cambiato = campiDaModulo({ ...m, telefono: '333 123 4567' }, CARMELA, { colonnaRicevuta: true, conProvenienza: true })
-  assert.ok(cambiato.ok && cambiato.campi.phone === '393331234567')
+  assert.ok(cambiato.ok && cambiato.campi.phone === '+393331234567')
   const corto = campiDaModulo({ ...m, telefono: '12' }, CARMELA, { colonnaRicevuta: true, conProvenienza: true })
   assert.deepEqual(corto, { ok: false, errore: SENZA_TELEFONO })
   const senzaNome = campiDaModulo({ ...m, nome: '', cognome: ' ' }, CARMELA, { colonnaRicevuta: true, conProvenienza: true })
@@ -57,7 +57,7 @@ test('la valutazione: prima della 0038 la forma vecchia; il motivo solo se cambi
 test('il cliente nuovo dell’inserimento scrive gli stessi campi di sempre', () => {
   const m = { nome: 'Anna', cognome: 'Rossi', telefono: '333 000 0001', email: '', ricevuta: false, valutazione: 'problematico' as const, motivo: ' in ritardo ', provenienza: 'google' as const, struttura: '', note: '' }
   assert.deepEqual(campiNuovoCliente(m, true), {
-    full_name: 'Anna Rossi', phone: '393330000001', rating: 'problematico', vuole_ricevuta: false, notes: null,
+    full_name: 'Anna Rossi', phone: '+393330000001', rating: 'problematico', vuole_ricevuta: false, notes: null,
     motivo_problematico: 'in ritardo', provenienza: 'google', struttura_nome: null,
   })
   assert.equal('provenienza' in campiNuovoCliente(m, false), false)

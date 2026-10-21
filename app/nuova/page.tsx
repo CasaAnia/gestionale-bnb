@@ -42,7 +42,10 @@ import {
 } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente } from '@/lib/provenienzaDati'
 import { cercaSchedaPerTelefono } from '@/lib/clienteTelefonoDati'
-import { nomeSuPrenotazione as calcolaNomeSuPrenotazione } from '@/lib/clienteTelefono'
+import { nomeSuPrenotazione as calcolaNomeSuPrenotazione, testoNumeroGiaInArchivio, filtriTelefonoRicerca, testoNumeroAltraScheda } from '@/lib/clienteTelefono'
+import { telefonoDaSalvare } from '@/lib/datiCliente'
+import { matchTelefono } from '@/lib/ricerca'
+import SchedeStessoNumero from '@/components/SchedeStessoNumero'
 import {
   colonnaRicevutaPresente, payloadValutazione, valutazioneDi, vuoleRicevuta, type Valutazione,
 } from '@/lib/valutazione'
@@ -158,6 +161,7 @@ function NuovaPrenotazione() {
   const [note, setNote] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [errori, setErrori] = useState<string[]>([])
+  const [schedeDoppie, setSchedeDoppie] = useState<ClienteRiga[]>([])
   const [avvisoSalvataggio, setAvvisoSalvataggio] = useState<string | null>(null)
   const [salvata, setSalvata] = useState<string | null>(null)
 
@@ -277,11 +281,13 @@ function NuovaPrenotazione() {
       const { data: perNome, error: e1 } = await supabase.from('guests').select('*').ilike('full_name', `%${testo}%`).limit(10)
       if (e1) throw e1
       for (const g of perNome || []) trovati.set(g.id, g)
-      if (cifre.length >= 3) {
-        const corto = cifre.startsWith('39') ? cifre.slice(2) : cifre
-        const { data: perTelefono, error: e2 } = await supabase.from('guests').select('*').or(`phone.ilike.%${corto}%,phone.ilike.%${cifre}%`).limit(10)
+      // il numero con la regola comune (21/10/2026): +39/0039, spazi e segni di WhatsApp
+      const filtriTelefono = filtriTelefonoRicerca(testo)
+      if (cifre.length >= 3 && filtriTelefono.length) {
+        const { data: perTelefono, error: e2 } = await supabase.from('guests').select('*').or(filtriTelefono.join(',')).limit(20)
         if (e2) throw e2
-        for (const g of perTelefono || []) trovati.set(g.id, g)
+        // i filtri a cifre separate sono larghi: si tiene solo chi ha davvero quel numero
+        for (const g of perTelefono || []) if (matchTelefono(g.phone, testo)) trovati.set(g.id, g)
       }
       // nomi e numeri aggiuntivi delle prenotazioni (chi ha soggiornato per qualcun altro)
       const { data: daPrenotazioni, error: e3 } = await supabase.from('bookings')
@@ -452,8 +458,23 @@ function NuovaPrenotazione() {
       const mancantiCliente: string[] = []
 
       if (!guestId && nuovo) {
-        // Il numero è già di una scheda? si usa quella, senza crearne una seconda
-        const { scheda } = await cercaSchedaPerTelefono<ClienteRiga>(nuovo.telefono)
+        // Il numero è già di una scheda? si usa quella, senza crearne una seconda.
+        // Dal 21/10/2026 (rilievo R3 di Codex): se il controllo non riesce non
+        // si crea niente alla cieca; se lo stesso numero è su più schede non
+        // si sceglie la più recente da soli: si mostrano, sceglie Ania.
+        const { schede, errore: erroreNumero } = await cercaSchedaPerTelefono<ClienteRiga>(nuovo.telefono)
+        if (erroreNumero) {
+          setErrori([`Non sono riuscito a controllare se il numero è già in archivio: ${erroreNumero}. Riprova.`])
+          setSalvando(false)
+          return
+        }
+        if (schede.length > 1) {
+          setSchedeDoppie(schede)
+          setErrori([testoNumeroGiaInArchivio(schede) ?? ''])
+          setSalvando(false)
+          return
+        }
+        const scheda = schede[0] ?? null
         if (scheda) {
           // Il numero riporta sempre la sua scheda, comunque sia scritto: se
           // quella scheda è segnata problematica, si ferma e lo dice, invece
@@ -468,8 +489,8 @@ function NuovaPrenotazione() {
           nomeSu = calcolaNomeSuPrenotazione(nuovo.nome, scheda.full_name)
           setCliente(scheda)
         } else {
-          const cifre = nuovo.telefono.replace(/\D/g, '')
-          const telefono = cifre ? (cifre.startsWith('39') ? cifre : `39${cifre}`) : null
+          // la forma comune: «+» e prefisso del paese, mai «39» davanti a un +44
+          const telefono = nuovo.telefono.trim() ? telefonoDaSalvare(nuovo.telefono) : null
           const base = {
             phone: telefono, full_name: nomeDaSalvareONull({ full_name: nuovo.nome }), email: null,
             ...(nuovo.nota.trim() ? { notes: nuovo.nota.trim() } : {}),
@@ -489,7 +510,9 @@ function NuovaPrenotazione() {
             ;({ data: creato, error } = await supabase.from('guests').insert(campiCliente).select().single())
           }
           if (error && error.code === '23505') {
-            const { scheda: esistente } = await cercaSchedaPerTelefono<ClienteRiga>(nuovo.telefono)
+            const { schede: esistenti } = await cercaSchedaPerTelefono<ClienteRiga>(nuovo.telefono)
+            if (esistenti.length > 1) { setSchedeDoppie(esistenti); setErrori([testoNumeroGiaInArchivio(esistenti) ?? '']); setSalvando(false); return }
+            const esistente = esistenti[0]
             if (esistente) { guestId = esistente.id; nomeSu = calcolaNomeSuPrenotazione(nuovo.nome, esistente.full_name); setCliente(esistente) }
           }
           if (!guestId) {
@@ -645,12 +668,22 @@ function NuovaPrenotazione() {
   async function salvaDatiCliente() {
     if (!modifica || !cliente) return
     setErroreModifica(null)
-    const cifre = modifica.telefono.replace(/\D/g, '')
+    // Il telefono si riscrive solo se è cambiato, nella forma comune, e mai
+    // col numero di un'altra scheda (21/10/2026, come «Dati della cliente»)
+    const telefonoDiPrima = (cliente.phone ?? '').trim()
+    const cambiatoTelefono = modifica.telefono.trim() !== telefonoDiPrima
+    const phone = cambiatoTelefono ? (modifica.telefono.trim() ? telefonoDaSalvare(modifica.telefono) : null) : (cliente.phone ?? null)
+    if (cambiatoTelefono && phone) {
+      const gia = await cercaSchedaPerTelefono<ClienteRiga>(phone)
+      const altre = gia.schede.filter(g => g.id !== cliente.id)
+      if (gia.errore) { setErroreModifica(`Non sono riuscito a controllare se il numero è già in archivio: ${gia.errore}`); return }
+      if (altre.length) { setErroreModifica(testoNumeroAltraScheda(altre)); return }
+    }
     const motivo = modifica.motivo.trim() || null
     const cambiaMotivo = motivo !== (cliente.motivo_problematico?.trim() || null)
     const campi = {
       full_name: nomeDaSalvareONull({ full_name: modifica.nome }),
-      phone: cifre ? (cifre.startsWith('39') ? cifre : `39${cifre}`) : null,
+      phone,
       notes: modifica.nota.trim() || null,
       ...(cambiaMotivo ? { motivo_problematico: motivo } : {}),
       ...payloadValutazione(modifica.valutazione, modifica.ricevuta, colonnaRicevutaPresente(cliente as unknown as { vuole_ricevuta?: boolean })),
@@ -1144,6 +1177,11 @@ function NuovaPrenotazione() {
             <b>Prima di salvare:</b>
             <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>{errori.map((e, i) => <li key={i}>{e}</li>)}</ul>
           </div>
+        )}
+        {/* lo stesso numero su più schede: si sceglie qui, poi «Salva» (21/10/2026) */}
+        {nuovo && schedeDoppie.length > 0 && (
+          <SchedeStessoNumero schede={schedeDoppie} className="mt-3"
+            onScegli={c => { const scritto = nuovo.nome; setSchedeDoppie([]); setErrori([]); setNuovo(null); scegliCliente(c); setNomeSuQuesta(calcolaNomeSuPrenotazione(scritto, c.full_name)) }} />
         )}
         {avvisoSalvataggio && (
           <div className={s.avviso}>

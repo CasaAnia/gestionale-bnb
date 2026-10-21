@@ -12,18 +12,21 @@
 // Niente Supabase: la scrittura la fa il foglio.
 // ============================================================================
 import { nomeDaSalvare, spezzaNome } from './guestName.ts'
-import { normalizzaTelefono, numeroUsabile } from './whatsapp.ts'
+import { numeroUsabile } from './whatsapp.ts'
 import { INVISIBILI_TELEFONO, chiaveTelefono } from './clienteTelefono.ts'
 import { conIniziali } from './maiuscole.ts'
 
-// Il telefono come lo si salva (21/10/2026): a sole cifre col prefisso del
-// paese (393331234567, 447700900123), la forma che usano già la conferma delle
-// richieste (RPC conferma_richiesta, confronto sulle cifre), «Dati della
-// cliente» e la pagina Clienti. Un numero non riconoscibile resta com'è
-// scritto, senza spazi e senza i segni invisibili di WhatsApp. Nel campo il
-// numero resta quello digitato: cambia solo come si salva.
+// Il telefono come lo si salva (21/10/2026, rilievo R1 di Codex): «+» e il
+// prefisso del paese, poi le cifre (+393331234567, +4532123456, +3545551234).
+// Col «+» il paese resta scritto e alla rilettura non si indovina niente: a
+// sole cifre «4532123456» (Danimarca) non si riconosceva più e «3545551234»
+// (Islanda) tornava un cellulare italiano. La conferma delle richieste (RPC,
+// confronto sulle cifre) lo ritrova lo stesso. Un numero non riconoscibile
+// resta com'è scritto, senza spazi e senza i segni invisibili di WhatsApp.
+// Nel campo il numero resta quello digitato: cambia solo come si salva.
 export function telefonoDaSalvare(t: string): string {
-  return chiaveTelefono(t) ?? t.replace(INVISIBILI_TELEFONO, '').replace(/\s/g, '')
+  const chiave = chiaveTelefono(t)
+  return chiave ? `+${chiave}` : t.replace(INVISIBILI_TELEFONO, '').replace(/\s/g, '')
 }
 import { valutazioneDi, vuoleRicevuta, payloadValutazione, type Valutazione } from './valutazione.ts'
 import { normalizzaProvenienza, campiProvenienza, type Provenienza } from './provenienza.ts'
@@ -135,7 +138,8 @@ export function campiDaModulo(m: ModuloCliente, c: ClienteSalvato, o: OpzioniCam
   let phone = c.phone ?? null
   if (m.telefono.trim() !== telefonoDiPrima) {
     if (!numeroUsabile(m.telefono)) return { ok: false, errore: SENZA_TELEFONO }
-    phone = normalizzaTelefono(m.telefono).numero
+    // stessa forma del cliente nuovo: il paese resta scritto (R1, 21/10/2026)
+    phone = telefonoDaSalvare(m.telefono)
   }
   const motivo = m.valutazione === 'problematico' ? (m.motivo.trim() || null) : null
   const motivoDiPrima = (c.motivo_problematico ?? '').trim() || null

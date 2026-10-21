@@ -35,7 +35,11 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
   const nomeVecchio = nomeOspite(booking)
   const [modo, setModo] = useState<'cerca' | 'nuovo'>('cerca')
   const [testo, setTesto] = useState('')
-  const [risultati, setRisultati] = useState<ClienteBreve[]>([])
+  const [risultatiTutti, setRisultati] = useState<ClienteBreve[]>([])
+  // per quale testo sono quei risultati: cambiato il testo, i vecchi non si
+  // mostrano più nemmeno nell'attesa della ricerca nuova (R4, 21/10/2026)
+  const [risultatiPer, setRisultatiPer] = useState<string | null>(null)
+  const risultati = risultatiPer === testo ? risultatiTutti : []
   const [erroreRicerca, setErroreRicerca] = useState<string | null>(null)
   const [cercando, setCercando] = useState(false)
   const [scelto, setScelto] = useState<ClienteBreve | null>(null)
@@ -72,7 +76,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
       if (vivo) setCercando(true)
       const r = await cercaClientiPerCambio(testo, clienteAttuale?.id)
       if (!vivo) return
-      setRisultati(r.clienti); setErroreRicerca(r.errore); setCercando(false)
+      setRisultati(r.clienti); setRisultatiPer(testo); setErroreRicerca(r.errore); setCercando(false)
     }, testo ? 250 : 0)
     return () => { vivo = false; clearTimeout(t) }
   }, [testo, clienteAttuale?.id])
@@ -178,7 +182,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
                   {scelto?.id === c.id && <span className="text-green-mid font-bold shrink-0">✓</span>}
                 </button>
               ))}
-              {!cercando && risultati.length === 0 && !erroreRicerca && (
+              {!cercando && risultatiPer === testo && risultati.length === 0 && !erroreRicerca && (
                 <p className="text-sm text-stone py-3 px-2">{testo ? 'Nessun cliente con questo nome o telefono.' : 'Nessun altro cliente in archivio.'}{' '}
                   <button type="button" className="underline underline-offset-2 text-green-mid" onClick={apriNuovoCliente}>Crea un nuovo cliente</button>
                 </p>

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { schedeCheLaConfermaNonVede, testoConfermaDoppione } from '@/lib/clienteTelefono'
+import { decisioneConferma } from '@/lib/clienteTelefono'
 import { cercaSchedaPerTelefono } from '@/lib/clienteTelefonoDati'
 import Link from 'next/link'
 import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
@@ -9,7 +9,7 @@ import { periodoConMese, testoNotti } from '@/lib/schedaPrenotazione'
 import { condizioneDaColonne, formattaEuro } from '@/lib/richiesteTesti'
 import { ETICHETTA_CASO, type Soluzione } from '@/lib/richiesteProposta'
 import { richiesteInConflitto, erroreDiDisponibilita, conLettoExtra, type RichiestaConProposta } from '@/lib/richiesteConferma'
-import { confermaRichiesta, scegliSoluzioneInviata } from '@/lib/richiesteDati'
+import { confermaRichiesta, scegliSoluzioneInviata, allineaTelefonoRichiesta, clienteDellaPrenotazione } from '@/lib/richiesteDati'
 import { applicaProvenienzaAlCliente } from '@/lib/provenienzaDati'
 import { prezzo as fmtPrezzo, dalAl } from '@/lib/richiesteTesti'
 import { nomeCompleto, formatDateRichiesta, nottiRichiesta, riassuntoPersone, type Richiesta } from '@/lib/richieste'
@@ -39,20 +39,38 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
   const [spuntate, setSpuntate] = useState<Set<string>>(() => new Set(conflitti.map(c => c.id)))
   const [occupato, setOccupato] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
-  // Stesso numero già in archivio in un'altra forma, che la conferma non
-  // ritroverebbe (21/10/2026): solo un avviso, la scrittura resta la RPC
-  const [doppione, setDoppione] = useState<string | null>(null)
+  // Il cliente della prenotazione (21/10/2026, R2): la RPC cerca la scheda
+  // con le stesse cifre del telefono. Prima di confermare si leggono le schede
+  // con lo STESSO numero in qualunque forma e si decide (decisioneConferma):
+  // con più schede sceglie Ania, una scheda scritta in un'altra forma viene
+  // usata (il telefono della richiesta prende la sua forma), i casi che la
+  // RPC non saprebbe distinguere fermano la conferma. Mai un doppione.
+  type SchedaArchivio = { id: string; phone?: string | null; full_name?: string | null }
+  const [archivio, setArchivio] = useState<{ stato: 'carico' } | { stato: 'errore'; testo: string } | { stato: 'pronto'; schede: SchedaArchivio[] }>({ stato: 'carico' })
+  const [sceltaScheda, setSceltaScheda] = useState<string | null>(null)
   useEffect(() => {
     let vivo = true
-    void cercaSchedaPerTelefono<{ phone?: string | null; full_name?: string | null }>(richiesta.telefono ?? '').then(r => {
-      if (vivo && !r.errore) setDoppione(testoConfermaDoppione(schedeCheLaConfermaNonVede(richiesta.telefono, r.schede)))
-    })
+    void cercaSchedaPerTelefono<SchedaArchivio>(richiesta.telefono ?? '').then(r => {
+      if (!vivo) return
+      setArchivio(r.errore ? { stato: 'errore', testo: r.errore } : { stato: 'pronto', schede: r.schede })
+    }, (err: unknown) => { if (vivo) setArchivio({ stato: 'errore', testo: String((err as Error)?.message ?? err) }) })
     return () => { vivo = false }
   }, [richiesta.telefono])
+  const decisione = archivio.stato === 'pronto' ? decisioneConferma(richiesta.telefono, archivio.schede, sceltaScheda) : null
+  const fermo = archivio.stato === 'carico' ? 'Controllo se il numero è già in archivio…'
+    : archivio.stato === 'errore' ? `Non creo la prenotazione: non sono riuscito a controllare se il numero è già in archivio (${archivio.testo}). Riprova.`
+    : decisione?.tipo === 'scegli' ? 'Questo numero è su più schede cliente: scegli quella giusta.'
+    : decisione?.tipo === 'bloccata' ? decisione.motivo
+    : null
 
   async function crea() {
     if (occupato) return          // secondo tocco: niente doppioni (e la RPC è idempotente)
+    if (fermo || !decisione) { setErrore(fermo ?? 'Controllo del numero non pronto.'); return }
     setErrore(null); setOccupato(true)
+    if (decisione.tipo === 'allinea') {
+      const allineato = await allineaTelefonoRichiesta(richiesta.id, decisione.telefono)
+      if (allineato.error) { setErrore(`Numero non allineato alla scheda, prenotazione non creata: ${allineato.error}`); setOccupato(false); return }
+    }
     if (piuCamere) {
       if (!sol) { setErrore('Scegli la camera accettata dal cliente.'); setOccupato(false); return }
       const scelto = await scegliSoluzioneInviata(richiesta.id, sol)
@@ -60,11 +78,19 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
     }
     const r = await confermaRichiesta(richiesta.id, [...spuntate])
     if (r.error || !r.prenotazioneId) { setErrore(r.error || 'Conferma non riuscita.'); setOccupato(false); return }
+    // la prenotazione è sulla scheda attesa? (rilettura, nessuna scrittura)
+    const attesa = decisione.tipo === 'libera' || decisione.tipo === 'allinea' ? decisione.scheda?.id ?? null : null
+    let avvisoCliente: string | null = null
+    if (attesa) {
+      const letto = await clienteDellaPrenotazione(r.prenotazioneId)
+      if (letto.error) avvisoCliente = `Prenotazione creata, ma non sono riuscito a rileggere a quale scheda cliente è andata: ${letto.error}`
+      else if (letto.guestId !== attesa) avvisoCliente = 'Prenotazione creata, ma su una scheda cliente diversa da quella col numero: controlla il cliente nella scheda.'
+    }
     // Provenienza (0037): quella provvisoria della richiesta va sul CLIENTE
     // della prenotazione creata (se lui non ne ha già una); se non riesce la
     // prenotazione resta valida e lo si dice nella scheda
     const avvisoProvenienza = 'provenienza' in richiesta ? await applicaProvenienzaAlCliente(richiesta, r.prenotazioneId) : null
-    onCreata(r.prenotazioneId, avvisoProvenienza)
+    onCreata(r.prenotazioneId, [avvisoCliente, avvisoProvenienza].filter(Boolean).join(' · ') || null)
   }
 
   // «pagamento all’arrivo» · «caparra 90 €» · «pagamento completo» · «condizioni personalizzate»
@@ -87,7 +113,7 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
         </div>
       }
       piede={
-        <PiedeMaison azione="Crea prenotazione" testoSalvando="Creo…" salvando={occupato} disabilitato={!sol}
+        <PiedeMaison azione="Crea prenotazione" testoSalvando="Creo…" salvando={occupato} disabilitato={!sol || !!fermo}
           onAzione={crea} onAnnulla={onChiudi} datiAzione={{ 'data-crea-prenotazione': '' }} />
       }>
       <div className="ric-pag ric-fog-conferma">
@@ -129,7 +155,24 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
             ))}
           </div>
         )}
-        {doppione && <p className="ric-avviso" role="alert" data-avviso-doppione>{doppione}</p>}
+        {decisione?.tipo === 'scegli' && (
+          <div role="group" aria-label="Scheda del cliente" data-scegli-scheda>
+            <p className="so">Questo numero è su {decisione.schede.length} schede cliente: su quale va la prenotazione?</p>
+            <div className="ric-chips piatte" data-senza-sottolinea>
+              {decisione.schede.map(g => (
+                <button key={g.id} type="button" disabled={occupato} aria-pressed={sceltaScheda === g.id} className={sceltaScheda === g.id ? 'on' : ''}
+                  data-scheda-conferma={g.id} onClick={() => setSceltaScheda(g.id)}>{(g.full_name || '').trim() || 'senza nome'} · {g.phone}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {sceltaScheda && decisione && decisione.tipo !== 'scegli' && (
+          <p className="so"><button type="button" className="mz-lnk q" disabled={occupato} onClick={() => setSceltaScheda(null)}>scegli un’altra scheda</button></p>
+        )}
+        {decisione?.tipo === 'allinea' && (
+          <p className="so" data-va-sulla-scheda>Va sulla scheda di {(decisione.scheda.full_name || '').trim() || 'senza nome'}: stesso numero, salvato come {decisione.telefono}.</p>
+        )}
+        {fermo && archivio.stato !== 'carico' && <p className="ric-avviso" role="alert" data-avviso-doppione>{fermo}</p>}
         {errore && (
           <div role="alert" className="ric-avviso">
             {errore}

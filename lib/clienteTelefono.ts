@@ -150,29 +150,46 @@ export function testoClienteRiconosciuto(scheda: { full_name?: string | null; ph
   return nomeSu ? `${base} «${nomeSu}» resta come nome di questa prenotazione, la scheda non cambia.` : base
 }
 
-// ── Conferma di una richiesta (21/10/2026) ─────────────────────────────────
-// La RPC conferma_richiesta (migrazioni 0027/0031) cerca la scheda con le
-// SOLE cifre identiche: «+39 333…» nella richiesta non ritrova «333…» in
-// archivio e crea una seconda scheda. Finché la RPC non cambia (proposta
-// 0065, da autorizzare) la finestra di conferma avvisa: queste sono le schede
-// dello stesso numero che la RPC NON vedrebbe. Vuoto se una scheda ha già le
-// stesse cifre (la RPC prende quella) o se il numero non è riconoscibile.
-export function schedeCheLaConfermaNonVede<T extends { phone?: string | null }>(telefonoRichiesta: string | null | undefined, schede: T[]): T[] {
-  const cifre = (telefonoRichiesta ?? '').replace(/\D/g, '')
-  if (!cifre) return []
-  const stesse = schede.filter(g => stessoNumero(g.phone, telefonoRichiesta))
-  if (stesse.some(g => (g.phone ?? '').replace(/\D/g, '') === cifre)) return []
-  return stesse
-}
-
-export function testoConfermaDoppione(schede: { full_name?: string | null }[]): string | null {
-  if (schede.length === 0) return null
-  const chi = schede.map(s => (s.full_name || '').trim() || 'senza nome').join(', ')
-  return `Attenzione: questo numero è già in archivio (${chi}), ma scritto in un'altra forma. Confermando ora il gestionale crea una seconda scheda cliente invece di usare quella esistente.`
-}
-
 // «Dati della cliente»: il numero nuovo è già di un'altra scheda
 export function testoNumeroAltraScheda(altre: { full_name?: string | null }[]): string {
   const chi = altre.map(s => (s.full_name || '').trim() || 'una scheda senza nome').join(', ')
   return `Non salvato: questo numero è già nella scheda di ${chi}. Controlla il numero; le due schede non si uniscono da qui.`
+}
+
+// ── Conferma di una richiesta senza doppioni (21/10/2026, rilievo R2) ──────
+// La RPC sceglie la scheda con le stesse CIFRE del telefono della richiesta
+// (la più vecchia, se sono più d'una). Prima di chiamarla si decide qui:
+//  · nessuna scheda con quel numero → «libera»: la RPC crea la scheda nuova;
+//  · una scheda (o quella scelta da Ania) che la RPC troverebbe da sola, e
+//    nessun'altra con le stesse cifre → «libera»;
+//  · una scheda dello stesso numero scritta in un'altra forma → «allinea»:
+//    il telefono della richiesta prende la forma della scheda (stesso numero),
+//    così la RPC la ritrova invece di crearne una seconda;
+//  · più schede dello stesso numero e nessuna scelta → «scegli»;
+//  · la scheda scelta ha le stesse cifre di un'altra → «bloccata»: la RPC non
+//    saprebbe quale usare, e prenderebbe la più vecchia.
+export type DecisioneConferma<T> =
+  | { tipo: 'libera'; scheda: T | null }
+  | { tipo: 'allinea'; scheda: T; telefono: string }
+  | { tipo: 'scegli'; schede: T[] }
+  | { tipo: 'bloccata'; motivo: string }
+
+const soloCifre = (t: string | null | undefined) => (t ?? '').replace(/\D/g, '')
+
+export function decisioneConferma<T extends { id: string; phone?: string | null; full_name?: string | null }>(
+  telefonoRichiesta: string | null | undefined, schede: T[], sceltaId: string | null,
+): DecisioneConferma<T> {
+  const cifre = soloCifre(telefonoRichiesta)
+  const stesse = schede.filter(g => stessoNumero(g.phone, telefonoRichiesta))
+  if (!cifre || stesse.length === 0) return { tipo: 'libera', scheda: null }
+  const scelta = stesse.length === 1 ? stesse[0] : (stesse.find(g => g.id === sceltaId) ?? null)
+  if (!scelta) return { tipo: 'scegli', schede: stesse }
+  const cifreScelta = soloCifre(scelta.phone)
+  const gemelle = schede.filter(g => g.id !== scelta.id && soloCifre(g.phone) === cifreScelta)
+  if (gemelle.length) {
+    const chi = [scelta, ...gemelle].map(g => (g.full_name || '').trim() || 'senza nome').join(', ')
+    return { tipo: 'bloccata', motivo: `Non creo la prenotazione: lo stesso numero è scritto uguale su più schede (${chi}) e la conferma non saprebbe quale usare. Correggi il numero di una delle schede, poi conferma.` }
+  }
+  if (cifreScelta === cifre) return { tipo: 'libera', scheda: scelta }
+  return { tipo: 'allinea', scheda: scelta, telefono: scelta.phone ?? '' }
 }

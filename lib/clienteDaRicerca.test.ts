@@ -5,8 +5,8 @@ import { moduloDaRicerca, campiNuovoCliente } from './datiCliente.ts'
 // Nel campo il numero resta come scritto; si salva col prefisso del paese a
 // sole cifre (21/10/2026), un numero non riconoscibile resta come scritto
 for (const [numero, salvato] of [
-  ['3331234567', '393331234567'], ['+39 333 123 4567', '393331234567'], ['0044 (20) 7946-0958', '442079460958'],
-  ['02 1234567', '39021234567'], ['33', '33'],
+  ['3331234567', '+393331234567'], ['+39 333 123 4567', '+393331234567'], ['0044 (20) 7946-0958', '+442079460958'],
+  ['02 1234567', '+39021234567'], ['33', '33'],
 ]) {
   test(`ricerca telefono ${numero}: resta nel campo telefono, modificabile senza perdere cifre`, () => {
     const modulo = moduloDaRicerca(`  ${numero}  `)

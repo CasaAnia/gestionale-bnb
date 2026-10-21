@@ -301,7 +301,7 @@ test('D4: nuovo cliente nella veste del modulo Maison, stesso salvataggio, poi l
   const p = leggi('app/clienti/nuovo/page.tsx')
   assert.match(p, /placeholder="\+39 333 1234567"/)
   // dal 21/10/2026 il prefisso è quello scritto (+44 resta 44…), italiani col 39 come prima
-  assert.match(p, /const formattedPhone = form\.phone\.trim\(\) \? chiaveTelefono\(form\.phone\) : null/)
+  assert.match(p, /const formattedPhone = form\.phone\.trim\(\) && chiaveTelefono\(form\.phone\) \? telefonoDaSalvare\(form\.phone\) : null/)
   assert.match(p, /cercaSchedaPerTelefono<SchedaStessoNumero>\(formattedPhone\)/)
   assert.match(p, /Email · può restare vuota/)
   assert.match(p, /'Inserisci almeno nome o numero di telefono\.'/)

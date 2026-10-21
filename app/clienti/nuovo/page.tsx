@@ -11,7 +11,7 @@
 import { nomeDaSalvareONull } from '@/lib/guestName'
 import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { Suspense, useState } from 'react'
-import { moduloDaRicerca } from '@/lib/datiCliente'
+import { moduloDaRicerca, telefonoDaSalvare } from '@/lib/datiCliente'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { smartBack } from '@/lib/navHistory'
@@ -47,10 +47,10 @@ function ModuloNuovoCliente() {
       setError('Inserisci almeno nome o numero di telefono.')
       return
     }
-    // Il numero si salva con il prefisso del paese, a sole cifre come prima
-    // (393331234567), ma senza più incollare «39» davanti a un +44 o a uno
-    // 0039 (21/10/2026): chiaveTelefono tiene il prefisso scritto.
-    const formattedPhone = form.phone.trim() ? chiaveTelefono(form.phone) : null
+    // Il numero si salva con «+» e il prefisso del paese (+393331234567,
+    // +4532123456): mai più «39» incollato davanti a un +44 o a uno 0039, e
+    // alla rilettura il paese resta quello scritto (21/10/2026, R1)
+    const formattedPhone = form.phone.trim() && chiaveTelefono(form.phone) ? telefonoDaSalvare(form.phone) : null
     if (form.phone.trim() && !formattedPhone) { setError('Controlla il numero: con il prefisso (+39, +44…) o un numero italiano completo.'); return }
     setSaving(true)
     setError(null)
