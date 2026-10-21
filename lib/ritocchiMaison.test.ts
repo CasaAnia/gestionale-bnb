@@ -283,11 +283,11 @@ test('D3: la testata della scheda cliente (riga coi soli pezzi presenti, speso i
   // i tre numeri come prima, gli ultimi arrivi, i documenti, i soggiorni, elimina
   assert.match(pagina, /const storico = storicoCliente\(bookings\)/)
   for (const t of ['>Soggiorni<', '>Totale speso<', '>Annullate<', 'Ultimi arrivi', 'Nessuna prenotazione', 'Cliente non trovato', 'Sei sicuro? Questa azione non si può annullare. Le prenotazioni associate rimarranno nel sistema.', "'Sì, elimina'"]) assert.ok(pagina.includes(t), t)
-  assert.match(pagina, /<DocumentiCliente guestId=\{String\(id\)\} \/>/)
+  assert.match(pagina, /<DocumentiCliente guestId=\{String\(id\)\} nome=\{nome\} \/>/)
   assert.match(pagina, /<FoglioMaison titolo="Elimina cliente"/)
   const doc = leggi('components/DocumentiCliente.tsx')
   assert.match(doc, /<FoglioMaison titolo="Eliminare questo documento\?"/)
-  assert.match(doc, /\{etichettaLeggibile\(daCancellare\)\} · non si può recuperare\./)
+  assert.match(doc, /\{etichettaLeggibile\(daCancellare\)\}\{nome \? ` di \$\{nome\}` : ''\} · non si può recuperare\./)
   assert.match(doc, /ETICHETTE\.filter\(e => e\.chiave !== 'documento'\)/)
   assert.match(doc, /\{caricando \? 'Carico…' : 'Aggiungi documento'\}/)
   assert.match(doc, /<VisoreDocumento /)

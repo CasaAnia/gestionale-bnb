@@ -80,6 +80,14 @@ export default function ClienteDetail() {
     return () => { vivo = false }
   }, [id, tentativo])
 
+  // D1 (21/10/2026): passando a un altro cliente senza ricaricare, la pagina
+  // torna subito a «Caricamento…»: mai il nome di prima sopra i documenti nuovi
+  const [perId, setPerId] = useState(id)
+  if (perId !== id) {
+    setPerId(id)
+    setGuest(null); setBookings([]); setLoading(true); setErroreCaricamento(null); setAvviso(null)
+    setFoglioDati(false); setShowDelete(false); setErroreElimina(null)
+  }
   function riprovaCaricamento() {
     setErroreCaricamento(null)
     setLoading(true)
@@ -198,7 +206,8 @@ export default function ClienteDetail() {
       </section>
 
       {/* Documenti d'identità (05/09/2026): stanno sul cliente */}
-      <DocumentiCliente guestId={String(id)} />
+      {/* solo quando la testata è di QUESTO cliente: nome e documenti sempre della stessa persona */}
+      {String(guest.id) === String(id) && <DocumentiCliente guestId={String(id)} nome={nome} />}
 
       {/* ── I SOGGIORNI: una riga per soggiorno, anche i futuri; il tocco apre la scheda ── */}
       <section className="np-sec" style={{ paddingTop: 22 }} data-soggiorni-cliente>

@@ -6,8 +6,8 @@ import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
 import { ricordaStruttura } from './provenienzaDati'
 import { soggiorniConclusi, type RigaSoggiorno } from './nuovaPrenotazione'
 import {
-  campiCambioCliente, filtroCambioCliente, filtraClienti, salvaCambioCliente, messaggioCreazioneCliente,
-  type ClienteBreve, type PrenotazionePerCambio, type CampiNuovoCliente,
+  campiCambioCliente, filtroCambioCliente, filtraClienti, salvaCambioCliente, messaggioCreazioneCliente, esitoSpostamento,
+  type DocumentoDaScegliere, type ClienteBreve, type PrenotazionePerCambio, type CampiNuovoCliente,
 } from './cambiaCliente'
 
 // Clienti che somigliano al testo (nome o cifre del telefono), letti dal
@@ -54,20 +54,32 @@ export async function creaClienteNuovo(campi: CampiNuovoCliente, struttureNote: 
   return { cliente: risposta.data, errore: null }
 }
 
-// Documenti caricati sul cliente di partenza (0032): id e quanti sono. Tabella
-// assente o lettura fallita → nessuna proposta (0), mai un blocco.
-export async function documentiDelCliente(guestId: string | null | undefined): Promise<string[]> {
+// Documenti caricati sul cliente di partenza (0032), con quello che serve a
+// riconoscerli (D2, 21/10/2026). Tabella assente o lettura fallita → elenco
+// vuoto e nessuna proposta: il cambio cliente si fa lo stesso.
+export async function documentiDelCliente(guestId: string | null | undefined): Promise<DocumentoDaScegliere[]> {
   if (!guestId) return []
-  const { data, error } = await supabase.from('documenti_cliente').select('id').eq('guest_id', guestId)
+  const { data, error } = await supabase.from('documenti_cliente').select('id, etichetta, lato, created_at, percorso').eq('guest_id', guestId).order('created_at')
   if (error || !data) return []
-  return data.map(d => d.id as string)
+  return data as DocumentoDaScegliere[]
 }
 
-// Sposta i documenti scelti al cliente nuovo: solo guest_id delle righe, con il
-// filtro sul cliente vecchio (mai una riga di un altro cliente).
-export function spostaDocumenti(ids: string[], vecchioGuestId: string, nuovoGuestId: string, aggiorna: () => void): Promise<string | null> {
-  if (ids.length === 0) return Promise.resolve(null)
-  return salvaCambioCliente(() => supabase.from('documenti_cliente').update({ guest_id: nuovoGuestId }).eq('guest_id', vecchioGuestId).in('id', ids).select('id'), aggiorna)
+// Sposta SOLO i documenti scelti al cliente nuovo: guest_id delle righe, con
+// il filtro sul cliente vecchio (mai una riga di un altro cliente), e
+// l'esito controllato documento per documento (esitoSpostamento).
+export async function spostaDocumenti(ids: string[], vecchioGuestId: string, nuovoGuestId: string, aggiorna: () => void): Promise<string | null> {
+  if (ids.length === 0) return null
+  let spostati: string[] | null = null
+  const e = await salvaCambioCliente(async () => {
+    const r = await supabase.from('documenti_cliente').update({ guest_id: nuovoGuestId }).eq('guest_id', vecchioGuestId).in('id', ids).select('id')
+    spostati = Array.isArray(r.data) ? (r.data as { id: string }[]).map(x => x.id) : null
+    return r
+  }, () => {})
+  if (e) return e
+  const esito = esitoSpostamento(ids, spostati)
+  if (esito) return `Non salvato, ${esito}`
+  aggiorna()
+  return null
 }
 
 // La scrittura vera: solo guest_id (+ guest_name azzerato) sulle righe del
