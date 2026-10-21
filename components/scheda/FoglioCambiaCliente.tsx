@@ -28,6 +28,7 @@ import {
   avvisiCambioCliente, stessoCliente, testoDocumentiDaSpostare, rigaPassaggio, MESSAGGIO_DOCUMENTI_NON_SPOSTATI,
   type ClienteBreve, type PrenotazionePerCambio,
 } from '@/lib/cambiaCliente'
+import SchedeStessoNumero from '@/components/SchedeStessoNumero'
 import { cercaClientiPerCambio, soggiorniConclusiDeiClienti, creaClienteNuovo, scriviCambioCliente, documentiDelCliente, spostaDocumenti } from '@/lib/cambiaClienteDati'
 import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
@@ -62,6 +63,10 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // risposte della ricerca fuori tempo: vale solo l'ultima (21/10/2026)
+  const giroRicerca = useRef(0)
+  // il numero del cliente nuovo è già su queste schede: si sceglie, non si crea
+  const [schedeDoppie, setSchedeDoppie] = useState<ClienteBreve[]>([])
 
   const avvisi = avvisiCambioCliente({ pagamenti, confermaInviata, segmenti, nomeVecchio })
   const rigaDocumenti = testoDocumentiDaSpostare(documenti.length, nomeVecchio)
@@ -79,11 +84,13 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
     setRicerca(v)
     if (timer.current) clearTimeout(timer.current)
     const testo = v.trim()
-    if (testo.length < 2) { setRisultati([]); return }
+    if (testo.length < 2) { giroRicerca.current++; setRisultati([]); return }
     timer.current = setTimeout(() => { void cerca(testo) }, 250)
   }
   async function cerca(testo: string) {
+    const giro = ++giroRicerca.current
     const r = await cercaClientiPerCambio(testo, clienteAttuale?.id)
+    if (giro !== giroRicerca.current) return
     setErroreRicerca(r.errore)
     setRisultati(r.clienti)
     setSoggiorni(await soggiorniConclusiDeiClienti(r.clienti.map(c => c.id), oggi))
@@ -101,6 +108,7 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
   async function cambia() {
     if (salvando) return
     setErrore(null)
+    setSchedeDoppie([])
     let cliente: ClienteBreve | null = scelto
     setSalvando(true)
     try {
@@ -108,7 +116,11 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
         if (!nuovo.nome.trim()) { setErrore(SENZA_NOME); return }
         if (!numeroUsabile(nuovo.telefono)) { setErrore(SENZA_TELEFONO); return }
         const creato = await creaClienteNuovo(campiNuovoCliente(nuovo, strutture.disponibile) as never, strutture.lista)
-        if (creato.errore !== null) { setErrore(creato.errore); return }
+        if (creato.errore !== null) {
+          if (creato.schede?.length) setSchedeDoppie(creato.schede)
+          else setErrore(creato.errore)
+          return
+        }
         cliente = creato.cliente
         // il cliente ora esiste: se il passaggio sotto fallisce si riprova senza un doppione
         setScelto(creato.cliente)
@@ -168,6 +180,8 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
             </p>
           )}
           {errore && <AvvisoAzione testo={errore} className="mt-3" />}
+          {nuovo && <SchedeStessoNumero schede={schedeDoppie} className="mt-3"
+            onScegli={c => { setSchedeDoppie([]); setNuovo(null); setScelto(c) }} />}
           <PiedeFoglio azione={nuovo ? 'Crea e cambia' : AZIONE_CAMBIA} onAzione={cambia} salvando={salvando} onAnnulla={onChiudi} dati="cambia-cliente" />
         </div>
       )}

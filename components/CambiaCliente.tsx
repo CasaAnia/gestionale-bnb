@@ -17,6 +17,7 @@ import {
   avvisiCambioCliente, provenienzaProposta, nuovoClienteDaModulo, stessoCliente, testoDocumentiDaSpostare,
   MESSAGGIO_DOCUMENTI_NON_SPOSTATI, type ClienteBreve, type PrenotazionePerCambio, type ValoreProvenienzaModulo,
 } from '@/lib/cambiaCliente'
+import SchedeStessoNumero from '@/components/SchedeStessoNumero'
 import { cercaClientiPerCambio, creaClienteNuovo, scriviCambioCliente, documentiDelCliente, spostaDocumenti } from '@/lib/cambiaClienteDati'
 
 type Props = {
@@ -60,6 +61,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
     setScelto(null)
   }
 
+  const [schedeDoppie, setSchedeDoppie] = useState<ClienteBreve[]>([])
   const avvisi = avvisiCambioCliente({ pagamenti, confermaInviata, segmenti, nomeVecchio })
   const rigaDocumenti = testoDocumentiDaSpostare(documenti.length, nomeVecchio)
 
@@ -101,6 +103,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
   async function salva() {
     if (salvando) return
     setErrore(null)
+    setSchedeDoppie([])
     let nuovo: ClienteBreve | null = scelto
     setSalvando(true)
     try {
@@ -109,7 +112,12 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
         const m = nuovoClienteDaModulo({ ...modulo, provenienza: provenienza.provenienza, struttura: provenienza.struttura }, strutture.disponibile)
         if (!m.ok) { setErrore(m.errore); return }
         const creato = await creaClienteNuovo(m.campi, strutture.lista)
-        if (creato.errore !== null) { setErrore(creato.errore); return }
+        if (creato.errore !== null) {
+          // numero già in archivio (anche in un'altra forma): si sceglie la scheda, niente doppione
+          if (creato.schede?.length) setSchedeDoppie(creato.schede)
+          else setErrore(creato.errore)
+          return
+        }
         const cliente = creato.cliente
         nuovo = cliente
         // Il cliente ora esiste: se il passaggio sotto fallisce si riprova
@@ -199,6 +207,8 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
         )}
 
         {errore && <AvvisoAzione testo={errore} className="mt-3" />}
+        {modo === 'nuovo' && <SchedeStessoNumero schede={schedeDoppie} className="mt-3"
+          onScegli={c => { setSchedeDoppie([]); setScelto(c); setModo('cerca'); setTesto(c.full_name ?? '') }} />}
 
         <div className="mt-4 space-y-2">
           <button type="button" onClick={salva} disabled={salvando || (!riprovaDocumenti && modo === 'cerca' && !scelto)}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { schemaRicercaTelefono, schedeConNumero } from '@/lib/clienteTelefono'
 import { conInizialiNomeCognome } from '@/lib/maiuscole'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN } from '@/lib/richiesteWeb'
@@ -89,8 +90,12 @@ export async function POST(req: NextRequest) {
   const conOrigine = d.origine ? { ...riga, origine: d.origine } : riga
   let clienteEsistente: { provenienza?: string | null; struttura_nome?: string | null } | null = null
   if (d.telefonoCifre) {
-    const { data: candidati } = await supabase.from('guests').select('*').ilike('phone', `%${d.telefonoCifre.slice(-9)}%`).limit(5)
-    const trovato = (candidati || []).find(g => String(g.phone || '').replace(/\D/g, '').replace(/^0+/, '') === d.telefonoCifre || String(g.phone || '').replace(/\D/g, '') === d.telefonoCifre)
+    // la regola comune del numero (21/10/2026): ultime cifre solo per leggere,
+    // poi identità intera; con più schede dello stesso numero nessuna scelta
+    const schema = schemaRicercaTelefono(d.telefono)
+    const { data: candidati } = schema ? await supabase.from('guests').select('*').ilike('phone', schema).limit(50) : { data: [] }
+    const stesse = schedeConNumero((candidati || []) as { phone?: string | null }[], d.telefono)
+    const trovato = stesse.length === 1 ? stesse[0] : undefined
     if (trovato && 'provenienza' in trovato) clienteEsistente = trovato as { provenienza?: string | null; struttura_nome?: string | null }
   }
   let inserita = await supabase.from('richieste').insert({ ...conOrigine, ...provenienzaRichiestaDalSito(clienteEsistente) }).select('id').single()

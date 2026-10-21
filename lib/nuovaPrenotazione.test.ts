@@ -120,7 +120,9 @@ test('la ricerca: campo a filo con la lente, «+ Nuovo cliente» sopra e in fond
   // il tastino c'è sopra e in fondo all'elenco, e tiene quello che si è scritto
   assert.equal((pagina.match(/data-nuovo-cliente onClick=\{\(\) => setNuovo\(moduloDaRicerca\(ricerca\)\)\}>\{NUOVO_CLIENTE\}/g) || []).length, 2)
   // la regola di sempre: dal 2º carattere, un quarto di secondo di attesa
-  assert.match(pagina, /if \(testo\.length < 2\) \{ setRisultati\(\[\]\); return \}\s*timer\.current = setTimeout\(\(\) => \{ void cerca\(testo\) \}, 250\)/)
+  assert.match(pagina, /if \(testo\.length < 2\) \{ giroRicerca\.current\+\+; setRisultati\(\[\]\); return \}\s*timer\.current = setTimeout\(\(\) => \{ void cerca\(testo\) \}, 250\)/)
+  // vale solo la risposta dell'ultima ricerca (21/10/2026)
+  assert.match(pagina, /const giro = \+\+giroRicerca\.current[\s\S]*?if \(giro !== giroRicerca\.current\) return/)
 })
 
 test('le righe dei clienti trovati hanno la forma della Home', () => {
@@ -130,8 +132,10 @@ test('le righe dei clienti trovati hanno la forma della Home', () => {
   assert.match(rigaCliente, /vuoleRicevuta\(cliente\) && <span aria-label="vuole la ricevuta">🧾/)
   assert.match(rigaCliente, /valutazioneDi\(cliente\) === 'ottimo'/)
   assert.match(rigaCliente, /\{rigaClienteTrovato\(cliente\.phone, soggiorni\)\}/)
-  // la ricerca guarda nome e telefono con la regola già in uso
-  assert.match(pagina, /full_name\.ilike\.%\$\{testo\}%,phone\.ilike\.%\$\{cifre\}%/)
+  // la ricerca guarda nome e telefono con la lettura comune (21/10/2026: la
+  // vecchia «phone.ilike.%cifre%» non trovava «333…» cercando «+39 333…»)
+  assert.match(pagina, /leggiClientiPerRicerca<ClienteRiga>\(testo, '\*', 30\)/)
+  assert.doesNotMatch(pagina, /phone\.ilike\.%\$\{cifre\}%/)
   assert.match(pagina, /import \{ filtraClienti \} from '@\/lib\/cambiaCliente'/)
 })
 

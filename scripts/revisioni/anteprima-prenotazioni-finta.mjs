@@ -147,6 +147,15 @@ function prenotazione(room_id, guest_id, check_in, check_out, num_guests, extra)
 }
 // Caso dei periodi separati: dati sintetici, importi dimostrativi.
 guests.push(ospite('aaaaaaaa-0030-4000-8000-000000000030', 'Leo Esempio', '+39 333 000 0030'))
+// Telefono in forme diverse (21/10/2026, riconoscimento col +39): stesso
+// numero archiviato senza prefisso, con spazi, all'estero, e uno su due schede
+guests.push(
+  ospite('aaaaaaaa-0071-4000-8000-000000000071', 'Tina Senzaprefisso', '3339990001'),
+  ospite('aaaaaaaa-0072-4000-8000-000000000072', 'Sara Spazi', '+39 333 999 0002'),
+  ospite('aaaaaaaa-0073-4000-8000-000000000073', 'Ian Inglese', '+44 333 999 0001'),
+  ospite('aaaaaaaa-0074-4000-8000-000000000074', 'Doppia Uno', '3339990003'),
+  ospite('aaaaaaaa-0075-4000-8000-000000000075', 'Doppia Due', '+39 333-999-0003'),
+)
 const bookings = [
   prenotazione(ROOM.lena, guests[0].id, '2026-09-03', '2026-09-05', 4,
     { extra_bed: true, extra_bed_dates: ['2026-09-03', '2026-09-04'], extra_bed_total: 20 }),
@@ -638,7 +647,7 @@ function confronta(valore, op, atteso) {
     case 'gte': return String(valore) >= String(a)
     case 'is': return a === null ? valore == null : String(valore) === String(a)
     case 'ilike': {
-      const re = new RegExp('^' + String(a).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i')
+      const re = new RegExp('^' + String(a).replace(/[.+^${}()|[\]\\?]/g, '\\$&').replace(/[%*]/g, '.*').replace(/_/g, '.') + '$', 'i')
       return re.test(String(valore ?? ''))
     }
     case 'in': return String(a).replace(/^\(|\)$/g, '').split(',').map(s => s.replace(/^"|"$/g, '')).includes(String(valore))
@@ -1121,7 +1130,9 @@ const finto = createServer((req, res) => {
     return leggiCorpo(req).then(corpo => {
       const riga = Array.isArray(corpo) ? corpo[0] : corpo
       if (!riga || !riga.phone) return rispondi(res, 400, { code: '23502', message: 'null value in column "phone"' })
-      if (guests.some(g => String(g.phone).replace(/\D/g, '') === String(riga.phone).replace(/\D/g, ''))) return rispondi(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint "guests_phone_key"' })
+      // come il vincolo UNIQUE vero: confronta il testo esatto, non le cifre
+      // (21/10/2026: confrontando le cifre il finto nascondeva i doppioni)
+      if (guests.some(g => String(g.phone) === String(riga.phone))) return rispondi(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint "guests_phone_key"' })
       const nuovo = { ...ospite(`aaaaaaaa-${String(guests.length + 1).padStart(4, '0')}-4000-8000-0000000000${String(guests.length + 1).padStart(2, '0')}`, riga.full_name ?? null, riga.phone), provenienza: 'non_so', struttura_nome: null, ...riga }
       guests.push(nuovo)
       const accept = req.headers.accept || ''

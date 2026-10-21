@@ -13,6 +13,7 @@
 // ============================================================================
 import { rigaCliente, testoFonte } from './provenienza.ts'
 import { valutazioneDi, vuoleRicevuta } from './valutazione.ts'
+import { matchTelefono } from './ricerca.ts'
 import { soggiorniConclusi, type SoggiornoStorico } from './clienteCheTorna.ts'
 
 export type ClienteElenco = {
@@ -33,7 +34,9 @@ export const MOTIVO_INTERNO = 'motivo interno'
 /** La ricerca di sempre: il nome contiene il testo (senza maiuscole) o il telefono lo contiene */
 export function filtraElenco<T extends ClienteElenco>(clienti: T[], ricerca: string): T[] {
   const q = ricerca.toLowerCase()
-  return clienti.filter(g => g.full_name?.toLowerCase().includes(q) || g.phone?.includes(ricerca))
+  // il telefono con la regola comune (21/10/2026): «+39 333 123 4567» copiato
+  // da WhatsApp trova «3331234567» in archivio, e viceversa
+  return clienti.filter(g => g.full_name?.toLowerCase().includes(q) || g.phone?.includes(ricerca) || matchTelefono(g.phone, ricerca))
 }
 
 /** Le icone davanti al nome */

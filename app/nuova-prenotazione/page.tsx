@@ -28,6 +28,9 @@ import { leggiStrutture } from '@/lib/provenienzaDati'
 import { creaClienteNuovo } from '@/lib/cambiaClienteDati'
 import { moduloDaRicerca, campiNuovoCliente } from '@/lib/datiCliente'
 import { numeroUsabile } from '@/lib/whatsapp'
+import { chiaveTelefono, ordinaPerNumeroUguale, stessoNumero } from '@/lib/clienteTelefono'
+import { cercaSchedaPerTelefono, leggiClientiPerRicerca } from '@/lib/clienteTelefonoDati'
+import SchedeStessoNumero from '@/components/SchedeStessoNumero'
 import type { StrutturaNota } from '@/lib/provenienza'
 import CameraSoggiorno from '@/components/nuova/CameraSoggiorno'
 import ArrivoNavetta from '@/components/ArrivoNavetta'
@@ -97,6 +100,10 @@ export default function NuovaPrenotazionePage() {
   const [salvandoCliente, setSalvandoCliente] = useState(false)
   const [avviso, setAvviso] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const giroRicerca = useRef(0)
+  const giroNumero = useRef(0)
+  // le schede che hanno già il numero del cliente nuovo (21/10/2026)
+  const [schedeDoppie, setSchedeDoppie] = useState<ClienteRiga[]>([])
   // ── il soggiorno ─────────────────────────────────────────────────────────
   const [camere, setCamere] = useState<CameraStriscia[]>([])
   // Chi occupa camere e letti, con lo stato della lettura: «non letto» non
@@ -227,6 +234,7 @@ export default function NuovaPrenotazionePage() {
     const campi = campiNuovoCliente(nuovo, struttureOk)
     const esito = await creaClienteNuovo(campi as never, strutture)
     setSalvandoCliente(false)
+    if (esito.schede?.length) { setSchedeDoppie(esito.schede as ClienteRiga[]); return }
     if (esito.errore || !esito.cliente) { setAvviso(esito.errore ?? 'Cliente non salvato, riprova'); return }
     setCliente({ ...esito.cliente, rating: nuovo.valutazione, vuole_ricevuta: nuovo.ricevuta, notes: nuovo.note.trim() || null } as ClienteRiga)
     setNuovo(null)
@@ -239,22 +247,41 @@ export default function NuovaPrenotazionePage() {
     setRicerca(v)
     if (timer.current) clearTimeout(timer.current)
     const testo = v.trim()
-    if (testo.length < 2) { setRisultati([]); return }
+    if (testo.length < 2) { giroRicerca.current++; setRisultati([]); return }
     timer.current = setTimeout(() => { void cerca(testo) }, 250)
   }
 
+  // Il numero si trova in qualunque forma, scritta o in archivio: +39, 0039,
+  // spazi e segni invisibili di WhatsApp (lib/clienteTelefonoDati, 21/10/2026).
+  // Vale solo la risposta dell'ultima ricerca: una lettura lenta di un testo
+  // precedente non sovrascrive l'elenco.
   async function cerca(testo: string) {
+    const giro = ++giroRicerca.current
     setErroreRicerca(null)
-    const cifre = testo.replace(/\D/g, '')
-    let query = supabase.from('guests').select('*')
-    if (cifre.length >= 3) query = query.or(`full_name.ilike.%${testo}%,phone.ilike.%${cifre}%`)
-    else query = query.ilike('full_name', `%${testo}%`)
-    const { data, error } = await query.limit(20)
-    if (error) { setErroreRicerca(messaggioLetturaNonRiuscita(error, 'cercare il cliente')); setRisultati([]); return }
-    const trovati = filtraClienti(testo, (data ?? []) as ClienteRiga[])
+    const { righe, errore } = await leggiClientiPerRicerca<ClienteRiga>(testo, '*', 30)
+    if (giro !== giroRicerca.current) return
+    if (errore) { setErroreRicerca(messaggioLetturaNonRiuscita(errore, 'cercare il cliente')); setRisultati([]); return }
+    const trovati = ordinaPerNumeroUguale(filtraClienti(testo, righe), testo)
     setRisultati(trovati)
     await leggiStorico(trovati.map(c => c.id))
   }
+
+  // Il numero del cliente nuovo è già in archivio? Si guarda mentre si
+  // scrive (mezzo secondo dopo l'ultimo tasto) e di nuovo prima di salvare.
+  // Il telefono scritto non si tocca mai: si mostrano le schede da scegliere.
+  const telefonoNuovo = nuovo?.telefono ?? null
+  useEffect(() => {
+    const giro = ++giroNumero.current
+    if (telefonoNuovo === null || !chiaveTelefono(telefonoNuovo)) return
+    const t = setTimeout(() => {
+      void cercaSchedaPerTelefono<ClienteRiga>(telefonoNuovo).then(r => {
+        if (giro === giroNumero.current && !r.errore) setSchedeDoppie(r.schede)
+      })
+    }, 500)
+    return () => clearTimeout(t)
+  }, [telefonoNuovo])
+  // solo le schede del numero scritto ADESSO: cambiato il numero, l'avviso di prima sparisce
+  const schedeDelNumero = telefonoNuovo === null ? [] : schedeDoppie.filter(c => stessoNumero(c.phone, telefonoNuovo))
 
   // ── le camere della prenotazione ─────────────────────────────────────────
   const linee = useMemo(() => raggruppaPerCamera(periodi), [periodi])
@@ -582,6 +609,9 @@ export default function NuovaPrenotazionePage() {
             onAvanti={() => void creaCliente()} avantiSpento={salvandoCliente} />
           {/* gli avvisi del cliente nuovo, in mattone sotto «Avanti» */}
           {avviso && <div className="np-sec" style={{ paddingTop: 10 }}><p className="np-hint m" role="alert" data-avviso-cliente>{avviso}</p></div>}
+          {schedeDelNumero.length > 0 && <div className="np-sec" style={{ paddingTop: 10 }}>
+            <SchedeStessoNumero schede={schedeDelNumero} onScegli={c => { setSchedeDoppie([]); setNuovo(null); scegliCliente(c) }} />
+          </div>}
         </>
       )}
 

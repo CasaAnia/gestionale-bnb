@@ -5,8 +5,13 @@
 // (anche dopo trattino e apostrofo) diventa maiuscola; il resto resta come
 // scritto («D'Iorio», «Rosa-Maria», «McDonald» non si toccano). Spazi in
 // più tolti. Vuoto o null restano tali.
+// I segni invisibili che WhatsApp e i contatti mettono attorno ai nomi copiati
+// (direzione del testo, spazio a larghezza zero): al salvataggio si tolgono,
+// mentre si scrive non nascondono la prima lettera (21/10/2026).
+const INVISIBILI_NOME = /[\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/g
+
 export function conIniziali(testo: string | null | undefined): string {
-  const t = (testo ?? '').replace(/\s+/g, ' ').trim()
+  const t = (testo ?? '').replace(INVISIBILI_NOME, '').replace(/\s+/g, ' ').trim()
   if (!t) return ''
   return t.replace(/(^|[\s\-'’])(\p{L})/gu, (_, prima: string, lettera: string) => prima + lettera.toLocaleUpperCase('it'))
 }
@@ -24,7 +29,8 @@ export function conInizialiONull(testo: string | null | undefined): string | nul
 // spazio prima della seconda parola sparirebbe. Al salvataggio passa comunque
 // conIniziali, così campo e valore salvato coincidono.
 export function conInizialiDigitando(testo: string): string {
-  return testo.replace(/(^|[\s\-'’])(\p{L})/gu, (_, prima: string, lettera: string) => prima + lettera.toLocaleUpperCase('it'))
+  return testo.replace(/(^|[\s\-'’])([\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]*)(\p{L})/gu,
+    (_, prima: string, invisibili: string, lettera: string) => prima + invisibili + lettera.toLocaleUpperCase('it'))
 }
 
 // Da usare nell'onChange PRIMA di aggiornare lo stato React: corregge il

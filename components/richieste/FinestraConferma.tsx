@@ -1,5 +1,7 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { schedeCheLaConfermaNonVede, testoConfermaDoppione } from '@/lib/clienteTelefono'
+import { cercaSchedaPerTelefono } from '@/lib/clienteTelefonoDati'
 import Link from 'next/link'
 import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
 import { LARGHEZZA_FOGLIETTO_MAC } from '@/lib/calendarioFoglietto'
@@ -37,6 +39,16 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
   const [spuntate, setSpuntate] = useState<Set<string>>(() => new Set(conflitti.map(c => c.id)))
   const [occupato, setOccupato] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  // Stesso numero già in archivio in un'altra forma, che la conferma non
+  // ritroverebbe (21/10/2026): solo un avviso, la scrittura resta la RPC
+  const [doppione, setDoppione] = useState<string | null>(null)
+  useEffect(() => {
+    let vivo = true
+    void cercaSchedaPerTelefono<{ phone?: string | null; full_name?: string | null }>(richiesta.telefono ?? '').then(r => {
+      if (vivo && !r.errore) setDoppione(testoConfermaDoppione(schedeCheLaConfermaNonVede(richiesta.telefono, r.schede)))
+    })
+    return () => { vivo = false }
+  }, [richiesta.telefono])
 
   async function crea() {
     if (occupato) return          // secondo tocco: niente doppioni (e la RPC è idempotente)
@@ -117,6 +129,7 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
             ))}
           </div>
         )}
+        {doppione && <p className="ric-avviso" role="alert" data-avviso-doppione>{doppione}</p>}
         {errore && (
           <div role="alert" className="ric-avviso">
             {errore}

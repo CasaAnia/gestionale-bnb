@@ -13,8 +13,13 @@ export type TelefonoNormalizzato = { numero: string; avviso: string | null }
 //  · "3…" di 9 o 10 cifre senza prefisso → cellulare italiano, si aggiunge 39;
 //  · tutto il resto resta com'è, con l'avviso «Controlla il prefisso».
 // `numero` è nel formato che vuole WhatsApp (solo cifre, prefisso compreso).
+// Segni invisibili che arrivano copiando un numero da WhatsApp o dai contatti
+// (direzione del testo U+202A…U+202E e U+2066…U+2069, U+200B…U+200F, U+FEFF):
+// davanti a «+39» o «0039» nasconderebbero il prefisso (21/10/2026).
+export const INVISIBILI_TELEFONO = /[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g
+
 export function normalizzaTelefono(raw: string | null | undefined): TelefonoNormalizzato {
-  const pulito = (raw || '').replace(/[\s.\-()]/g, '')
+  const pulito = (raw || '').replace(INVISIBILI_TELEFONO, '').replace(/[\s.\-()]/g, '')
   if (!pulito) return { numero: '', avviso: null }
   if (pulito.startsWith('+')) {
     const cifre = pulito.slice(1).replace(/\D/g, '')

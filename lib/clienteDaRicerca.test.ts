@@ -2,13 +2,18 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { moduloDaRicerca, campiNuovoCliente } from './datiCliente.ts'
 
-for (const numero of ['3331234567', '+39 333 123 4567', '0044 (20) 7946-0958', '02 1234567', '33']) {
+// Nel campo il numero resta come scritto; si salva col prefisso del paese a
+// sole cifre (21/10/2026), un numero non riconoscibile resta come scritto
+for (const [numero, salvato] of [
+  ['3331234567', '393331234567'], ['+39 333 123 4567', '393331234567'], ['0044 (20) 7946-0958', '442079460958'],
+  ['02 1234567', '39021234567'], ['33', '33'],
+]) {
   test(`ricerca telefono ${numero}: resta nel campo telefono, modificabile senza perdere cifre`, () => {
     const modulo = moduloDaRicerca(`  ${numero}  `)
     assert.equal(modulo.telefono, numero)
     assert.equal(modulo.nome, '')
     assert.equal(modulo.cognome, '')
-    assert.equal(campiNuovoCliente({ ...modulo, nome: 'Anna', cognome: 'Rossi' }, false).phone, numero.replace(/\s/g, ''))
+    assert.equal(campiNuovoCliente({ ...modulo, nome: 'Anna', cognome: 'Rossi' }, false).phone, salvato)
   })
 }
 for (const [ricerca, nome, cognome] of [

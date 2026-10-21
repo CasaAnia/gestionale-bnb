@@ -4,10 +4,10 @@
 // esistono la tabella strutture (0036) e le colonne di guests (0037); senza,
 // avviso e nessun salvataggio bloccato (i campi restano fuori dai payload).
 import { supabase } from './supabase'
+import { cercaSchedaPerTelefono } from './clienteTelefonoDati'
 import { raccogliPagine } from './statistiche/paginazione'
 import { scriviPoiAggiorna } from './scritturaSicura'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
-import { normalizzaTelefono } from './whatsapp'
 import { vuoleRicevuta } from './valutazione'
 import { manca0036, strutturePerOspiti, strutturaNota, daApplicareAlCliente, AVVISO_0036, AVVISO_0037, type StrutturaNota, type CampiProvenienza } from './provenienza'
 
@@ -55,16 +55,13 @@ export async function salvaProvenienzaCliente(guestId: string, campi: CampiProve
 // conclusi: per precompilare i chip nella nuova richiesta
 export type ClienteTrovato = { id: string; full_name: string | null; provenienza: string | null; struttura_nome: string | null; soggiorniConclusi: number; conColonne: boolean; ricevuta: boolean }
 export async function cercaClientePerTelefono(telefono: string, oggi: string): Promise<ClienteTrovato | null> {
-  const cifre = normalizzaTelefono(telefono).numero
-  if (!cifre || cifre.length < 8) return null
-  // In produzione guests.phone è a sole cifre (RPC e nuova prenotazione): prima
-  // l'uguaglianza esatta, poi un ripiego sulle ultime cifre per le schede
-  // vecchie scritte con spazi o prefisso
-  let { data, error } = await supabase.from('guests').select('*').eq('phone', cifre).limit(1)
-  if (!error && (!data || data.length === 0)) ({ data, error } = await supabase.from('guests').select('*').ilike('phone', `%${cifre.slice(-4)}`).limit(20))
-  if (error || !data) return null
-  const g = data.find(x => normalizzaTelefono(x.phone).numero === cifre) as Record<string, unknown> | undefined
-  if (!g) return null
+  // La regola comune del numero (21/10/2026, lib/clienteTelefono): stesso
+  // numero con o senza +39/0039, spazi o segni di WhatsApp, in qualunque
+  // forma salvato. Con più schede dello stesso numero non si sceglie a caso:
+  // nessun cliente precompilato.
+  const { schede, errore } = await cercaSchedaPerTelefono<Record<string, unknown> & { phone?: string | null }>(telefono)
+  if (errore || schede.length !== 1) return null
+  const g = schede[0]
   const b = await supabase.from('bookings').select('id, group_id, check_out, status').eq('guest_id', g.id as string).in('status', ['confermata', 'completata']).lte('check_out', oggi)
   const gruppi = new Set((b.data || []).map(x => x.group_id || x.id))
   return { id: g.id as string, full_name: (g.full_name as string) ?? null, provenienza: (g.provenienza as string) ?? null, struttura_nome: (g.struttura_nome as string) ?? null, soggiorniConclusi: gruppi.size, conColonne: 'provenienza' in g, ricevuta: vuoleRicevuta(g as { rating?: string | null; vuole_ricevuta?: boolean | null }) }

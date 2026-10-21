@@ -13,6 +13,18 @@
 // ============================================================================
 import { nomeDaSalvare, spezzaNome } from './guestName.ts'
 import { normalizzaTelefono, numeroUsabile } from './whatsapp.ts'
+import { INVISIBILI_TELEFONO, chiaveTelefono } from './clienteTelefono.ts'
+import { conIniziali } from './maiuscole.ts'
+
+// Il telefono come lo si salva (21/10/2026): a sole cifre col prefisso del
+// paese (393331234567, 447700900123), la forma che usano già la conferma delle
+// richieste (RPC conferma_richiesta, confronto sulle cifre), «Dati della
+// cliente» e la pagina Clienti. Un numero non riconoscibile resta com'è
+// scritto, senza spazi e senza i segni invisibili di WhatsApp. Nel campo il
+// numero resta quello digitato: cambia solo come si salva.
+export function telefonoDaSalvare(t: string): string {
+  return chiaveTelefono(t) ?? t.replace(INVISIBILI_TELEFONO, '').replace(/\s/g, '')
+}
 import { valutazioneDi, vuoleRicevuta, payloadValutazione, type Valutazione } from './valutazione.ts'
 import { normalizzaProvenienza, campiProvenienza, type Provenienza } from './provenienza.ts'
 import { pagamentoAbitualeDi, type PagamentoAbituale } from './pagamentoAbituale.ts'
@@ -73,12 +85,16 @@ export function moduloDaCliente(c: ClienteSalvato | null | undefined): ModuloCli
  * Nome e cognome usano la stessa divisione del modulo cliente e restano editabili.
  * Se sono stati incollati insieme nominativo e numero, conserva entrambi. */
 export function moduloDaRicerca(ricerca: string): ModuloCliente {
-  const testo = ricerca.trim()
+  // via i segni invisibili che WhatsApp mette attorno ai numeri copiati: non
+  // devono finire nel nome né spezzare il riconoscimento (21/10/2026)
+  const testo = ricerca.replace(INVISIBILI_TELEFONO, '').trim()
   const telefono = testo.match(/\+?\d[\d\s().-]*\d|\d/g)?.find(x => x.replace(/\D/g, '').length >= 3)
   const soloTelefono = /^[+\d\s().-]+$/.test(testo) && /\d/.test(testo)
   const numero = soloTelefono ? testo : (telefono?.trim() ?? '')
   const nominativo = soloTelefono ? '' : telefono ? testo.replace(telefono, ' ').trim() : testo
-  return { ...moduloDaCliente(null), ...spezzaNome(nominativo), telefono: numero }
+  const { nome, cognome } = spezzaNome(nominativo)
+  // regola fissa n. 1: nel campo si vede già «Mario Rossi», non «mario rossi»
+  return { ...moduloDaCliente(null), nome: conIniziali(nome), cognome: conIniziali(cognome), telefono: numero }
 }
 
 // ── Dal modulo ai campi di guests ──────────────────────────────────────────
@@ -95,7 +111,7 @@ export type OpzioniCampi = {
 export function campiNuovoCliente(m: ModuloCliente, conProvenienza: boolean): Record<string, unknown> {
   return {
     full_name: nomeDaSalvare({ nome: m.nome, cognome: m.cognome }),
-    phone: m.telefono.replace(/\s/g, ''),
+    phone: telefonoDaSalvare(m.telefono),
     ...(m.email.trim() ? { email: m.email.trim() } : {}),
     rating: m.valutazione,
     vuole_ricevuta: m.ricevuta,

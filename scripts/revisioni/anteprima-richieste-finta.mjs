@@ -58,6 +58,9 @@ const guests = [
   // valutazione ottima e la ricevuta, per la testa del cliente e «Da controllare»
   { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, provenienza: 'altra_struttura', struttura_nome: 'Nida', pagamento_abituale: 'contanti', notes: 'Dorme male con i rumori: darle la camera sul cortile.', created_at: ora, updated_at: ora },
   { id: 'aaaaaaaa-0003-4000-8000-000000000003', phone: '+39 333 000 0303', full_name: 'Rosa Archivio', email: null, rating: 'normale', vuole_ricevuta: true, motivo_problematico: null, pagamento_abituale: 'bonifico', notes: null, created_at: ora, updated_at: ora },
+  // 21/10/2026: la scheda di Giusi archiviata SENZA prefisso, la sua richiesta
+  // col +39 (conferma: la RPC confronta le cifre esatte e non la vede)
+  { id: 'aaaaaaaa-0004-4000-8000-000000000004', phone: '3330000129', full_name: 'Giusi Brugaletta', email: null, rating: 'normale', vuole_ricevuta: false, motivo_problematico: null, provenienza: 'passaparola', struttura_nome: null, notes: null, created_at: ora, updated_at: ora },
 ]
 // Prenotazioni intorno a fra 10 giorni: Amelia e Ambra occupate, Allegra in
 // attesa (NON conta), Lena annullata (NON conta).

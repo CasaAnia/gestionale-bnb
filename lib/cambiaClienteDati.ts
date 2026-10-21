@@ -9,22 +9,28 @@ import {
   campiCambioCliente, filtroCambioCliente, filtraClienti, salvaCambioCliente, messaggioCreazioneCliente,
   type ClienteBreve, type PrenotazionePerCambio, type CampiNuovoCliente,
 } from './cambiaCliente'
+import { cercaSchedaPerTelefono, leggiClientiPerRicerca } from './clienteTelefonoDati'
+import { ordinaPerNumeroUguale, testoNumeroGiaInArchivio } from './clienteTelefono'
 
 // Clienti che somigliano al testo (nome o cifre del telefono), letti dal
 // server e poi filtrati con la stessa regola della ricerca locale; il cliente
 // attuale non compare mai. Con testo vuoto: gli ultimi creati.
 export async function cercaClientiPerCambio(testo: string, escludiId: string | null | undefined): Promise<{ clienti: ClienteBreve[]; errore: string | null }> {
   const q = testo.trim()
-  const cifre = q.replace(/\D/g, '')
   // ricevuta, valutazione e nota servono alla riga della scheda nuova (🧾 ★ nome) e al cliente scelto
-  let query = supabase.from('guests').select('id, full_name, phone, provenienza, struttura_nome, rating, vuole_ricevuta, notes')
-  if (q && cifre.length >= 3) query = query.or(`full_name.ilike.%${q}%,phone.ilike.%${cifre}%`)
-  else if (q) query = query.ilike('full_name', `%${q}%`)
-  const { data, error } = await query.order('created_at', { ascending: false }).limit(q ? 30 : 12)
-  if (error) return { clienti: [], errore: messaggioLetturaNonRiuscita(error, 'cercare i clienti') }
-  const righe = (data || []) as ClienteBreve[]
-  // Senza testo l'ordine resta «ultimi creati»; col testo, per nome
-  return { clienti: q ? filtraClienti(q, righe, escludiId) : righe.filter(c => c.id !== escludiId), errore: null }
+  const campi = 'id, full_name, phone, provenienza, struttura_nome, rating, vuole_ricevuta, notes'
+  if (!q) {
+    const { data, error } = await supabase.from('guests').select(campi).order('created_at', { ascending: false }).limit(12)
+    if (error) return { clienti: [], errore: messaggioLetturaNonRiuscita(error, 'cercare i clienti') }
+    // Senza testo l'ordine resta «ultimi creati»
+    return { clienti: ((data || []) as ClienteBreve[]).filter(c => c.id !== escludiId), errore: null }
+  }
+  // Col testo la stessa lettura della Nuova prenotazione (21/10/2026): il
+  // numero si trova con o senza +39/0039 e con gli spazi di WhatsApp
+  const { righe, errore } = await leggiClientiPerRicerca<ClienteBreve>(q, campi, 30)
+  if (errore) return { clienti: [], errore: messaggioLetturaNonRiuscita(errore, 'cercare i clienti') }
+  // per nome, ma prima le schede col numero identico a quello cercato
+  return { clienti: ordinaPerNumeroUguale(filtraClienti(q, righe, escludiId), q), errore: null }
 }
 
 // Quante volte ogni cliente è già stata qui: si contano i SOGGIORNI conclusi,
@@ -42,7 +48,16 @@ export async function soggiorniConclusiDeiClienti(ids: string[], oggi: string): 
 
 // Cliente nuovo: una riga in guests (telefono UNIQUE → messaggio dedicato).
 // Un nome di struttura nuovo entra nell'elenco, come in /nuova.
-export async function creaClienteNuovo(campi: CampiNuovoCliente, struttureNote: { nome: string }[]): Promise<{ cliente: ClienteBreve; errore: null } | { cliente: null; errore: string }> {
+//
+// Prima di scrivere (21/10/2026): lo stesso numero in un'altra forma («+39 333…»
+// contro «333…» in archivio) il vincolo UNIQUE non lo ferma, perché confronta
+// il testo. Se il numero è già su una o più schede non si crea niente: torna
+// `schede` e chi chiama le mostra da scegliere. Se il controllo non riesce
+// non si scrive alla cieca.
+export async function creaClienteNuovo(campi: CampiNuovoCliente, struttureNote: { nome: string }[]): Promise<{ cliente: ClienteBreve; errore: null; schede?: undefined } | { cliente: null; errore: string; schede?: ClienteBreve[] }> {
+  const gia = await cercaSchedaPerTelefono<ClienteBreve>(String(campi.phone ?? ''))
+  if (gia.errore) return { cliente: null, errore: `Non sono riuscito a controllare se il numero è già in archivio: ${gia.errore}` }
+  if (gia.schede.length) return { cliente: null, errore: testoNumeroGiaInArchivio(gia.schede) ?? '', schede: gia.schede }
   let risposta: { data: ClienteBreve | null; error: { code?: string; message?: string } | null }
   try {
     risposta = await supabase.from('guests').insert(campi).select('id, full_name, phone, provenienza, struttura_nome, rating, vuole_ricevuta, notes').single()

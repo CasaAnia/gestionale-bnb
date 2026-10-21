@@ -16,6 +16,9 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { smartBack } from '@/lib/navHistory'
 import { payloadValutazione, type Valutazione } from '@/lib/valutazione'
+import { chiaveTelefono } from '@/lib/clienteTelefono'
+import { cercaSchedaPerTelefono } from '@/lib/clienteTelefonoDati'
+import SchedeStessoNumero, { type SchedaStessoNumero } from '@/components/SchedeStessoNumero'
 
 const SEGNI: { chiave: Valutazione; segno: string; mattone?: boolean }[] = [
   { chiave: 'ottimo', segno: '★' },
@@ -36,6 +39,7 @@ function ModuloNuovoCliente() {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [schedeDoppie, setSchedeDoppie] = useState<SchedaStessoNumero[]>([])
 
   async function save() {
     const full_name = nomeDaSalvareONull({ nome: form.nome, cognome: form.cognome })
@@ -43,10 +47,20 @@ function ModuloNuovoCliente() {
       setError('Inserisci almeno nome o numero di telefono.')
       return
     }
+    // Il numero si salva con il prefisso del paese, a sole cifre come prima
+    // (393331234567), ma senza più incollare «39» davanti a un +44 o a uno
+    // 0039 (21/10/2026): chiaveTelefono tiene il prefisso scritto.
+    const formattedPhone = form.phone.trim() ? chiaveTelefono(form.phone) : null
+    if (form.phone.trim() && !formattedPhone) { setError('Controlla il numero: con il prefisso (+39, +44…) o un numero italiano completo.'); return }
     setSaving(true)
     setError(null)
-    const rawP = form.phone.trim().replace(/\D/g, '')
-    const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
+    setSchedeDoppie([])
+    // Lo stesso numero già in archivio, anche scritto in un'altra forma: niente doppione
+    if (formattedPhone) {
+      const gia = await cercaSchedaPerTelefono<SchedaStessoNumero>(formattedPhone)
+      if (gia.errore) { setSaving(false); setError(`Non sono riuscito a controllare se il numero è già in archivio: ${gia.errore}`); return }
+      if (gia.schede.length) { setSaving(false); setSchedeDoppie(gia.schede); return }
+    }
     const base = { full_name, phone: formattedPhone, email: form.email.trim() || null }
     // Colonna nuova (0038) se c'è; altrimenti la forma vecchia, così nulla si blocca
     let { data, error: err } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(form.rating, form.ricevuta, true) }).select().single()
@@ -98,6 +112,7 @@ function ModuloNuovoCliente() {
 
         <div className="sec">
           {error && <p role="alert" className="mz-hint" style={{ color: '#8C3B2E' }} data-errore-cliente>{error}</p>}
+          <SchedeStessoNumero schede={schedeDoppie} azione="apri la scheda" className="mb-3" onScegli={c => router.push(`/clienti/${c.id}`)} />
           <button type="button" onClick={save} disabled={saving} className="ric-cta" data-salva-cliente>{saving ? 'Salvataggio...' : 'Salva cliente'}</button>
         </div>
       </div>

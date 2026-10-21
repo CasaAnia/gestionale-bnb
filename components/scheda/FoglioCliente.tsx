@@ -34,6 +34,8 @@ import { clienteConProvenienza, PROVENIENZE, type StrutturaNota } from '@/lib/pr
 import { colonnaRicevutaPresente, type Valutazione } from '@/lib/valutazione'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
+import { cercaSchedaPerTelefono } from '@/lib/clienteTelefonoDati'
+import { testoNumeroAltraScheda } from '@/lib/clienteTelefono'
 import { moduloDaCliente, campiDaModulo, TITOLO_DATI_CLIENTE, AVVISO_TUTTI_I_SOGGIORNI, type ClienteSalvato, type ModuloCliente } from '@/lib/datiCliente'
 import { colonnaPagamentoPresente, VOCI_PAGAMENTO_ABITUALE, ETICHETTA_PAGA_DI_SOLITO } from '@/lib/pagamentoAbituale'
 import { nomeDaSalvare, nomeCompleto } from '@/lib/guestName'
@@ -84,6 +86,18 @@ export default function FoglioCliente({ cliente, onChiudi, onSalvato }: {
     if (!m.ok) { setErrore(m.errore); return }
     setSalvando(true)
     setErrore(null)
+    // Numero cambiato e già su un'altra scheda, anche scritto in un'altra
+    // forma (21/10/2026): non si salva, così non nascono due schede con lo
+    // stesso numero; le schede non si uniscono da qui
+    if (m.campi.phone !== (cliente.phone ?? null) && typeof m.campi.phone === 'string') {
+      const gia = await cercaSchedaPerTelefono<{ id: string; full_name?: string | null; phone?: string | null }>(m.campi.phone)
+      const altre = gia.schede.filter(g => g.id !== cliente.id)
+      if (gia.errore || altre.length) {
+        setSalvando(false)
+        setErrore(gia.errore ? `Non sono riuscito a controllare se il numero è già in archivio: ${gia.errore}` : testoNumeroAltraScheda(altre))
+        return
+      }
+    }
     let esito: { error: { code?: string; message?: string } | null }
     try { esito = await supabase.from('guests').update(m.campi).eq('id', cliente.id) } catch (err) { esito = { error: { message: String((err as Error)?.message ?? err) } } }
     if (esito.error) {

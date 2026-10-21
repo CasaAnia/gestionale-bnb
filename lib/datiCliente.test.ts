@@ -57,7 +57,7 @@ test('la valutazione: prima della 0038 la forma vecchia; il motivo solo se cambi
 test('il cliente nuovo dell’inserimento scrive gli stessi campi di sempre', () => {
   const m = { nome: 'Anna', cognome: 'Rossi', telefono: '333 000 0001', email: '', ricevuta: false, valutazione: 'problematico' as const, motivo: ' in ritardo ', provenienza: 'google' as const, struttura: '', note: '' }
   assert.deepEqual(campiNuovoCliente(m, true), {
-    full_name: 'Anna Rossi', phone: '3330000001', rating: 'problematico', vuole_ricevuta: false, notes: null,
+    full_name: 'Anna Rossi', phone: '393330000001', rating: 'problematico', vuole_ricevuta: false, notes: null,
     motivo_problematico: 'in ritardo', provenienza: 'google', struttura_nome: null,
   })
   assert.equal('provenienza' in campiNuovoCliente(m, false), false)

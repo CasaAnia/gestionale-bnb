@@ -3,6 +3,8 @@
 // la stessa prenotazione. Il numero si confronta solo sulle cifre; il
 // prefisso 39/0039 può esserci o mancare sia nel digitato sia in archivio.
 
+import { chiaveTelefono } from './clienteTelefono.ts'
+
 function soloCifre(s: string) {
   return s.replace(/\D/g, '')
 }
@@ -11,6 +13,15 @@ export function matchTelefono(telefono: string | null | undefined, query: string
   const p = soloCifre(telefono || '')
   const q = soloCifre(query)
   if (!p || q.length < 3) return false
+  // Numero completo da entrambe le parti (21/10/2026): decide l'identità
+  // intera, prefisso del paese compreso — «+39 333…» non trova «+44 333…».
+  // Mentre si scrive (numero ancora incompleto, o un cellulare a 9 cifre
+  // che è l'inizio di quello a 10) vale la ricerca per pezzi.
+  const kq = chiaveTelefono(query), kp = chiaveTelefono(telefono)
+  if (kq && kp) {
+    if (kq === kp) return true
+    if (!kp.startsWith(kq)) return false
+  }
   // Varianti del digitato senza prefisso internazionale. Il taglio di "39"
   // solo oltre le 10 cifre evita di storpiare i cellulari che iniziano
   // davvero per 39 (es. 393...): un numero italiano ha 10 cifre.
