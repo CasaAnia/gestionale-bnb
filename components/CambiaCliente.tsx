@@ -9,15 +9,16 @@ import { useEffect, useRef, useState } from 'react'
 import { moduloDaRicerca } from '@/lib/datiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoProvenienza from '@/components/CampoProvenienza'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeOspite, nomeCompleto } from '@/lib/guestName'
 import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { normalizzaTelefono, telefonoLeggibile } from '@/lib/whatsapp'
 import { type StrutturaNota } from '@/lib/provenienza'
 import {
-  avvisiCambioCliente, provenienzaProposta, nuovoClienteDaModulo, stessoCliente, testoDocumentiDaSpostare,
-  MESSAGGIO_DOCUMENTI_NON_SPOSTATI, type ClienteBreve, type PrenotazionePerCambio, type ValoreProvenienzaModulo,
+  avvisiCambioCliente, provenienzaProposta, nuovoClienteDaModulo, stessoCliente,
+  MESSAGGIO_DOCUMENTI_NON_SPOSTATI, type DocumentoDaScegliere, type ClienteBreve, type PrenotazionePerCambio, type ValoreProvenienzaModulo,
 } from '@/lib/cambiaCliente'
 import SchedeStessoNumero from '@/components/SchedeStessoNumero'
+import SceltaDocumenti from '@/components/SceltaDocumenti'
 import { cercaClientiPerCambio, creaClienteNuovo, scriviCambioCliente, documentiDelCliente, spostaDocumenti } from '@/lib/cambiaClienteDati'
 
 type Props = {
@@ -45,12 +46,13 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
   const [scelto, setScelto] = useState<ClienteBreve | null>(null)
   const [modulo, setModulo] = useState({ nome: '', cognome: '', telefono: '' })
   const [provenienza, setProvenienza] = useState<ValoreProvenienzaModulo>(() => provenienzaProposta(clienteAttuale, strutture.lista))
-  const [documenti, setDocumenti] = useState<string[]>([])
-  const [spostaDoc, setSpostaDoc] = useState(true)
+  const [documenti, setDocumenti] = useState<DocumentoDaScegliere[]>([])
+  // D2 (Ania 21/10/2026): documenti scelti uno per uno, nessuno all'inizio
+  const [scelti, setScelti] = useState<string[]>([])
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   // Dopo un cambio riuscito ma documenti non spostati: si riprova solo quella parte
-  const [riprovaDocumenti, setRiprovaDocumenti] = useState<{ nuovo: ClienteBreve } | null>(null)
+  const [riprovaDocumenti, setRiprovaDocumenti] = useState<{ nuovo: ClienteBreve; ids: string[] } | null>(null)
   const campoRicerca = useRef<HTMLInputElement>(null)
 
   function apriNuovoCliente() {
@@ -62,12 +64,11 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
       telefono: precedente.telefono || dallaRicerca.telefono,
     }))
     setModo('nuovo')
-    setScelto(null)
+    setScelto(null); setScelti([])
   }
 
   const [schedeDoppie, setSchedeDoppie] = useState<ClienteBreve[]>([])
   const avvisi = avvisiCambioCliente({ pagamenti, confermaInviata, segmenti, nomeVecchio })
-  const rigaDocumenti = testoDocumentiDaSpostare(documenti.length, nomeVecchio)
 
   // Ricerca con una piccola attesa mentre si scrive; con campo vuoto gli ultimi clienti
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
 
   useEffect(() => {
     let vivo = true
-    documentiDelCliente(clienteAttuale?.id).then(ids => { if (vivo) setDocumenti(ids) })
+    documentiDelCliente(clienteAttuale?.id).then(d => { if (vivo) setDocumenti(d) })
     return () => { vivo = false }
   }, [clienteAttuale?.id])
 
@@ -96,10 +97,12 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, salvando])
 
-  async function spostaDocumentiPoiChiudi(nuovo: ClienteBreve) {
-    if (spostaDoc && documenti.length > 0 && clienteAttuale?.id) {
-      const e = await spostaDocumenti(documenti, clienteAttuale.id, nuovo.id, () => {})
-      if (e) { setRiprovaDocumenti({ nuovo }); setErrore(`${MESSAGGIO_DOCUMENTI_NON_SPOSTATI}: ${e.replace(/^Non salvato, /, '')}`); return }
+  async function spostaDocumentiPoiChiudi(nuovo: ClienteBreve, ids: string[]) {
+    // solo i documenti spuntati, e solo quelli ancora sulla cliente di partenza
+    const daSpostare = ids.filter(id => documenti.some(d => d.id === id))
+    if (daSpostare.length > 0 && clienteAttuale?.id) {
+      const e = await spostaDocumenti(daSpostare, clienteAttuale.id, nuovo.id, () => {})
+      if (e) { setRiprovaDocumenti({ nuovo, ids: daSpostare }); setErrore(`${MESSAGGIO_DOCUMENTI_NON_SPOSTATI}: ${e.replace(/^Non salvato, /, '')}`); return }
     }
     onCambiato(nuovo)
   }
@@ -111,7 +114,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
     let nuovo: ClienteBreve | null = scelto
     setSalvando(true)
     try {
-      if (riprovaDocumenti) { await spostaDocumentiPoiChiudi(riprovaDocumenti.nuovo); return }
+      if (riprovaDocumenti) { await spostaDocumentiPoiChiudi(riprovaDocumenti.nuovo, riprovaDocumenti.ids); return }
       if (modo === 'nuovo') {
         const m = nuovoClienteDaModulo({ ...modulo, provenienza: provenienza.provenienza, struttura: provenienza.struttura }, strutture.disponibile)
         if (!m.ok) { setErrore(m.errore); return }
@@ -133,7 +136,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
       const fissato = nuovo
       const e = await scriviCambioCliente(booking, fissato.id, () => {})
       if (e) { setErrore(e); return }
-      await spostaDocumentiPoiChiudi(fissato)
+      await spostaDocumentiPoiChiudi(fissato, scelti)
     } finally {
       setSalvando(false)
     }
@@ -167,13 +170,13 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
 
         {!riprovaDocumenti && modo === 'cerca' && (
           <div>
-            <input ref={campoRicerca} value={testo} onChange={e => { setTesto(e.target.value); setScelto(null) }}
+            <input ref={campoRicerca} value={testo} onChange={e => { setTesto(e.target.value); setScelto(null); setScelti([]) }}
               placeholder="Cerca nome o telefono…" aria-label="Cerca cliente" autoComplete="off" className={`${campo} mb-2`} />
             {erroreRicerca && <AvvisoAzione testo={erroreRicerca} className="mb-2" />}
             <div className="ed-lista max-h-64 overflow-y-auto" role="listbox" aria-label="Clienti">
               {risultati.map(c => (
                 <button key={c.id} type="button" role="option" aria-selected={scelto?.id === c.id}
-                  onClick={() => setScelto(c)}
+                  onClick={() => { setScelto(c); setScelti([]) }}
                   className={`w-full text-left py-2.5 px-2 flex items-center justify-between gap-3 transition-colors ${scelto?.id === c.id ? 'bg-sage rounded-lg' : ''}`}>
                   <span className="min-w-0">
                     <span className="block font-semibold text-green-dark truncate">{c.full_name || 'Senza nome'}</span>
@@ -203,16 +206,15 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
           </div>
         )}
 
-        {rigaDocumenti && !riprovaDocumenti && (
-          <label className="flex items-start gap-2.5 mt-3 text-sm text-green-dark cursor-pointer" data-sposta-documenti>
-            <input type="checkbox" checked={spostaDoc} onChange={e => setSpostaDoc(e.target.checked)} className="mt-0.5 accent-[#2D6A4F]" />
-            <span>{rigaDocumenti}</span>
-          </label>
+        {!riprovaDocumenti && (modo === 'nuovo' || scelto) && (
+          <SceltaDocumenti documenti={documenti} scelti={scelti} disabilitata={salvando}
+            onScegli={(id, si) => setScelti(l => (si ? [...l.filter(x => x !== id), id] : l.filter(x => x !== id)))}
+            nomeVecchio={nomeVecchio} nomeNuovo={modo === 'nuovo' ? nomeCompleto({ nome: modulo.nome, cognome: modulo.cognome }) : scelto?.full_name} />
         )}
 
         {errore && <AvvisoAzione testo={errore} className="mt-3" />}
         {modo === 'nuovo' && <SchedeStessoNumero schede={schedeDoppie} className="mt-3"
-          onScegli={c => { setSchedeDoppie([]); setScelto(c); setModo('cerca'); setTesto(c.full_name ?? '') }} />}
+          onScegli={c => { setSchedeDoppie([]); setScelti([]); setScelto(c); setModo('cerca'); setTesto(c.full_name ?? '') }} />}
 
         <div className="mt-4 space-y-2">
           <button type="button" onClick={salva} disabled={salvando || (!riprovaDocumenti && modo === 'cerca' && !scelto)}

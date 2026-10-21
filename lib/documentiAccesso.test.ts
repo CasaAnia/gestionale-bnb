@@ -69,7 +69,9 @@ test('i messaggi d’errore dell’apertura sono comprensibili e non dicono «ca
 test('il documento resta della persona: si legge e si carica per guest_id della scheda cliente', () => {
   const comp = leggi('components/DocumentiCliente.tsx')
   assert.match(comp, /\.from\('documenti_cliente'\)\.select\('\*'\)\.eq\('guest_id', guestId\)/)
-  assert.match(comp, /const riga = \{ id, guest_id: guestId, percorso,/)
+  // dal 21/10 (D1) il destinatario si fissa alla partenza del caricamento
+  assert.match(comp, /const destinatario = guestId,/)
+  assert.match(comp, /const riga = \{ id, guest_id: destinatario, percorso,/)
   // il successo compare solo DOPO la riga salvata (insert … select().single() riuscito)
   const carica = comp.slice(comp.indexOf('async function carica('), comp.indexOf('async function apri('))
   assert.ok(carica.indexOf("insert(riga).select().single()") < carica.indexOf('setDocumenti(l => [...l, doc])'))

@@ -141,15 +141,50 @@ export function filtraClienti<T extends ClienteBreve>(testo: string, clienti: T[
 }
 
 // ── Documenti caricati sul cliente di partenza ──────────────────────────────
-// I documenti (0032) stanno sul CLIENTE, non sulla prenotazione: la carta
-// d'identità dell'ospite fotografata «su Nida» resterebbe su Nida. Nella
-// scheda si propone di spostarli (scelta di Ania, proposta già spuntata):
-// cambia solo documenti_cliente.guest_id, il file resta dov'è (le anteprime
-// leggono `percorso`, non la cartella del cliente).
-export function testoDocumentiDaSpostare(n: number, nomeVecchio: string | null | undefined): string | null {
+// I documenti (0032) stanno sul CLIENTE, non sulla prenotazione. Dal 21/10/2026
+// (D2, scelta «b» di Ania, dopo l'incidente dei documenti finiti sulla persona
+// sbagliata) NON si spostano più tutti insieme di predefinito: si scelgono uno
+// per uno, all'inizio NESSUNO è scelto, e il cambio cliente si fa anche senza
+// spostarne nessuno. Un numero di telefono uguale non sceglie nulla da solo.
+// Lo spostamento cambia solo documenti_cliente.guest_id: il file resta dov'è.
+export type DocumentoDaScegliere = {
+  id: string
+  etichetta: string
+  lato: string | null
+  created_at: string
+  percorso: string
+}
+const ETICHETTE_DOC: Record<string, string> = { carta_identita: 'Carta d’identità', passaporto: 'Passaporto', patente: 'Patente', documento: 'Documento', altro: 'Altro' }
+/** «Carta d’identità · fronte · 20/10/2026» */
+export function descriviDocumento(d: Pick<DocumentoDaScegliere, 'etichetta' | 'lato' | 'created_at'>): string {
+  const giorno = String(d.created_at ?? '').slice(0, 10)
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(giorno) ? `${giorno.slice(8, 10)}/${giorno.slice(5, 7)}/${giorno.slice(0, 4)}` : ''
+  return [ETICHETTE_DOC[d.etichetta] ?? 'Documento', d.lato, data].filter(Boolean).join(' · ')
+}
+/** Il titolo sopra l'elenco: di chi sono e che nessuno è scelto */
+export function titoloSceltaDocumenti(n: number, nomeVecchio: string | null | undefined): string | null {
   if (n <= 0) return null
-  const chi = nomeVecchio ? ` su ${nomeVecchio}` : ''
-  return n === 1 ? `Sposta anche il documento caricato${chi} al cliente nuovo` : `Sposta anche i ${n} documenti caricati${chi} al cliente nuovo`
+  const di = nomeVecchio ? ` di ${nomeVecchio}` : ''
+  return n === 1 ? `C’è 1 documento${di}. Spuntalo solo se è della persona nuova.` : `Ci sono ${n} documenti${di}. Spunta solo quelli della persona nuova.`
+}
+/** La riga che dice esattamente cosa succede, prima di «Cambia»:
+ *  partenza, destinatario e documenti scelti, oppure che restano tutti dove sono */
+export function riepilogoDocumenti(scelti: DocumentoDaScegliere[], totale: number, nomeVecchio: string | null | undefined, nomeNuovo: string | null | undefined): string | null {
+  if (totale <= 0) return null
+  const da = nomeVecchio || 'la cliente di adesso', a = nomeNuovo || 'la cliente nuova'
+  if (scelti.length === 0) return `Nessun documento passa a ${a}: ${totale === 1 ? 'resta' : 'restano tutti'} a ${da}.`
+  const elenco = scelti.map(descriviDocumento).join('; ')
+  const restano = totale - scelti.length
+  return `Passa${scelti.length === 1 ? '' : 'no'} da ${da} a ${a}: ${elenco}.${restano > 0 ? ` ${restano === 1 ? 'L’altro resta' : `Gli altri ${restano} restano`} a ${da}.` : ''}`
+}
+/** Lo spostamento è riuscito solo se il database ha toccato ESATTAMENTE i documenti scelti */
+export function esitoSpostamento(scelti: string[], spostati: string[] | null | undefined): string | null {
+  const fatti = new Set(spostati ?? [])
+  const mancano = scelti.filter(id => !fatti.has(id)).length
+  const estranei = (spostati ?? []).filter(id => !scelti.includes(id)).length
+  if (mancano === 0 && estranei === 0) return null
+  if (estranei > 0) return 'il database ha toccato documenti non scelti: ricarica la scheda e controlla'
+  return mancano === scelti.length ? 'nessun documento spostato' : `spostati ${scelti.length - mancano} documenti su ${scelti.length}: ricarica la scheda e controlla`
 }
 export const MESSAGGIO_DOCUMENTI_NON_SPOSTATI = 'Prenotazione passata al cliente nuovo, ma i documenti non sono stati spostati'
 

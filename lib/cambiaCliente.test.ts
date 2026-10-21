@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   campiCambioCliente, filtroCambioCliente, stessoCliente, avvisiCambioCliente, provenienzaProposta,
-  nuovoClienteDaModulo, messaggioCreazioneCliente, filtraClienti, salvaCambioCliente, testoDocumentiDaSpostare,
+  nuovoClienteDaModulo, messaggioCreazioneCliente, filtraClienti, salvaCambioCliente, titoloSceltaDocumenti, descriviDocumento, riepilogoDocumenti, esitoSpostamento,
   ERRORE_NOME_MANCANTE, ERRORE_TELEFONO_MANCANTE, ERRORE_TELEFONO_CORTO, ERRORE_TELEFONO_DOPPIO, MESSAGGIO_NESSUNA_RIGA,
 } from './cambiaCliente.ts'
 import { MESSAGGIO_NON_SALVATO } from './scritturaSicura.ts'
@@ -86,11 +86,29 @@ test('ricerca: per nome o telefono, il cliente attuale mai in lista, ordine per 
   assert.deepEqual(filtraClienti('nida', clienti, 'g-nida'), [])
 })
 
-test('documenti sul cliente di partenza: proposta di spostarli con il conteggio; senza documenti nessuna riga', () => {
-  assert.equal(testoDocumentiDaSpostare(0, 'Nida'), null)
-  assert.equal(testoDocumentiDaSpostare(1, 'Nida'), 'Sposta anche il documento caricato su Nida al cliente nuovo')
-  assert.equal(testoDocumentiDaSpostare(2, 'Nida'), 'Sposta anche i 2 documenti caricati su Nida al cliente nuovo')
-  assert.equal(testoDocumentiDaSpostare(2, null), 'Sposta anche i 2 documenti caricati al cliente nuovo')
+test('documenti sul cliente di partenza (D2, 21/10/2026): si scelgono uno per uno, la riga dice da chi a chi e quali', () => {
+  const d = (id: string, lato: string | null) => ({ id, etichetta: 'carta_identita', lato, created_at: '2026-10-20T16:47:08Z', percorso: `g/${id}.jpg` })
+  const fronte = d('a', 'fronte'), retro = d('b', 'retro'), passaporto = { ...d('c', null), etichetta: 'passaporto' }
+  assert.equal(titoloSceltaDocumenti(0, 'Nida'), null)
+  assert.equal(titoloSceltaDocumenti(1, 'Nida'), 'C’è 1 documento di Nida. Spuntalo solo se è della persona nuova.')
+  assert.equal(titoloSceltaDocumenti(3, 'Nida'), 'Ci sono 3 documenti di Nida. Spunta solo quelli della persona nuova.')
+  assert.equal(descriviDocumento(fronte), 'Carta d’identità · fronte · 20/10/2026')
+  // nessuno scelto: il cambio si fa, i documenti restano dove sono
+  assert.equal(riepilogoDocumenti([], 3, 'Nida', 'Anna Rossi'), 'Nessun documento passa a Anna Rossi: restano tutti a Nida.')
+  assert.equal(riepilogoDocumenti([], 1, 'Nida', 'Anna Rossi'), 'Nessun documento passa a Anna Rossi: resta a Nida.')
+  // alcuni: partenza, destinatario, quali, e chi resta
+  assert.equal(riepilogoDocumenti([fronte, retro], 3, 'Nida', 'Anna Rossi'),
+    'Passano da Nida a Anna Rossi: Carta d’identità · fronte · 20/10/2026; Carta d’identità · retro · 20/10/2026. L’altro resta a Nida.')
+  assert.equal(riepilogoDocumenti([passaporto], 1, 'Nida', 'Anna Rossi'), 'Passa da Nida a Anna Rossi: Passaporto · 20/10/2026.')
+  assert.equal(riepilogoDocumenti([], 0, 'Nida', 'Anna Rossi'), null)
+})
+
+test('lo spostamento vale solo se il database ha toccato ESATTAMENTE i documenti scelti', () => {
+  assert.equal(esitoSpostamento(['a', 'b'], ['b', 'a']), null)
+  assert.equal(esitoSpostamento(['a', 'b'], []), 'nessun documento spostato')
+  assert.equal(esitoSpostamento(['a', 'b'], null), 'nessun documento spostato')
+  assert.match(esitoSpostamento(['a', 'b'], ['a']) ?? '', /spostati 1 documenti su 2/)
+  assert.match(esitoSpostamento(['a'], ['a', 'z']) ?? '', /non scelti/)
 })
 
 // ── Salvataggio con esito controllato ──────────────────────────────────────

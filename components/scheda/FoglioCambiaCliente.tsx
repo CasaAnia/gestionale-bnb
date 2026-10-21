@@ -9,8 +9,8 @@
 //
 // Le regole sono quelle di lib/cambiaCliente (06/09/2026): cambia SOLO il
 // riferimento al cliente su tutte le righe del soggiorno, il cliente di
-// partenza non si tocca, i documenti seguono la persona (spunta già attiva,
-// Ania 06/09/2026). Le scritture sono quelle di lib/cambiaClienteDati.
+// partenza non si tocca. I documenti (D2, Ania 21/10/2026) si scelgono uno
+// per uno, nessuno spuntato all'inizio: components/SceltaDocumenti. Le scritture sono quelle di lib/cambiaClienteDati.
 // ============================================================================
 import { useEffect, useRef, useState } from 'react'
 import Foglio, { PiedeFoglio } from './Foglio'
@@ -25,13 +25,14 @@ import { leggiStrutture } from '@/lib/provenienzaDati'
 import type { StrutturaNota } from '@/lib/provenienza'
 import { moduloDaRicerca, campiNuovoCliente, SENZA_NOME, SENZA_TELEFONO } from '@/lib/datiCliente'
 import {
-  avvisiCambioCliente, stessoCliente, testoDocumentiDaSpostare, rigaPassaggio, MESSAGGIO_DOCUMENTI_NON_SPOSTATI,
-  type ClienteBreve, type PrenotazionePerCambio,
+  avvisiCambioCliente, stessoCliente, rigaPassaggio, MESSAGGIO_DOCUMENTI_NON_SPOSTATI,
+  type ClienteBreve, type DocumentoDaScegliere, type PrenotazionePerCambio,
 } from '@/lib/cambiaCliente'
 import SchedeStessoNumero from '@/components/SchedeStessoNumero'
 import { creaRicercaRitardata, type RicercaRitardata } from '@/lib/ricercaRitardata'
 import { cercaClientiPerCambio, soggiorniConclusiDeiClienti, creaClienteNuovo, scriviCambioCliente, documentiDelCliente, spostaDocumenti } from '@/lib/cambiaClienteDati'
 import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
+import SceltaDocumenti from '@/components/SceltaDocumenti'
 
 export const TITOLO_CAMBIA_CLIENTE = 'Cambia cliente'
 export const AZIONE_CAMBIA = 'Cambia'
@@ -59,8 +60,9 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
   const [scelto, setScelto] = useState<ClienteBreve | null>(null)
   const [nuovo, setNuovo] = useState<DatiNuovoCliente | null>(null)
   const [strutture, setStrutture] = useState<{ disponibile: boolean; lista: StrutturaNota[] }>({ disponibile: false, lista: [] })
-  const [documenti, setDocumenti] = useState<string[]>([])
-  const [spostaDoc, setSpostaDoc] = useState(true)
+  const [documenti, setDocumenti] = useState<DocumentoDaScegliere[]>([])
+  // D2: nessun documento scelto all'inizio, e la scelta vale per UNA destinataria
+  const [scelti, setScelti] = useState<string[]>([])
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const motoreRicerca = useRef<RicercaRitardata | null>(null)
@@ -68,12 +70,11 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
   const [schedeDoppie, setSchedeDoppie] = useState<ClienteBreve[]>([])
 
   const avvisi = avvisiCambioCliente({ pagamenti, confermaInviata, segmenti, nomeVecchio })
-  const rigaDocumenti = testoDocumentiDaSpostare(documenti.length, nomeVecchio)
 
   useEffect(() => {
     let vivo = true
     void leggiStrutture().then(r => { if (vivo) setStrutture({ disponibile: r.disponibile, lista: r.strutture }) })
-    void documentiDelCliente(clienteAttuale?.id).then(ids => { if (vivo) setDocumenti(ids) })
+    void documentiDelCliente(clienteAttuale?.id).then(d => { if (vivo) setDocumenti(d) })
     return () => { vivo = false }
   }, [clienteAttuale?.id])
 
@@ -99,8 +100,10 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
 
   async function spostaDocumentiPoiChiudi(cliente: ClienteBreve) {
     let avviso: string | null = null
-    if (spostaDoc && documenti.length > 0 && clienteAttuale?.id) {
-      const e = await spostaDocumenti(documenti, clienteAttuale.id, cliente.id, () => {})
+    // solo i documenti spuntati, e solo quelli ancora sulla cliente di partenza
+    const daSpostare = scelti.filter(id => documenti.some(d => d.id === id))
+    if (daSpostare.length > 0 && clienteAttuale?.id) {
+      const e = await spostaDocumenti(daSpostare, clienteAttuale.id, cliente.id, () => {})
       if (e) avviso = `${MESSAGGIO_DOCUMENTI_NON_SPOSTATI}: ${e.replace(/^Non salvato, /, '')}`
     }
     onCambiato(cliente, avviso)
@@ -146,7 +149,7 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
           {erroreRicerca && <p className="mt-3" style={{ fontSize: 13, color: MATTONE }}>{erroreRicerca}</p>}
           {risultati.length > 0 && (
             <div data-trovati style={{ marginTop: 14 }}>
-              {risultati.map(c => <RigaCliente key={c.id} cliente={c} soggiorni={soggiorni[c.id] ?? 0} onScegli={() => setScelto(c)} />)}
+              {risultati.map(c => <RigaCliente key={c.id} cliente={c} soggiorni={soggiorni[c.id] ?? 0} onScegli={() => { setScelto(c); setScelti([]) }} />)}
             </div>
           )}
           {ricerca.trim().length >= 2 && risultati.length === 0 && !erroreRicerca && (
@@ -169,20 +172,17 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
             {rigaPassaggio(nomeVecchio, scelto?.full_name ?? nomeCompleto({ nome: nuovo?.nome, cognome: nuovo?.cognome }))}
           </p>
           {avvisi.map(a => <p key={a} style={{ marginTop: 6, fontSize: 12.5, color: OTTONE }}>{a}</p>)}
-          {rigaDocumenti && (
-            <label className="flex items-start gap-2.5 mt-3 cursor-pointer" data-sposta-documenti style={{ fontSize: 13, color: 'var(--color-green-dark)' }}>
-              <input type="checkbox" checked={spostaDoc} onChange={e => setSpostaDoc(e.target.checked)} className="mt-0.5 accent-[#2D6A4F]" />
-              <span>{rigaDocumenti}</span>
-            </label>
-          )}
+          <SceltaDocumenti documenti={documenti} scelti={scelti} disabilitata={salvando}
+            onScegli={(id, si) => setScelti(l => (si ? [...l.filter(x => x !== id), id] : l.filter(x => x !== id)))}
+            nomeVecchio={nomeVecchio} nomeNuovo={scelto?.full_name ?? nomeCompleto({ nome: nuovo?.nome, cognome: nuovo?.cognome })} />
           {scelto && (
             <p style={{ marginTop: 8 }}>
-              <button type="button" data-cerca-altro onClick={() => setScelto(null)} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{CERCA_UN_ALTRO}</button>
+              <button type="button" data-cerca-altro onClick={() => { setScelto(null); setScelti([]) }} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{CERCA_UN_ALTRO}</button>
             </p>
           )}
           {errore && <AvvisoAzione testo={errore} className="mt-3" />}
           {nuovo && <SchedeStessoNumero schede={schedeDoppie} className="mt-3"
-            onScegli={c => { setSchedeDoppie([]); setNuovo(null); setScelto(c) }} />}
+            onScegli={c => { setSchedeDoppie([]); setScelti([]); setNuovo(null); setScelto(c) }} />}
           <PiedeFoglio azione={nuovo ? 'Crea e cambia' : AZIONE_CAMBIA} onAzione={cambia} salvando={salvando} onAnnulla={onChiudi} dati="cambia-cliente" />
         </div>
       )}

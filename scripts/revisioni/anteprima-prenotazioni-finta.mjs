@@ -791,6 +791,7 @@ function rispondi(res, stato, corpo, extra = {}) {
 // la lettura delle richieste dal sito (bookings con source=eq.sito_web).
 let documentiGuasto = null   // archivio documenti finto: vedi /finto/documenti-guasto
 let generazioneFirme = 1
+let lentoLettura = 0, lentoCaricamento = 0
 let senzaCronologia = process.env.FINTO_SENZA_CRONOLOGIA === '1'
 let perdiRispostaSpese = false
 let spese503 = false   // salva la riga ma risponde 503 (il gateway dice errore dopo che il database ha scritto)
@@ -988,6 +989,13 @@ const finto = createServer((req, res) => {
   //     riga     → il file si carica ma l'insert in documenti_cliente fallisce
   //     immagine → il collegamento arriva ma il file risponde 500
   //   GET /finto/scadi-collegamenti  i collegamenti già dati smettono di valere (come dopo un'ora)
+  //   GET /finto/documenti-lento?lettura=ms&caricamento=ms   risposte in ritardo (lettura dei
+  //     documenti e caricamento del file), per cambiare cliente mentre aspettano
+  //   modo=sposta (in documenti-guasto) → lo spostamento dei documenti in «Cambia cliente» risponde 500
+  if (url.pathname === '/finto/documenti-lento') { lentoLettura = Number(url.searchParams.get('lettura')) || 0; lentoCaricamento = Number(url.searchParams.get('caricamento')) || 0; return rispondi(res, 200, { lentoLettura, lentoCaricamento }) }
+  if (!req.ritardato && lentoLettura && req.method === 'GET' && url.pathname === '/rest/v1/documenti_cliente') { req.ritardato = true; return setTimeout(() => finto.emit('request', req, res), lentoLettura) }
+  if (!req.ritardato && lentoCaricamento && req.method === 'POST' && /^\/storage\/v1\/object\/documenti\//.test(url.pathname)) { req.ritardato = true; return setTimeout(() => finto.emit('request', req, res), lentoCaricamento) }
+  if (documentiGuasto === 'sposta' && req.method === 'PATCH' && url.pathname === '/rest/v1/documenti_cliente') return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sullo spostamento dei documenti' })
   if (url.pathname === '/finto/documenti-guasto') { documentiGuasto = url.searchParams.get('modo'); if (documentiGuasto === 'nessuno') documentiGuasto = null; return rispondi(res, 200, { documentiGuasto }) }
   if (url.pathname === '/finto/scadi-collegamenti') { generazioneFirme += 1; return rispondi(res, 200, { generazioneFirme }) }
   if (url.pathname === '/finto/documenti') return rispondi(res, 200, documenti_cliente.map(d => ({ id: d.id, guest_id: d.guest_id, lato: d.lato, file: fileDocumenti.has(d.percorso) })))

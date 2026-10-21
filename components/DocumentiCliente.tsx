@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import {
@@ -10,6 +10,9 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import VisoreDocumento from '@/components/VisoreDocumento'
 import FoglioMaison from '@/components/maison/FoglioMaison'
 import { giornoMeseAnno } from '@/lib/dateItaliane'
+import { aggiungiEsito, togliEsito, leggiEsiti, ascoltaEsiti, testoEsito, rispostaValePerLaPagina, type EsitoDocumento } from '@/lib/esitiDocumenti'
+
+const NESSUN_ESITO: EsitoDocumento[] = []
 
 /** Il foglio «Eliminare questo documento?»: la domanda, una riga e i due comandi (B1) */
 export const ALTEZZA_ELIMINA_DOCUMENTO = 190
@@ -40,7 +43,8 @@ async function riduci(file: File): Promise<{ blob: Blob; tipo: string }> {
   return { blob: file, tipo: file.type || 'image/jpeg' }
 }
 
-export default function DocumentiCliente({ guestId }: { guestId: string }) {
+/** `nome`: la persona di questa scheda, per dire di chi è un esito arrivato tardi */
+export default function DocumentiCliente({ guestId, nome = '' }: { guestId: string; nome?: string }) {
   const [documenti, setDocumenti] = useState<DocumentoCliente[]>([])
   const [anteprime, setAnteprime] = useState<Record<string, string>>({})   // id → URL firmato
   const [loading, setLoading] = useState(true)
@@ -55,6 +59,30 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
   const [aprendo, setAprendo] = useState<string | null>(null)   // id del documento che si sta aprendo
   // Parte 3 (05/09/2026): anteprime non ottenute → avviso con Riprova, non caselle vuote
   const [erroreAnteprime, setErroreAnteprime] = useState<string | null>(null)
+
+  // D1 (Ania, 21/10/2026): cambiando cliente senza ricaricare la pagina, tutto
+  // quello che riguardava il cliente di prima sparisce SUBITO — elenco,
+  // anteprime, visore, conferma di eliminazione, avvisi, tipo e lato scelti —
+  // nello stesso disegno in cui arriva il cliente nuovo, mai un istante dopo.
+  const [perCliente, setPerCliente] = useState(guestId)
+  if (perCliente !== guestId) {
+    setPerCliente(guestId)
+    setDocumenti([]); setAnteprime({}); setLoading(true); setAvviso(null); setErrore(null)
+    setCaricando(false); setEtichetta('carta_identita'); setLato(null)
+    setDaCancellare(null); setAperto(null); setAprendo(null); setErroreAnteprime(null)
+  }
+  // Il «giro» della pagina: ogni risposta controlla di appartenere ancora al
+  // cliente mostrato. Quelle di prima non toccano più la pagina; caricamenti
+  // ed eliminazioni già partiti restano sul loro destinatario e il loro esito
+  // va negli esiti a parte, col nome della persona (lib/esitiDocumenti).
+  const giro = useRef({ giro: 0, guestId, montata: true })
+  useLayoutEffect(() => {
+    giro.current = { giro: giro.current.giro + 1, guestId, montata: true }
+    return () => { giro.current = { ...giro.current, montata: false } }
+  }, [guestId])
+  const partenza = () => ({ giro: giro.current.giro, guestId: giro.current.guestId })
+  const valeAncora = (p: { giro: number; guestId: string }) => rispostaValePerLaPagina(p, giro.current)
+  const esiti = useSyncExternalStore(ascoltaEsiti, leggiEsiti, () => NESSUN_ESITO)
 
   // URL firmati per le anteprime (un'ora): ogni risposta controlla error
   async function caricaAnteprime(lista: DocumentoCliente[]): Promise<{ urls: Record<string, string>; errore: string | null }> {
@@ -71,8 +99,10 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
   }
 
   async function riprovaAnteprime() {
+    const p = partenza()
     setErroreAnteprime(null)
     const { urls, errore } = await caricaAnteprime(documenti)
+    if (!valeAncora(p)) return
     setAnteprime(urls)
     setErroreAnteprime(errore)
   }
@@ -94,50 +124,72 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
   async function carica(file: File) {
     setErrore(null)
     if (!tipoAccettato(file.type) && file.type !== '') { setErrore('Formato non accettato: serve una foto o un PDF.'); return }
+    // destinatario fissato ADESSO: non cambia anche se intanto si apre un'altra scheda
+    const p = partenza()
+    const destinatario = guestId, nomeDestinatario = nome
     setCaricando(true)
     try {
       const { blob, tipo } = await riduci(file)
       const id = crypto.randomUUID()
-      const percorso = percorsoDocumento(guestId, id, tipo)
+      const percorso = percorsoDocumento(destinatario, id, tipo)
       const { error: e1 } = await supabase.storage.from(BUCKET).upload(percorso, blob, { contentType: tipo, upsert: false })
       if (e1) throw e1
-      const riga = { id, guest_id: guestId, percorso, etichetta, lato, nome_file: file.name || null, dimensione: blob.size }
+      const riga = { id, guest_id: destinatario, percorso, etichetta, lato, nome_file: file.name || null, dimensione: blob.size }
       const { data, error: e2 } = await supabase.from('documenti_cliente').insert(riga).select().single()
       if (e2) { await supabase.storage.from(BUCKET).remove([percorso]); throw e2 }
       const doc = data as DocumentoCliente
+      // pagina cambiata nel frattempo: il documento è salvato sul destinatario
+      // giusto, lo si dice a parte e NON entra nella griglia di quest'altra scheda
+      if (!valeAncora(p)) { aggiungiEsito({ guestId: destinatario, nome: nomeDestinatario, tipo: 'caricato' }); return }
       setDocumenti(l => [...l, doc])
       const { data: u, error: e3 } = await supabase.storage.from(BUCKET).createSignedUrl(percorso, 3600)
+      if (!valeAncora(p)) return
       if (e3 || !u?.signedUrl) setErroreAnteprime(raccogliAnteprime([{ id: doc.id, url: u?.signedUrl, error: e3 }]).errore)
       else setAnteprime(a => ({ ...a, [doc.id]: u.signedUrl }))
     } catch (e) {
       const err = e as { code?: string; message?: string }
-      setErrore(manca0032(err) ? AVVISO_0032 : `Caricamento non riuscito: ${err?.message || 'errore sconosciuto'}`)
+      const testo = manca0032(err) ? AVVISO_0032 : `Caricamento non riuscito: ${err?.message || 'errore sconosciuto'}`
+      if (valeAncora(p)) setErrore(testo)
+      else aggiungiEsito({ guestId: destinatario, nome: nomeDestinatario, tipo: 'caricamento_fallito', dettaglio: err?.message || null })
+    } finally {
+      if (valeAncora(p)) setCaricando(false)
     }
-    setCaricando(false)
   }
 
   // Un collegamento NUOVO a ogni tocco: quello delle anteprime può essere scaduto
   async function apri(d: DocumentoCliente) {
     if (aprendo) return
+    const p = partenza()
     setErrore(null)
     setAprendo(d.id)
     try {
       const { data: u, error } = await supabase.storage.from(BUCKET).createSignedUrl(d.percorso, 3600)
+      // un'apertura chiesta sulla scheda di prima non apre nulla su questa
+      if (!valeAncora(p)) return
       if (error || !u?.signedUrl) { setErrore(erroreApertura(error)); return }
       setAnteprime(a => ({ ...a, [d.id]: u.signedUrl }))
       setAperto({ doc: d, url: u.signedUrl })
     } catch (e) {
-      setErrore(erroreApertura(e as { message?: string }))
+      if (valeAncora(p)) setErrore(erroreApertura(e as { message?: string }))
     } finally {
-      setAprendo(null)
+      if (valeAncora(p)) setAprendo(null)
     }
   }
 
   async function cancella(d: DocumentoCliente) {
+    const p = partenza()
+    const nomeProprietario = nome
     setErrore(null)
-    const { error: e1 } = await supabase.from('documenti_cliente').delete().eq('id', d.id)
-    if (e1) { setErrore(`Cancellazione non riuscita: ${e1.message}`); setDaCancellare(null); return }
+    // si cancella SOLO quella riga e solo se è ancora della persona di questa scheda
+    const { data: tolte, error: e1 } = await supabase.from('documenti_cliente').delete().eq('id', d.id).eq('guest_id', d.guest_id).select('id')
+    const errore = e1 ? e1.message : Array.isArray(tolte) && tolte.length === 0 ? 'il documento non c’era più o è passato a un’altra scheda: ricarica la pagina' : null
+    if (errore) {
+      if (valeAncora(p)) { setErrore(`Cancellazione non riuscita: ${errore}`); setDaCancellare(null) }
+      else aggiungiEsito({ guestId: d.guest_id, nome: nomeProprietario, tipo: 'eliminazione_fallita', dettaglio: errore })
+      return
+    }
     await supabase.storage.from(BUCKET).remove([d.percorso])   // se fallisce resta un file orfano, innocuo
+    if (!valeAncora(p)) { aggiungiEsito({ guestId: d.guest_id, nome: nomeProprietario, tipo: 'eliminato' }); return }
     setDocumenti(l => l.filter(x => x.id !== d.id))
     setDaCancellare(null)
   }
@@ -152,6 +204,13 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
       <p className="mz-eyebrow">Documenti{!loading && !avviso ? ` · ${documenti.length}` : ''}</p>
 
       {avviso && <p className="mz-hint" style={{ color: '#8C3B2E' }}>{avviso}</p>}
+
+      {/* esiti di operazioni partite su un'altra scheda: detti col nome, mai mescolati a questa */}
+      {esiti.map(e => (
+        <div key={e.id} role="status" data-esito-altra-scheda={e.tipo} className="mz-hint" style={{ color: e.tipo.endsWith('fallito') || e.tipo.endsWith('fallita') ? '#8C3B2E' : undefined }}>
+          {testoEsito(e)} <button type="button" className="mz-lnk q" data-chiudi-esito onClick={() => togliEsito(e.id)}>ok</button>
+        </div>
+      ))}
 
       {!avviso && (
         <>
@@ -219,7 +278,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
               </span>
             </div>
           }>
-          <p className="mz-hint">{etichettaLeggibile(daCancellare)} · non si può recuperare.</p>
+          <p className="mz-hint" data-elimina-di>{etichettaLeggibile(daCancellare)}{nome ? ` di ${nome}` : ''} · non si può recuperare.</p>
         </FoglioMaison>
       )}
 
@@ -237,6 +296,9 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
 // «aggiungi» verde) oppure «🪪 documento caricato ›», che apre i documenti.
 export function RigaDocumentiPrenotazione({ guestId, className = '', conteggio, scheda = false }: { guestId: string | null | undefined; className?: string; conteggio?: number | null; scheda?: boolean }) {
   const [letto, setLetto] = useState<number | null>(null)
+  // D1: il conteggio di un altro cliente non resta mai sotto questo
+  const [perCliente, setPerCliente] = useState(guestId)
+  if (perCliente !== guestId) { setPerCliente(guestId); setLetto(null) }
   useEffect(() => {
     if (!guestId || conteggio !== undefined) return
     let vivo = true

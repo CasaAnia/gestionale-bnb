@@ -354,7 +354,7 @@ test('«Cambia cliente»: la ricerca dell’inserimento, le righe 🧾 ★ nome 
   assert.match(cambia, /import CampoRicerca from '@\/components\/CampoRicerca'/)
   assert.match(cambia, /placeholder="Cerca per nome o telefono…"/)
   assert.match(cambia, /import RigaCliente, \{ NUOVO_CLIENTE \} from '@\/components\/nuova\/RigaCliente'/)
-  assert.match(cambia, /<RigaCliente key=\{c\.id\} cliente=\{c\} soggiorni=\{soggiorni\[c\.id\] \?\? 0\} onScegli=\{\(\) => setScelto\(c\)\}/)
+  assert.match(cambia, /<RigaCliente key=\{c\.id\} cliente=\{c\} soggiorni=\{soggiorni\[c\.id\] \?\? 0\} onScegli=\{\(\) => \{ setScelto\(c\); setScelti\(\[\]\) \}\}/)
   // dal 01/10/2026 (regola dei fogli) «+ Nuovo cliente» è un link sottolineato, non più la pastiglia
   assert.match(cambia, /className="mz-lnk" data-nuovo-cliente onClick=\{\(\) => setNuovo\(moduloDaRicerca\(ricerca\)\)\}>\{NUOVO_CLIENTE\}/)
   // il cliente nuovo: lo stesso modulo dell'inserimento, gli stessi campi
@@ -373,11 +373,11 @@ test('scegliendo, una riga sola di conferma e poi «Cambia» con le scritture di
   assert.match(cambia, /data-riga-passaggio[\s\S]{0,200}\{rigaPassaggio\(nomeVecchio,/)
   assert.match(cambia, /<PiedeFoglio azione=\{nuovo \? 'Crea e cambia' : AZIONE_CAMBIA\}/)
   assert.match(cambia, /export const AZIONE_CAMBIA = 'Cambia'/)
-  // le regole di lib/cambiaCliente: stesso cliente = niente, documenti che seguono la persona (spunta già attiva)
+  // le regole di lib/cambiaCliente: stesso cliente = niente; documenti scelti uno per uno, nessuno all'inizio (D2, 21/10/2026)
   assert.match(cambia, /if \(stessoCliente\(booking, cliente\.id\)\)/)
-  assert.match(cambia, /const \[spostaDoc, setSpostaDoc\] = useState\(true\)/)
+  assert.match(cambia, /const \[scelti, setScelti\] = useState<string\[\]>\(\[\]\)/)
   assert.match(cambia, /scriviCambioCliente\(booking, cliente\.id/)
-  assert.match(cambia, /spostaDocumenti\(documenti, clienteAttuale\.id, cliente\.id/)
+  assert.match(cambia, /spostaDocumenti\(daSpostare, clienteAttuale\.id, cliente\.id/)
   assert.equal(/from\('bookings'\)|from\('guests'\)/.test(cambia), false, 'il foglio scrive da solo sul database')
   // dopo: guest_id nuovo su tutte le righe, guest_name azzerato, poi la rilettura
   const dopo = pagina.slice(pagina.indexOf('<FoglioCambiaCliente'), pagina.indexOf('<FoglioCambiaCliente') + 1100)
