@@ -18,7 +18,7 @@
 import { camereLibere, elencoNomi, giorniTra, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
 import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione, lettoRipartito, type AccordoLetto, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
 import { capienzaBase, capienzaCamera, tariffaCamera, totaleLetto } from './tariffe.ts'
-import { giorniSoggiorno, nottiConLetto, prezzoPrenotazione, fmtEuroBreve, type CameraTariffa } from './prezzoNotti.ts'
+import { giorniSoggiorno, nottiConLetto, prezzoPrenotazione, tariffaFormDaSalvato, fmtEuroBreve, type CameraTariffa } from './prezzoNotti.ts'
 import { contoSoggiorno } from './conto.ts'
 import { GIORNI_BREVI, GIORNI_LUNGHI } from './dateItaliane.ts'
 
@@ -608,8 +608,15 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
   // Si legge dalle righe salvate (proposta 0048) e si riparte fra i blocchi in
   // proporzione alle notti col letto: «30 € in tutto» restano 30, «ogni 4
   // notti» non ricomincia a ogni tratto (rilievo del 15/09/2026).
-  const conAccordo = righe.find(s => s.extra_bed_criterio && s.extra_bed_importo != null)
-  const accordoLetto: AccordoLetto | null = conAccordo
+  const accordi = righe.filter(s => s.extra_bed_criterio && s.extra_bed_importo != null)
+  const conAccordo = accordi[0]
+  // La nuova prenotazione registra anche i supplementi automatici: Lena in
+  // tre ha 0, in quattro 10. Non sono un unico accordo da estendere a tutte
+  // le notti: prendere il primo perde o aggiunge il supplemento delle altre.
+  const listiniDiversi = new Set(accordi.map(s => `${s.extra_bed_criterio}:${Number(s.extra_bed_importo)}`)).size > 1
+    && accordi.every(s => s.extra_bed_criterio === 'notte'
+      && Number(s.extra_bed_importo) === totaleLetto(contesto.camere.find(c => c.id === s.room_id), Number(s.num_guests) || 1, 1))
+  const accordoLetto: AccordoLetto | null = conAccordo && !listiniDiversi
     ? { importo: Number(conAccordo.extra_bed_importo) || 0, criterio: conAccordo.extra_bed_criterio as AccordoLetto['criterio'] }
     : null
   const lettoPerBlocco = accordoLetto ? lettoRipartito(accordoLetto, blocchi.map(b => b.nottiLetto.length)) : null
@@ -648,8 +655,21 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
       && ((Number(origine.num_guests) || 1) === b.ospiti
         || tariffaCamera(camera, Number(origine.num_guests) || 1).prezzoNotte === tariffaCamera(camera, b.ospiti).prezzoNotte)
       && origine.price_per_night != null
-    const aNotte = stessaCameraStessaGente ? Number(origine!.price_per_night) || 0 : prezzo.prezzoNotte
-    const letto = lettoPerBlocco ? lettoPerBlocco[i] : prezzo.lettoTotale
+    // Una riga mista Lena 2→3 salva base 80 e la differenza nelle notti.
+    // Spezzandola in una notte tutta in 3/4 la nuova base è 90: preservare
+    // l'eventuale scarto concordato, non scambiare la vecchia base per sconto.
+    const baseOrigine = origine ? prezzoPrenotazione(camera, {
+      check_in: origine.check_in, check_out: origine.check_out, num_guests: origine.num_guests,
+      extra_bed: origine.extra_bed, extra_bed_dates: origine.extra_bed_dates,
+    }).prezzoNotte : prezzo.prezzoNotte
+    const aNotte = stessaCameraStessaGente
+      ? round2(tariffaFormDaSalvato(camera, origine!) + prezzo.prezzoNotte - baseOrigine)
+      : prezzo.prezzoNotte
+    // Il resto oltre alla tariffa base include sia il letto sia la tariffa
+    // maggiore delle notti con più ospiti: un accordo sul letto sostituisce
+    // soltanto la prima voce, non cancella la seconda.
+    const differenzaTariffe = round2(prezzo.notti.reduce((somma, n) => somma + n.tariffa, 0) - prezzo.prezzoNotte * prezzo.notti.length)
+    const letto = lettoPerBlocco ? round2(lettoPerBlocco[i] + differenzaTariffe) : prezzo.lettoTotale
     const camere = round2(aNotte * giorniTra(b.check_in, b.check_out).length)
     return { camera, aNotte, letto, pieno: round2(camere + letto) }
   })
@@ -732,8 +752,8 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
       total_amount: concordato ?? conto.totale,
       ...scontoCampi,
       // importo e criterio vanno insieme, o il database rifiuta la riga
-      ...(accordoLetto && b.nottiLetto.length > 0
-        ? { extra_bed_importo: accordoLetto.importo, extra_bed_criterio: accordoLetto.criterio }
+      ...(b.nottiLetto.length > 0 && (accordoLetto || listiniDiversi)
+        ? { extra_bed_importo: accordoLetto?.importo ?? totaleLetto(dati.camera, b.ospiti, 1), extra_bed_criterio: accordoLetto?.criterio ?? 'notte' }
         : { extra_bed_importo: null, extra_bed_criterio: null }),
     }
     // Un tratto rimasto identico NON si tocca: la sua tariffa è quella che Ania

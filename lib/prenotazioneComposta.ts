@@ -122,7 +122,10 @@ export function contoPeriodo(p: PeriodoComposto, camera: CameraComposta | null):
   const conto = prezzoPrenotazione(camera, comeBooking(p))
   // Il conto della camera resta quello delle regole (anche notte per notte);
   // il letto si sostituisce con quello scelto da Ania, se l'ha cambiato.
-  const senzaLetto = round2(conto.totale - conto.lettoTotale)
+  // lettoTotale di prezzoNotti comprende anche differenze di tariffa fra
+  // notti (Lena in due→tre). Si sostituisce solo il costo del letto,
+  // conservando la tariffa effettiva di ciascuna notte.
+  const senzaLetto = round2(conto.notti.reduce((somma, notte) => somma + notte.tariffa, 0))
   const letto = costoLetto(p, camera)
   return { totale: round2(senzaLetto + letto), prezzoNotte: conto.prezzoNotte, lettoTotale: letto }
 }

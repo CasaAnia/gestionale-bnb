@@ -1388,19 +1388,19 @@ const finto = createServer((req, res) => {
   // memoria, per provare «prima camera → Aggiungi cambio camera → seconda camera»
   if (m && req.method === 'POST' && m[1] === 'bookings') {
     return leggiCorpo(req).then(corpo => {
-      const riga = Array.isArray(corpo) ? corpo[0] : corpo
-      if (!riga || !riga.room_id || !riga.guest_id) return rispondi(res, 400, { code: '23502', message: 'room_id o guest_id mancante' })
-      // con senza-0058 l'inserimento deve cavarsela togliendo le colonne nuove
+      const righe = Array.isArray(corpo) ? corpo : [corpo]
+      if (!righe.length || righe.some(r => !r || !r.room_id || !r.guest_id)) return rispondi(res, 400, { code: '23502', message: 'room_id o guest_id mancante' })
+      // Validare tutto prima di scrivere, come l'inserimento multiplo atomico.
       if (senza0058) {
-        const manca = Object.keys(riga).find(k => COLONNE_0058.includes(k))
+        const manca = righe.flatMap(r => Object.keys(r)).find(k => COLONNE_0058.includes(k))
         if (manca) return rispondi(res, 400, { code: 'PGRST204', message: `Could not find the '${manca}' column of 'bookings' in the schema cache` })
       }
-      const nuova = prenotazione(riga.room_id, riga.guest_id, riga.check_in, riga.check_out, riga.num_guests ?? 1, { ...riga })
-      bookings.push(nuova)
-      console.log(`[finto supabase] +1 prenotazione (${nuova.room_id.slice(-4)}, ${nuova.check_in}, cliente ${nuova.guest_id.slice(-4)}, guest_name ${nuova.guest_name ?? '—'})`)
+      const nuove = righe.map(r => prenotazione(r.room_id, r.guest_id, r.check_in, r.check_out, r.num_guests ?? 1, { ...r }))
+      bookings.push(...nuove)
+      console.log(`[finto supabase] +${nuove.length} tratti prenotazione sintetici`)
       const accept = req.headers.accept || ''
-      const scelta = applicaSelect(nuova, url.searchParams.get('select') || '*')
-      return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? scelta : [scelta])
+      const scelte = nuove.map(r => applicaSelect(r, url.searchParams.get('select') || '*'))
+      return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? scelte[0] : scelte)
     })
   }
   if (m) {

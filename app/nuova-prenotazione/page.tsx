@@ -660,14 +660,13 @@ export default function NuovaPrenotazionePage() {
                   const ctx = contesto(linea.gruppo)
                   const cameraNotte = trovaCamera(notte.cameraId)
                   const libereOra = new Set(camereDellaNotte(notte.iso, ctx).map(c => c.id))
-                  // il numero di questa notte può salire fino a quello che la
-                  // camera tiene; se però altre notti hanno già il letto, il
-                  // loro numero comanda (è uno solo per tutta la camera)
-                  const altreColLetto = linea.periodi.some(p => p.nottiLetto.some(g => g !== notte.iso))
+                  // Ogni notte ha i propri ospiti: i letti delle altre notti
+                  // non riducono la capienza di questa. Il salvataggio divide
+                  // i periodi quando cambiano le persone e verifica i letti.
                   return (
                     <NotteScelta key={notte.iso} notte={notte}
                       camere={camere.map(c => ({ camera: c, libera: libereOra.has(c.id) }))}
-                      ospitiPossibili={ospitiPossibiliNotte(cameraNotte, altreColLetto ? d.ospiti : capienzaCamera(cameraNotte))}
+                      ospitiPossibili={ospitiPossibiliNotte(cameraNotte, capienzaCamera(cameraNotte))}
                       lettoLibero={lettoDisponibileNotte(notte.iso, notte.cameraId, ctx)}
                       prezzoLetto={prezzoLettoInParole(cameraNotte, notte.dentro ? notte.persone : d.ospiti)}
                       motivoLetto={notte.dentro ? motivoLettoObbligatorio(cameraNotte as never, notte.persone) : null}
