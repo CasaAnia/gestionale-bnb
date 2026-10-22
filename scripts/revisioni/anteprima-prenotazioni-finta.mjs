@@ -601,6 +601,16 @@ if (process.env.ANTEPRIMA_SCHEDA_MAISON === '1') {
 //           Giovanni Serra (⭐ 🛏, Malpensa, Aldo) · Sara Galli (Centrale, da definire)
 //   Allegra Lucia Ferri (San Donato, stima 18:30–19:30, Alberto) · richiesta dal sito · Anna Colombo («?»)
 //   Lena    Bianchi (arrivata, autonoma) · Fam. Russo (da Ambra) · Fam. De Luca (Rogoredo, Alberto)
+// Storico degli arrivi (22/10/2026), sopra lo scenario della scheda «Maison»:
+// ANTEPRIMA_SCHEDA_MAISON=1 ANTEPRIMA_STORICO_ARRIVI=1 dà a due soggiorni
+// conclusi di Maria Rossi un arrivo esterno inventato — Rogoredo 09:20 senza
+// ora in struttura; Linate 08:40, in struttura 12:10, Aldo prelievo 09:15.
+if (process.env.ANTEPRIMA_SCHEDA_MAISON === '1' && process.env.ANTEPRIMA_STORICO_ARRIVI === '1') {
+  const vuoto = { arrivo_luogo_altro: null, arrivo_luogo_ora_a: null, arrivo_struttura_ora_da: null, arrivo_struttura_ora_a: null, arrivo_stima_da: null, arrivo_stima_a: null, navetta_prelievo: null }
+  const metti = (id, campi) => { const b = bookings.find(x => x.id === id); if (b) Object.assign(b, vuoto, campi) }
+  metti('bbbbbbbb-4191-4000-8000-000000004191', { arrivo_tipo: 'luogo', arrivo_luogo: 'rogoredo', arrivo_luogo_ora_da: '09:20', navetta: 'non_richiesta', check_in_time: null, shuttle: 'no' })
+  metti('bbbbbbbb-4192-4000-8000-000000004192', { arrivo_tipo: 'luogo', arrivo_luogo: 'linate', arrivo_luogo_ora_da: '08:40', arrivo_struttura_ora_da: '12:10', navetta: 'aldo', navetta_prelievo: '09:15', check_in_time: '12:10', shuttle: 'si' })
+}
 if (process.env.ANTEPRIMA_ARRIVI_MAISON === '1') {
   const oggiA = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const g = delta => new Date(Date.parse(oggiA + 'T12:00:00Z') + delta * 86400000).toISOString().slice(0, 10)

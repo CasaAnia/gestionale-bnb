@@ -3,39 +3,13 @@
 // «ARRIVI PRECEDENTI» (13/09/2026): come erano andati gli arrivi degli altri
 // soggiorni CONCLUSI di questa cliente — periodo, camere, orario e navetta —
 // le stesse righe della scheda attuale, calcolate con lib/storicoCliente.
-// Solo lettura: non scrive niente.
+// Solo lettura: non scrive niente. Le righe le fa lib/arriviPrecedenti
+// (dal 22/10/2026 anche il luogo e il prelievo).
 // ============================================================================
-import { righeStorico, type SegmentoStorico } from '@/lib/storicoCliente'
-import { periodoCompatto } from '@/lib/dateItaliane'
-import { leggiArrivo, periodoInStruttura, circaInStruttura, navettaInScheda, navettaRichiesta } from '@/lib/arrivo'
+import type { SegmentoStorico } from '@/lib/storicoCliente'
+import { arriviPrecedenti } from '@/lib/arriviPrecedenti'
 
-export function arriviPrecedenti(altre: SegmentoStorico[], oggi: string) {
-  return righeStorico(altre)
-    .filter(r => r.status !== 'annullata')
-    .filter(r => r.segmenti.filter(s => s.status !== 'annullata').every(s => ['confermata', 'completata'].includes(s.status) && s.check_out <= oggi))
-    .sort((a, z) => z.check_in.localeCompare(a.check_in))
-    .map(r => {
-      const primo = [...r.segmenti].sort((a, z) => a.check_in.localeCompare(z.check_in))[0]
-      return {
-        chiave: r.chiave,
-        periodo: periodoCompatto(r.check_in, r.check_out, { anno: true }),
-        camere: r.camere.join(' → '),
-        // Dal 21/09/2026 sera si legge il MODELLO, non le due colonne di
-        // sempre: lo storico non perde più la fine della fascia, il «circa»
-        // della stima e il nome dell'autista (rilievo di Codex).
-        ...(() => {
-          const a = leggiArrivo(primo as unknown as Record<string, unknown>)
-          const quando = periodoInStruttura(a)
-          return {
-            orario: quando ? `arrivo ${circaInStruttura(a) ? 'circa ' : ''}${quando}` : 'orario non registrato',
-            navetta: a.navetta === 'non_richiesta' ? 'navetta no'
-              : navettaRichiesta(a.navetta) ? `navetta ${navettaInScheda(a).titolo.toLowerCase()}`
-              : 'navetta non registrata',
-          }
-        })(),
-      }
-    })
-}
+export { arriviPrecedenti }
 
 export default function ArriviPrecedenti({ altre, oggi, className = '' }: { altre: SegmentoStorico[]; oggi: string; className?: string }) {
   const righe = arriviPrecedenti(altre, oggi)
@@ -47,8 +21,10 @@ export default function ArriviPrecedenti({ altre, oggi, className = '' }: { altr
         <div key={r.chiave} className="sch-prec-arrivo">
           <span className="sch-big">{r.periodo}</span>
           <span>{r.camere}</span>
-          <span className="ml-auto">{r.orario}</span>
+          {r.luogo && <span data-luogo-precedente className="ml-auto">{r.luogo}</span>}
+          {r.orario && <span data-orario-precedente className={r.luogo ? undefined : 'ml-auto'}>{r.orario}</span>}
           <span>{r.navetta}</span>
+          {r.prelievo && <span data-prelievo-precedente>{r.prelievo}</span>}
         </div>
       ))}
     </div>

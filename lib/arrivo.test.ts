@@ -368,7 +368,9 @@ test('la scheda legge l’arrivo col modello, non con le due colonne di sempre',
 })
 
 test('anche «Arrivi precedenti» legge il modello: niente fasce troncate nello storico', () => {
-  const storico = leggi('components/scheda/ArriviPrecedenti.tsx')
+  // dal 22/10/2026 le righe le fa lib/arriviPrecedenti (provato in Node), il componente le mostra
+  assert.match(leggi('components/scheda/ArriviPrecedenti.tsx'), /import \{ arriviPrecedenti \} from '@\/lib\/arriviPrecedenti'/)
+  const storico = leggi('lib/arriviPrecedenti.ts')
   assert.match(storico, /leggiArrivo\(primo as unknown as Record<string, unknown>\)/)
   assert.equal(/primo\?\.check_in_time \?/.test(storico), false)
 })
