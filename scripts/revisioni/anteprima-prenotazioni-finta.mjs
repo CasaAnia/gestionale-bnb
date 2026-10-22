@@ -1326,7 +1326,9 @@ const finto = createServer((req, res) => {
         ...(senza0058 ? [] : COLONNE_0058),
         'status', 'cancelled_at', 'cancelled_reason', 'group_id', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro',
         // i fogli della scheda nuova del 17/09/2026: nota e colore, «con lei», il legame fra le camere
-        'notes', 'color', 'source', 'extra_phone_1', 'extra_phone_1_name', 'chi_e', 'extra_phone_2', 'extra_phone_2_name', 'chi_e_2', 'prenotazione_id']
+        'notes', 'color', 'source', 'extra_phone_1', 'extra_phone_1_name', 'chi_e', 'extra_phone_2', 'extra_phone_2_name', 'chi_e_2', 'prenotazione_id',
+        // la spunta «Non è lei a dormire qui» anche dalla scheda (0061, 22/10/2026)
+        'intestataria_non_dorme']
       // Con senza-0058 le colonne nuove non esistono: si risponde come
       // PostgREST quando una colonna manca davvero (PGRST204), non col 403
       // della preview, così l'app prova la strada del ripiego vera.

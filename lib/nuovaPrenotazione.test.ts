@@ -303,7 +303,7 @@ test('«con lei»: le righe delle persone e il fogliettino per aggiungerne una',
   assert.match(conLei, /fontSize: 15, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
   assert.match(conLei, /className="block uppercase" style=\{\{ fontSize: 9\.5, letterSpacing: '1\.4px', color: 'var\(--color-stone\)'/)
   assert.match(conLei, /\{CHI_E_VOCI\.map/)
-  assert.match(conLei, /export const ALTRO = 'altro…'/)
+  assert.match(conLei, /export const ALTRO = 'Altro'/)
   assert.match(conLei, /data-campo="persona-telefono"/)
   // il telefono può restare vuoto
   assert.match(conLei, /etichetta="Telefono · può restare vuoto"/)
@@ -1780,7 +1780,8 @@ test('Q4 — le persone in elenco sono al massimo gli ospiti prenotati; oltre le
   assert.match(pagina, /const ospitiPrenotati = linee\.reduce\(\(t, l\) => t \+ datiLinea\(l\)\.ospiti, 0\) \|\| 1/)
   assert.match(pagina, /spuntaDisponibile=\{colonnaNonELei\} ospiti=\{ospitiPrenotati\}/)
   // le voci di «Chi è», col Papà
-  assert.deepEqual(CHI_E_VOCI, ['Sorella', 'Mamma', 'Papà', 'Figlia', 'Marito', 'Amica'])
+  // le voci di «Chi è» (Ania, 22/10/2026), poi «Altro» per scriverla a mano
+  assert.deepEqual(CHI_E_VOCI, ['Sorella', 'Fratello', 'Mamma', 'Papà', 'Figlia', 'Figlio', 'Marito', 'Moglie', 'Amica', 'Amico'])
 })
 
 test('Q5 — la spunta «Non è lei a dormire qui» si salva e si rilegge; senza la colonna non compare', () => {

@@ -7,7 +7,7 @@
 // `campiConLei` dell'inserimento non fa perché parte da colonne vuote.
 // Si scrive su tutte le camere della prenotazione. Funzioni pure.
 // ============================================================================
-import { campiConLei, PERSONE_CON_LEI_MAX, type PersonaConLei } from './nuovaPrenotazione.ts'
+import { campiConLei, PERSONE_CON_LEI_MAX, COLONNA_NON_E_LEI, nonELeiDaRiga, type PersonaConLei } from './nuovaPrenotazione.ts'
 
 // Dal 28/09/2026 (Ania, punto 14d) «Con lei» si chiama «Chi dorme in camera»
 // ovunque: titolo del foglio, comando e conferma.
@@ -15,6 +15,7 @@ export const TITOLO_CON_LEI = 'Chi dorme in camera'
 export const COMANDO_CON_LEI = 'Modifica chi dorme'
 export const SALVA_CON_LEI = 'Salva'
 export const CON_LEI_SALVATO = 'Salvato chi dorme in camera.'
+export const MANCA_CHI_DORME = 'Scrivi chi dorme al posto di chi ha prenotato, oppure togli la spunta.'
 export const AVVISO_CHI_E_2_SENZA_0056 = 'Salvato; «chi è» della seconda persona però no: serve la proposta 0056 applicata su Supabase.'
 
 export type RigaConLei = {
@@ -56,4 +57,16 @@ export function stessePersone(persone: PersonaConLei[], b: RigaConLei | null | u
   const prima = campiConLeiCompleti(personeDaPrenotazione(b))
   const dopo = campiConLeiCompleti(persone)
   return Object.keys(prima).every(k => prima[k] === dopo[k])
+}
+
+// ── Con la spunta «Non è lei a dormire qui» (22/10/2026) ───────────────────
+// Le sei colonne delle persone e, se la riga ha la colonna della 0061, la
+// spunta. Nient'altro: cliente, ospiti, letti, date, prezzi, conto restano.
+export function campiChiDormeScheda(persone: PersonaConLei[], nonELei: boolean, colonnaPresente: boolean): Record<string, unknown> {
+  return { ...campiConLeiCompleti(persone), ...(colonnaPresente ? { [COLONNA_NON_E_LEI]: nonELei } : {}) }
+}
+
+/** Vero se né le persone né la spunta sono cambiate rispetto alla riga */
+export function stessoChiDorme(persone: PersonaConLei[], nonELei: boolean, colonnaPresente: boolean, b: RigaConLei | null | undefined): boolean {
+  return stessePersone(persone, b) && (!colonnaPresente || nonELeiDaRiga(b as Record<string, unknown> | null) === nonELei)
 }

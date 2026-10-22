@@ -6,19 +6,26 @@
 // Le regole stanno in lib/conLeiScheda, la scrittura in lib/righeDati: tutte
 // e sei le colonne su tutte le camere della prenotazione, in una richiesta sola.
 // Senza la proposta 0056 (chi_e_2) si salva il resto e lo si dice.
+// Dal 22/10/2026 (Ania) come nell'inserimento: in cima chi ha prenotato e la
+// spunta «Non è lei a dormire qui» (colonna 0061, solo se la riga ce l'ha),
+// e ogni persona si modifica. Il cliente della prenotazione non cambia mai:
+// si scrivono solo le colonne di chi dorme, su tutte le camere.
 // ============================================================================
 import { useState } from 'react'
 import Foglio, { PiedeFoglio } from './Foglio'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import ConLei from '@/components/nuova/ConLei'
-import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
-import { TITOLO_CON_LEI, SALVA_CON_LEI, AVVISO_CHI_E_2_SENZA_0056, personeDaPrenotazione, campiConLeiCompleti, senzaChiE2, stessePersone, type RigaConLei } from '@/lib/conLeiScheda'
+import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, COLONNA_NON_E_LEI, NON_E_LEI, nonELeiDaRiga, type PersonaConLei } from '@/lib/nuovaPrenotazione'
+import { INTESTATARIA_SCHEDA } from '@/lib/schedaMaison'
+import { TITOLO_CON_LEI, SALVA_CON_LEI, AVVISO_CHI_E_2_SENZA_0056, MANCA_CHI_DORME, personeDaPrenotazione, campiChiDormeScheda, senzaChiE2, stessoChiDorme, type RigaConLei } from '@/lib/conLeiScheda'
 import { aggiornaInUnColpo } from '@/lib/righeDati'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { ALTEZZE_FOGLI } from '@/lib/altezzeFogli'
 
-export default function FoglioConLei({ booking, righe, onChiudi, onIncerto, onSalvato }: {
+export default function FoglioConLei({ booking, righe, intestataria, onChiudi, onIncerto, onSalvato }: {
   booking: RigaConLei
+  /** chi ha prenotato: resta il cliente della prenotazione, qui si vede soltanto */
+  intestataria: { nome: string; telefono: string }
   /** tutte le camere della prenotazione, annullate comprese */
   righe: RigaConLei[]
   onChiudi: () => void
@@ -28,6 +35,9 @@ export default function FoglioConLei({ booking, righe, onChiudi, onIncerto, onSa
   onSalvato: (campi: Record<string, unknown>, ids: string[], avviso: string | null, cambiato: boolean) => void
 }) {
   const [persone, setPersone] = useState<PersonaConLei[]>(() => personeDaPrenotazione(booking))
+  // la spunta c'è solo se la riga ha la colonna (proposta 0061)
+  const colonnaNonELei = COLONNA_NON_E_LEI in (booking as Record<string, unknown>)
+  const [nonELei, setNonELei] = useState(() => nonELeiDaRiga(booking as Record<string, unknown>))
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const ids = righe.filter(r => r.status !== 'annullata').map(r => r.id)
@@ -35,8 +45,9 @@ export default function FoglioConLei({ booking, righe, onChiudi, onIncerto, onSa
   async function salva() {
     if (salvando) return
     if (persone.length > PERSONE_CON_LEI_MAX) { setErrore(TROPPE_PERSONE); return }
-    const campi = campiConLeiCompleti(persone)
-    if (stessePersone(persone, booking)) { onSalvato(campi, ids, null, false); return }
+    if (nonELei && persone.length === 0) { setErrore(MANCA_CHI_DORME); return }
+    const campi = campiChiDormeScheda(persone, nonELei, colonnaNonELei)
+    if (stessoChiDorme(persone, nonELei, colonnaNonELei, booking)) { onSalvato(campi, ids, null, false); return }
     setSalvando(true)
     setErrore(null)
     // in una richiesta sola: o tutte le camere o nessuna
@@ -61,6 +72,18 @@ export default function FoglioConLei({ booking, righe, onChiudi, onIncerto, onSa
 
   return (
     <Foglio titolo={TITOLO_CON_LEI} altezza={ALTEZZE_FOGLI.chiDorme} onChiudi={onChiudi}>
+      {!nonELei && (
+        <div data-intestataria className="np-persona">
+          <span className="min-w-0"><span className="nm">{intestataria.nome}</span><span className="ch">{INTESTATARIA_SCHEDA}</span></span>
+          <span className="tel">{intestataria.telefono}</span>
+        </div>
+      )}
+      {colonnaNonELei && (
+        <div className="np-chips" style={{ marginTop: 10 }}>
+          <button type="button" data-non-e-lei aria-pressed={nonELei} className={`np-chip ${nonELei ? 'on' : ''}`}
+            onClick={() => { setNonELei(!nonELei); setErrore(null) }}>{nonELei ? '☑' : '☐'} {NON_E_LEI}</button>
+        </div>
+      )}
       <ConLei persone={persone} onPersone={p => { setPersone(p); setErrore(null) }}
         avviso={persone.length > PERSONE_CON_LEI_MAX ? TROPPE_PERSONE : null} senzaTitolo etichetteOttone />
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}

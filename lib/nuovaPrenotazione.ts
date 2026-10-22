@@ -667,7 +667,9 @@ export function scontoPerRiga(totaliBase: number[], sconto: ScontoNuova): Record
 }
 
 // ── «Con lei»: chi altro dorme qui ──────────────────────────────────────────
-export const CHI_E_VOCI = ['Sorella', 'Mamma', 'Papà', 'Figlia', 'Marito', 'Amica']
+// Le voci di «Chi è» (Ania, 22/10/2026): coppie femminile/maschile; con
+// «Altro» si scrive la relazione a mano.
+export const CHI_E_VOCI = ['Sorella', 'Fratello', 'Mamma', 'Papà', 'Figlia', 'Figlio', 'Marito', 'Moglie', 'Amica', 'Amico']
 export type PersonaConLei = { id: string; nome: string; chiE: string; telefono: string }
 /** Le due colonne di bookings reggono due persone: la terza si dice, non si perde in silenzio */
 export const PERSONE_CON_LEI_MAX = 2

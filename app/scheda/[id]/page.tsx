@@ -949,6 +949,7 @@ export default function SchedaPage() {
       )}
       {foglioConLei && (
         <FoglioConLei booking={booking} righe={righe}
+          intestataria={{ nome: nomeOspite(booking), telefono: telefonoAGruppi(telefono) || telefono || '' }}
           onChiudi={() => setFoglioConLei(false)} onIncerto={invalida}
           onSalvato={(campi, ids, msg, cambiato) => {
             if (!cambiato) { setFoglioConLei(false); return }

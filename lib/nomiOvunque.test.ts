@@ -197,7 +197,8 @@ test('Richieste in arrivo dal sito: la riga si scrive con nome e cognome in maiu
 
 test('«Con lei» (chi dorme con la cliente): campi condivisi, e il nome si compone con nomeDaSalvare', () => {
   const s = leggi('components/nuova/ConLei.tsx')
-  assert.match(s, /<CampiNomeCognome nome=\{nome\} cognome=\{cognome\} onNome=\{setNome\} onCognome=\{setCognome\} prefissoDati="persona-"/)
+  // dal 22/10/2026 i campi stanno nel foglietto comune (useFogliettoPersona), anche per «Modifica»
+  assert.match(s, /<CampiNomeCognome nome=\{f\.nome\} cognome=\{f\.cognome\} onNome=\{f\.setNome\} onCognome=\{f\.setCognome\} prefissoDati="persona-"/)
   assert.match(s, /const completo = nomeDaSalvare\(\{ nome, cognome \}\)/)
 })
 

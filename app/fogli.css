@@ -50,3 +50,7 @@
 .mz .mz-foglio h2 + .corpo > :first-child > :first-child > :first-child > :first-child,
 .mz .mz-foglio h2 + .corpo > :first-child:empty + *,
 .mz .mz-foglio h2 + .corpo > :first-child > :first-child:empty + * { margin-top: 0 !important; }
+/* Nome e Cognome affiancati in cima al foglio (22/10/2026, iPhone): la regola
+   qui sopra arriva solo al PRIMO dei due campi, così l'etichetta «Cognome»
+   restava 14 px più in basso di «Nome». Le due colonne si trattano uguali. */
+.mz .mz-foglio h2 + .corpo > [data-campi-nome-cognome]:first-child > * > :first-child { margin-top: 0 !important; }
