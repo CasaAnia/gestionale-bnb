@@ -21,10 +21,16 @@ export default function ArriviPrecedenti({ altre, oggi, className = '' }: { altr
         <div key={r.chiave} className="sch-prec-arrivo">
           <span className="sch-big">{r.periodo}</span>
           <span>{r.camere}</span>
-          {r.luogo && <span data-luogo-precedente className="ml-auto">{r.luogo}</span>}
-          {r.orario && <span data-orario-precedente className={r.luogo ? undefined : 'ml-auto'}>{r.orario}</span>}
-          <span>{r.navetta}</span>
-          {r.prelievo && <span data-prelievo-precedente>{r.prelievo}</span>}
+          {/* un arrivo per periodo (22/10/2026): con più arrivi ognuno ha la sua data */}
+          {r.arrivi.map(a => (
+            <span key={a.data} data-arrivo-precedente={a.data} className={r.conData ? 'arr dt' : 'arr'}>
+              {r.conData && <span data-giorno-arrivo>{a.giorno}</span>}
+              {a.luogo && <span data-luogo-precedente className={r.conData ? undefined : 'ml-auto'}>{a.luogo}</span>}
+              {a.orario && <span data-orario-precedente className={r.conData || a.luogo ? undefined : 'ml-auto'}>{a.orario}</span>}
+              <span>{a.navetta}</span>
+              {a.prelievo && <span data-prelievo-precedente>{a.prelievo}</span>}
+            </span>
+          ))}
         </div>
       ))}
     </div>

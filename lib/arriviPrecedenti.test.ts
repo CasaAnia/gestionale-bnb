@@ -48,7 +48,8 @@ test('struttura precisa, fascia e stima: come prima', () => {
   ], OGGI)
   assert.deepEqual(righe.map(r => r.orario), ['arrivo 16:00', 'arrivo 15:00–17:00', 'in struttura circa 15:30–16:30'])
   assert.deepEqual(righe.map(r => r.luogo), [null, null, 'Arriva a Malpensa fra le 13:00 e le 14:00'])
-  assert.deepEqual(righe.map(r => r.navetta), ['navetta no', 'navetta non registrata', 'navetta massimo'])
+  // «da definire» salvato è una scelta, non un dato mancante (audit 22/10/2026)
+  assert.deepEqual(righe.map(r => r.navetta), ['navetta no', 'navetta da definire', 'navetta massimo'])
   assert.equal(righe[2].prelievo, 'Prelievo a Malpensa · 14:15')
 })
 
@@ -90,4 +91,82 @@ test('rilievo Codex: il primo arrivo si sceglie fra i tratti non annullati', () 
   assert.equal(righe.length, 1)
   assert.match(righe[0].periodo, /2/)
   assert.equal(righe[0].luogo, 'Arriva a Linate alle 08:40')
+})
+
+// ── Più arrivi nello stesso soggiorno (audit, 22/10/2026) ─────────────────────
+const DOPO = '2031-01-01'
+const tratto = (id: string, check_in: string, check_out: string, camera: string, arrivo: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) =>
+  ({ id, group_id: 'g-2030', prenotazione_id: null, check_in, check_out, status: 'completata', rooms: { name: camera }, check_in_time: null, shuttle: null, ...arrivo, ...extra }) as unknown as SegmentoStorico
+
+test('caso dell’audit: due periodi separati da notti vuote, due arrivi datati e distinti', () => {
+  const primo = tratto('a1', '2030-11-01', '2030-11-03', 'Lena', { ...vuoto, arrivo_tipo: 'struttura', arrivo_struttura_ora_da: '14:20', check_in_time: '14:20', navetta: 'non_richiesta', shuttle: 'no' })
+  const secondo = tratto('a2', '2030-11-08', '2030-11-10', 'Lena', { ...vuoto, arrivo_tipo: 'luogo', arrivo_luogo: 'malpensa', arrivo_luogo_ora_da: '11:35', navetta: 'alberto', navetta_prelievo: '12:05', shuttle: 'si' })
+  const [r, ...altre] = arriviPrecedenti([secondo, primo], DOPO)
+  assert.equal(altre.length, 0, 'il gruppo resta UNA riga')
+  assert.equal(r.conData, true)
+  assert.deepEqual(r.arrivi.map(a => [a.giorno, a.orario, a.luogo, a.navetta, a.prelievo]), [
+    ['1 nov', 'arrivo 14:20', null, 'navetta no', null],
+    ['8 nov', null, 'Arriva a Malpensa alle 11:35', 'navetta alberto', 'Prelievo a Malpensa · 12:05'],
+  ])
+  // il secondo arrivo NON finisce sul primo
+  assert.equal(r.orario, 'arrivo 14:20')
+  assert.equal(r.luogo, null)
+})
+
+test('cambio camera contiguo, camere parallele e intervalli sovrapposti: un arrivo solo', () => {
+  const arr = { ...vuoto, arrivo_tipo: 'struttura', arrivo_struttura_ora_da: '15:00', check_in_time: '15:00', navetta: 'non_richiesta' }
+  const contiguo = arriviPrecedenti([tratto('c1', '2030-11-01', '2030-11-03', 'Ambra', arr), tratto('c2', '2030-11-03', '2030-11-05', 'Lena', arr)], DOPO)
+  const parallele = arriviPrecedenti([tratto('p1', '2030-11-01', '2030-11-03', 'Ambra', arr), tratto('p2', '2030-11-01', '2030-11-03', 'Lena', arr)], DOPO)
+  const sovrapposti = arriviPrecedenti([tratto('s1', '2030-11-01', '2030-11-05', 'Ambra', arr), tratto('s2', '2030-11-03', '2030-11-06', 'Lena', arr)], DOPO)
+  for (const [nome, righe] of [['contiguo', contiguo], ['parallele', parallele], ['sovrapposti', sovrapposti]] as const) {
+    assert.equal(righe.length, 1, nome)
+    assert.equal(righe[0].arrivi.length, 1, `${nome}: un cambio camera non è un nuovo arrivo`)
+    assert.equal(righe[0].conData, false, nome)
+  }
+  // le camere del gruppo restano quelle di righeStorico
+  assert.equal(contiguo[0].camere, 'Ambra → Lena')
+})
+
+test('camere parallele: si legge il tratto che ha i dati, non il primo per id', () => {
+  const [r] = arriviPrecedenti([
+    tratto('p1', '2030-11-01', '2030-11-03', 'Ambra'),
+    tratto('p2', '2030-11-01', '2030-11-03', 'Lena', { ...vuoto, arrivo_tipo: 'luogo', arrivo_luogo: 'linate', arrivo_luogo_ora_da: '10:00', navetta: 'massimo' }),
+  ], DOPO)
+  assert.equal(r.arrivi.length, 1)
+  assert.equal(r.luogo, 'Arriva a Linate alle 10:00')
+  assert.equal(r.conData, false, 'stesso giorno d’arrivo: la data non serve')
+})
+
+test('dati solo su un tratto successivo contiguo: si mostrano alla SUA data, senza provenienza inventata', () => {
+  const [r] = arriviPrecedenti([
+    tratto('v1', '2030-11-01', '2030-11-03', 'Ambra'),
+    tratto('v2', '2030-11-03', '2030-11-05', 'Lena', { ...vuoto, arrivo_tipo: 'luogo', arrivo_luogo: 'rogoredo', arrivo_luogo_ora_da: '09:20', navetta: 'da_definire' }),
+  ], DOPO)
+  assert.equal(r.arrivi.length, 1)
+  assert.equal(r.arrivi[0].data, '2030-11-03')
+  assert.equal(r.arrivi[0].giorno, '3 nov')
+  assert.equal(r.conData, true, 'la data dice che non è il giorno d’arrivo del soggiorno')
+  assert.equal(r.arrivi[0].navetta, 'navetta da definire')
+})
+
+test('navetta: da definire salvato ≠ non registrata', () => {
+  const [salvato] = arriviPrecedenti([tratto('n1', '2030-10-01', '2030-10-02', 'Ambra', { ...vuoto, arrivo_tipo: 'da_definire', navetta: 'da_definire' }, { group_id: 'n1' })], DOPO)
+  const [niente] = arriviPrecedenti([tratto('n2', '2030-09-01', '2030-09-02', 'Ambra', {}, { group_id: 'n2' })], DOPO)
+  assert.equal(salvato.navetta, 'navetta da definire')
+  assert.equal(niente.navetta, 'navetta non registrata')
+})
+
+test('raggruppamenti, filtri e dati invariati con più arrivi', () => {
+  const tutti = [
+    tratto('a1', '2030-11-01', '2030-11-03', 'Lena', { ...vuoto, arrivo_tipo: 'struttura', arrivo_struttura_ora_da: '14:20' }),
+    tratto('a2', '2030-11-08', '2030-11-10', 'Lena', { ...vuoto, arrivo_tipo: 'luogo', arrivo_luogo: 'malpensa', arrivo_luogo_ora_da: '11:35' }),
+    tratto('a3', '2030-11-05', '2030-11-06', 'Ambra', { ...vuoto, arrivo_tipo: 'luogo', arrivo_luogo: 'linate', arrivo_luogo_ora_da: '07:00' }, { status: 'annullata' }),
+  ]
+  const prima = JSON.stringify(tutti)
+  const [r] = arriviPrecedenti(tutti, DOPO)
+  assert.equal(r.arrivi.length, 2, 'il tratto annullato non è un arrivo')
+  assert.equal(r.arrivi.some(a => a.luogo?.includes('Linate')), false)
+  assert.equal(JSON.stringify(tutti), prima)
+  // con la seconda parte non ancora conclusa il soggiorno non è nello storico
+  assert.equal(arriviPrecedenti(tutti, '2030-11-09').length, 0)
 })

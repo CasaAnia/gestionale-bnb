@@ -592,6 +592,10 @@ body:has(.sch) { background: var(--home-bg); }
 .sch-camera .eur { font-size: 17px; white-space: nowrap; }
 .sch-prec-arrivo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 8px 0; border-bottom: 1px solid var(--m-line); font-family: var(--home-ui-font); font-size: 12.5px; color: var(--m-mut); }
 .sch-prec-arrivo .sch-big { font-size: 16px; }
+/* un arrivo per periodo (22/10/2026): da solo resta sulla riga; con le date, una riga per arrivo */
+.sch-prec-arrivo .arr { display: contents; }
+.sch-prec-arrivo .arr.dt { display: flex; flex-wrap: wrap; gap: 2px 8px; flex-basis: 100%; }
+.sch-prec-arrivo .arr.dt [data-giorno-arrivo] { color: var(--m-ink); }
 
 /* Conto */
 .sch-g3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }

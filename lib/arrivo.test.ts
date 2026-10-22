@@ -371,7 +371,8 @@ test('anche «Arrivi precedenti» legge il modello: niente fasce troncate nello 
   // dal 22/10/2026 le righe le fa lib/arriviPrecedenti (provato in Node), il componente le mostra
   assert.match(leggi('components/scheda/ArriviPrecedenti.tsx'), /import \{ arriviPrecedenti \} from '@\/lib\/arriviPrecedenti'/)
   const storico = leggi('lib/arriviPrecedenti.ts')
-  assert.match(storico, /leggiArrivo\(primo as unknown as Record<string, unknown>\)/)
+  // dal 22/10/2026 un arrivo per periodo: ogni tratto letto col modello
+  assert.match(storico, /const a = leggiArrivo\(riga\)/)
   assert.equal(/primo\?\.check_in_time \?/.test(storico), false)
 })
 

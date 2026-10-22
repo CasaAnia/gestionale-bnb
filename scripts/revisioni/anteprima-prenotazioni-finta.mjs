@@ -604,12 +604,22 @@ if (process.env.ANTEPRIMA_SCHEDA_MAISON === '1') {
 // Storico degli arrivi (22/10/2026), sopra lo scenario della scheda «Maison»:
 // ANTEPRIMA_SCHEDA_MAISON=1 ANTEPRIMA_STORICO_ARRIVI=1 dà a due soggiorni
 // conclusi di Maria Rossi un arrivo esterno inventato — Rogoredo 09:20 senza
-// ora in struttura; Linate 08:40, in struttura 12:10, Aldo prelievo 09:15.
+// ora in struttura; Linate 08:40, in struttura 12:10, Aldo prelievo 09:15 —
+// e aggiunge un soggiorno inventato in due periodi (due arrivi).
 if (process.env.ANTEPRIMA_SCHEDA_MAISON === '1' && process.env.ANTEPRIMA_STORICO_ARRIVI === '1') {
   const vuoto = { arrivo_luogo_altro: null, arrivo_luogo_ora_a: null, arrivo_struttura_ora_da: null, arrivo_struttura_ora_a: null, arrivo_stima_da: null, arrivo_stima_a: null, navetta_prelievo: null }
   const metti = (id, campi) => { const b = bookings.find(x => x.id === id); if (b) Object.assign(b, vuoto, campi) }
   metti('bbbbbbbb-4191-4000-8000-000000004191', { arrivo_tipo: 'luogo', arrivo_luogo: 'rogoredo', arrivo_luogo_ora_da: '09:20', navetta: 'non_richiesta', check_in_time: null, shuttle: 'no' })
   metti('bbbbbbbb-4192-4000-8000-000000004192', { arrivo_tipo: 'luogo', arrivo_luogo: 'linate', arrivo_luogo_ora_da: '08:40', arrivo_struttura_ora_da: '12:10', navetta: 'aldo', navetta_prelievo: '09:15', check_in_time: '12:10', shuttle: 'si' })
+  // un soggiorno in due periodi (audit 22/10/2026): 1→3 giu 2025 in struttura 14:20,
+  // poi 8→10 giu 2025 Malpensa 11:35 con Alberto e prelievo 12:05; stesso gruppo
+  const GS = 'cccccccc-4195-4000-8000-000000004195'
+  bookings.push(
+    prenotazione(ROOM.lena, 'aaaaaaaa-4100-4000-8000-000000004100', '2025-06-01', '2025-06-03', 1, { id: 'bbbbbbbb-4195-4000-8000-000000004195', group_id: GS, status: 'completata', price_per_night: 70, total_amount: 140, pagato: true,
+      ...vuoto, arrivo_tipo: 'struttura', arrivo_struttura_ora_da: '14:20', navetta: 'non_richiesta', check_in_time: '14:20', shuttle: 'no' }),
+    prenotazione(ROOM.lena, 'aaaaaaaa-4100-4000-8000-000000004100', '2025-06-08', '2025-06-10', 1, { id: 'bbbbbbbb-4196-4000-8000-000000004196', group_id: GS, status: 'completata', price_per_night: 70, total_amount: 140, pagato: true,
+      ...vuoto, arrivo_tipo: 'luogo', arrivo_luogo: 'malpensa', arrivo_luogo_ora_da: '11:35', navetta: 'alberto', navetta_prelievo: '12:05', check_in_time: null, shuttle: 'si' }),
+  )
 }
 if (process.env.ANTEPRIMA_ARRIVI_MAISON === '1') {
   const oggiA = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
