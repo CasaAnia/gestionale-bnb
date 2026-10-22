@@ -340,7 +340,7 @@ test('la camera che non basta avvisa in mattone senza bloccare', () => {
 
 test('il letto: due pastiglie col prezzo, e «non disponibile» quando i letti sono presi', () => {
   assert.match(foglietto, /export const TITOLO_LETTO = 'Letto in più questa notte'/)
-  assert.match(foglietto, /Sì · \{prezzoLettoNotte\(scelta, notte\.dentro \? notte\.persone : contesto\.ospiti, lettoScelto\)\}/)
+  assert.ok(foglietto.includes('Sì · {prezzoLettoNotte(scelta, notte.dentro ? notte.persone : contesto.ospiti, lettoDellaBozza?.(bozza) ?? lettoScelto)}'))
   assert.match(foglietto, /spenta=\{!notte\.dentro \|\| \(!lettoLibero && !notte\.letto\)\}/)
   assert.match(foglietto, /data-letto-non-disponibile[\s\S]{0,120}\{LETTO_NON_DISPONIBILE\}/)
   assert.match(foglietto, /const lettoLibero = lettoDisponibileNotte\(iso, notte\.cameraId, contesto\)/)

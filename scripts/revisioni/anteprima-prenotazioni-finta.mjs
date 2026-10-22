@@ -438,6 +438,37 @@ if (process.env.ANTEPRIMA_OSPITI_RIAPERTURA === '1') {
   }))
 }
 
+// R4: accordi diversi nella stessa camera; nessun dato reale.
+if (process.env.ANTEPRIMA_ACCORDI_MISTI === '1') {
+  const camera = rooms.find(r => r.name === 'Allegra')
+  camera.base_price = 80
+  const cliente = ospite('aaaaaaaa-8201-4000-8000-000000008201', 'Accordi Misti Prova', '+39 333 000 8201')
+  guests.push(cliente)
+  const comuni = { group_id: 'cccccccc-8201-4000-8000-000000008201', prenotazione_id: 'dddddddd-8201-4000-8000-000000008201', extra_bed: true }
+  bookings.push(prenotazione(camera.id, cliente.id, '2027-03-01', '2027-03-02', 3, {
+    ...comuni, id: 'bbbbbbbb-8201-4000-8000-000000008201', extra_bed_dates: ['2027-03-01'],
+    price_per_night: 60, extra_bed_importo: 5, extra_bed_criterio: 'notte', extra_bed_total: 5, total_amount: 65,
+  }), prenotazione(camera.id, cliente.id, '2027-03-02', '2027-03-03', 3, {
+    ...comuni, id: 'bbbbbbbb-8202-4000-8000-000000008202', extra_bed_dates: ['2027-03-02'],
+    price_per_night: 80, extra_bed_importo: 10, extra_bed_criterio: 'notte', extra_bed_total: 10, total_amount: 90,
+  }))
+}
+
+// R4: dati vecchi ambigui devono bloccare, senza modificare il conto.
+if (process.env.ANTEPRIMA_ACCORDI_MISTI === '1') {
+  const camera = rooms.find(r => r.name === 'Allegra')
+  const cliente = ospite('aaaaaaaa-8211-4000-8000-000000008211', 'Accordi Dubbi Prova', '+39 333 000 8211')
+  guests.push(cliente)
+  const comuni = { group_id: 'cccccccc-8211-4000-8000-000000008211', prenotazione_id: 'dddddddd-8211-4000-8000-000000008211', extra_bed: true, price_per_night: 80 }
+  for (const [giorno,importo,criterio,quota] of [[10,30,'totale',17],[11,30,'totale',12],[12,10,'notte',10]]) {
+    const dal = `2027-03-${giorno}`, al = `2027-03-${giorno+1}`
+    bookings.push(prenotazione(camera.id, cliente.id, dal, al, 3, {
+      ...comuni, id: `bbbbbbbb-82${giorno}-4000-8000-0000000082${giorno}`, extra_bed_dates: [dal],
+      extra_bed_importo: importo, extra_bed_criterio: criterio, extra_bed_total: quota, total_amount: 80+quota,
+    }))
+  }
+}
+
 // Scenario visivo Home compatta: nessuna richiesta web, letto extra evidente.
 if (process.env.ANTEPRIMA_HOME_COMPATTA === '1') {
   for (const b of bookings) {

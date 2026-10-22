@@ -16,7 +16,7 @@
 // arrivano dal chiamante.
 // ============================================================================
 import { camereLibere, elencoNomi, giorniTra, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
-import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione, lettoRipartito, type AccordoLetto, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
+import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione, lettoRipartito, costoLettoIntero, type AccordoLetto, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
 import { capienzaBase, capienzaCamera, tariffaCamera, totaleLetto } from './tariffe.ts'
 import { giorniSoggiorno, nottiConLetto, prezzoPrenotazione, tariffaFormDaSalvato, fmtEuroBreve, type CameraTariffa } from './prezzoNotti.ts'
 import { contoSoggiorno } from './conto.ts'
@@ -518,6 +518,8 @@ export type TrattoPiano = {
   pienoCent: number
   /** in quante notti del tratto c'è il letto in più */
   nottiLetto: number
+  /** L'accordo effettivo di questo tratto, anche per il prezzo del tasto Sì. */
+  accordoLetto?: AccordoLetto | null
 }
 
 /** Come si vuole lo sconto DOPO la modifica, deciso dal foglio di conferma
@@ -551,6 +553,7 @@ export type PianoNotti = {
 // si sposta solo il supplemento; date, camera, tariffa, tratti nuovi o tolti
 // passano dal foglio «Il soggiorno cambia», dove il prezzo si sceglie.
 export const PREZZO_CONCORDATO_DA_CONFERMARE = 'Questa prenotazione ha un prezzo concordato a mano: con queste modifiche il nuovo prezzo va confermato. Riapri la modifica e conferma il prezzo.'
+export const ACCORDI_MISTI_DA_VERIFICARE = 'Gli accordi del letto di queste notti sono ambigui: nessun prezzo è stato cambiato. Per continuare serve verificare gli importi e le notti degli accordi originali.'
 export const PREZZO_CONCORDATO_NEGATIVO = 'Con questo letto il prezzo concordato andrebbe sotto zero: rivedi il prezzo prima di salvare.'
 
 /** In centesimi: il totale salvato meno tariffa × notti + letto, per una riga
@@ -598,9 +601,6 @@ function uguale(b: BloccoNotti, s: SegmentoNotti): boolean {
 export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], contesto: ContestoNotti, scelta?: ScontoScelto): PianoNotti {
   const vuoto: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null, tratti: [] }
   if (notti.some(n => n.dentro && !n.cameraId)) return { ...vuoto, errore: CAMERA_MANCANTE }
-  const blocchi = blocchiDaNotti(notti)
-  if (blocchi.length === 0) return { ...vuoto, errore: NESSUNA_NOTTE }
-
   const righe = attivi(segmenti)
   const liberi = [...righe]
 
@@ -614,12 +614,97 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
   // tre ha 0, in quattro 10. Non sono un unico accordo da estendere a tutte
   // le notti: prendere il primo perde o aggiunge il supplemento delle altre.
   const listiniDiversi = new Set(accordi.map(s => `${s.extra_bed_criterio}:${Number(s.extra_bed_importo)}`)).size > 1
+    && new Set(accordi.map(s => s.room_id ?? s.rooms?.id)).size === 1
     && accordi.every(s => s.extra_bed_criterio === 'notte'
       && Number(s.extra_bed_importo) === totaleLetto(contesto.camere.find(c => c.id === s.room_id), Number(s.num_guests) || 1, 1))
-  const accordoLetto: AccordoLetto | null = conAccordo && !listiniDiversi
-    ? { importo: Number(conAccordo.extra_bed_importo) || 0, criterio: conAccordo.extra_bed_criterio as AccordoLetto['criterio'] }
-    : null
-  const lettoPerBlocco = accordoLetto ? lettoRipartito(accordoLetto, blocchi.map(b => b.nottiLetto.length)) : null
+  const accordoDi = (riga: SegmentoNotti | null): AccordoLetto | null => riga?.extra_bed_criterio && riga.extra_bed_importo != null
+    ? { importo: Number(riga.extra_bed_importo), criterio: riga.extra_bed_criterio as AccordoLetto['criterio'] } : null
+  const chiave = (accordo: AccordoLetto | null) => accordo ? `${accordo.criterio}:${accordo.importo}` : 'listino'
+  // Gli accordi uniformi restano del soggiorno intero. Solo in presenza di
+  // regole diverse e di un vero accordo fuori listino servono ambiti distinti.
+  // Le righe senza accordo NON ereditano quello manuale di un'altra riga.
+  const misti = !listiniDiversi && new Set(righe.map(r => chiave(accordoDi(r)))).size > 1
+    && (new Set(accordi.map(r => chiave(accordoDi(r)))).size > 1
+      || righe.some(r => !accordoDi(r) && nottiConLetto(r).length > 0)
+      || accordi.some(r => nottiConLetto(r).length === 0 || r.extra_bed_criterio !== 'notte'
+        || Number(r.extra_bed_importo) !== totaleLetto(contesto.camere.find(c => c.id === (r.room_id ?? r.rooms?.id)), Number(r.num_guests) || 1, 1)))
+  const fissiRipetuti = accordi.some(r => r.extra_bed_criterio !== 'notte'
+    && accordi.filter(a => chiave(accordoDi(a)) === chiave(accordoDi(r))).length > 1)
+  const ambiti = misti || fissiRipetuti
+  if (ambiti && notti.some(n => {
+    if (!n.dentro) return false
+    const candidate = righe.filter(r => r.check_in <= n.iso && n.iso < r.check_out)
+    return candidate.length > 1 && candidate.filter(r => (r.room_id ?? r.rooms?.id) === n.cameraId).length !== 1
+  })) return { ...vuoto, errore: ACCORDI_MISTI_DA_VERIFICARE }
+  const origineNotte = (n: NotteStriscia) => {
+    const candidate = righe.filter(r => r.check_in <= n.iso && n.iso < r.check_out)
+    if (candidate.length > 0) return candidate.find(r => (r.room_id ?? r.rooms?.id) === n.cameraId) ?? candidate[0]
+    // Come per un accordo uniforme: allungare al bordo continua il tratto
+    // adiacente, col SUO accordo. Non prende quello di un altro periodo.
+    const ordinate = [...righe].sort((a, b) => a.check_in.localeCompare(b.check_in))
+    if (ordinate[0] && n.iso < ordinate[0].check_in) return ordinate[0]
+    const ultima = [...righe].sort((a, b) => b.check_out.localeCompare(a.check_out))[0]
+    if (ultima && n.iso >= ultima.check_out) return ultima
+    return null
+  }
+  if (ambiti && notti.some(n => n.dentro && !origineNotte(n))) return { ...vuoto, errore: ACCORDI_MISTI_DA_VERIFICARE }
+  // Non fondere notti con prezzi/accordi diversi solo perché ospiti e camera
+  // coincidono. La provenienza resta nelle date dei tratti già salvati.
+  const porzioni: { origine: string | null; notti: NotteStriscia[] }[] = []
+  for (const n of notti) {
+    const origine = ambiti ? origineNotte(n)?.id ?? null : null
+    const ultima = porzioni[porzioni.length - 1]
+    if (ultima && ultima.origine === origine) ultima.notti.push(n)
+    else porzioni.push({ origine, notti: [n] })
+  }
+  const blocchi = porzioni.flatMap(p => blocchiDaNotti(p.notti))
+  if (blocchi.length === 0) return { ...vuoto, errore: NESSUNA_NOTTE }
+  const accordoLetto = !listiniDiversi ? accordoDi(conAccordo ?? null) : null
+  const accordiPerBlocco = blocchi.map(b => ambiti
+    ? accordoDi(origineNotte(notti.find(n => n.iso === b.check_in && n.cameraId === b.cameraId)!))
+    : accordoLetto)
+  const lettoPerBlocco: (number | null)[] = blocchi.map(() => null)
+  // Uno stesso «30 in tutto» o «ogni4» non riparte a ogni taglio: si divide
+  // solo fra i blocchi del SUO accordo, lasciando gli altri al proprio prezzo.
+  const origini = blocchi.map(b => origineNotte(notti.find(n => n.iso === b.check_in && n.cameraId === b.cameraId)!))
+  const stessiCentesimi = (a: number[], b: number[]) => a.length === b.length && a.every((v, i) => Math.round(v * 100) === Math.round(b[i] * 100))
+  for (const k of new Set(accordiPerBlocco.filter(a => a !== null).map(chiave))) {
+    const indici = accordiPerBlocco.flatMap((a, i) => a && chiave(a) === k ? [i] : [])
+    const accordo = accordiPerBlocco[indici[0]]!
+    let quote = lettoRipartito(accordo, indici.map(i => blocchi[i].nottiLetto.length))
+    const originiAccordo = righe.filter(r => chiave(accordoDi(r)) === k)
+    if (ambiti && accordo.criterio !== 'notte' && originiAccordo.length > 1) {
+      // Due «30 in tutto» possono essere un accordo condiviso (15+15) oppure
+      // due accordi distinti (30+30). Usare le quote realmente salvate, mai
+      // dedurre l'identità dal solo importo. Sottrarre le differenze camera
+      // perché extra_bed_total contiene anche quelle.
+      const nottiPrima = originiAccordo.map(r => nottiConLetto(r).length)
+      const quotePrima = originiAccordo.map(r => {
+        const camera = contesto.camere.find(c => c.id === (r.room_id ?? r.rooms?.id))
+        const prezzo = prezzoPrenotazione(camera, { check_in: r.check_in, check_out: r.check_out, num_guests: r.num_guests, extra_bed: r.extra_bed, extra_bed_dates: r.extra_bed_dates })
+        const differenze = prezzo.notti.reduce((s, n) => s + n.tariffa, 0) - prezzo.prezzoNotte * prezzo.notti.length
+        return r.extra_bed_total == null ? NaN : round2(Number(r.extra_bed_total) - differenze)
+      })
+      // Per un accordo uniforme vale la convenzione condivisa già approvata:
+      // vecchie quote possono non essere proporzionali (ogni4: 20+20 su5notti).
+      // È distinto solo se le somme salvate lo provano, non dal solo importo.
+      const uniformeCondiviso = !misti && stessiCentesimi([quotePrima.reduce((s, q) => s + q, 0)], [costoLettoIntero(accordo, nottiPrima.reduce((s, n) => s + n, 0))])
+      const condiviso = uniformeCondiviso || stessiCentesimi(quotePrima, lettoRipartito(accordo, nottiPrima))
+      const distinti = !uniformeCondiviso && stessiCentesimi(quotePrima, nottiPrima.map(n => costoLettoIntero(accordo, n)))
+      const separate = indici.map(() => 0)
+      for (const r of originiAccordo) {
+        const posizioni = indici.flatMap((i, pos) => origini[i]?.id === r.id ? [pos] : [])
+        const fette = lettoRipartito(accordo, posizioni.map(pos => blocchi[indici[pos]].nottiLetto.length))
+        posizioni.forEach((pos, q) => { separate[pos] = fette[q] })
+      }
+      if (!condiviso && !distinti) return { ...vuoto, errore: ACCORDI_MISTI_DA_VERIFICARE }
+      if (distinti && !condiviso) quote = separate
+      else if (distinti && condiviso && !stessiCentesimi(quote, separate)) {
+        return { ...vuoto, errore: ACCORDI_MISTI_DA_VERIFICARE }
+      }
+    }
+    indici.forEach((i, q) => { lettoPerBlocco[i] = quote[q] })
+  }
 
   // ── Lo sconto è della PRENOTAZIONE ───────────────────────────────────────
   // Prima lo prendeva solo il blocco che aveva una riga di origine abbinata, e
@@ -669,7 +754,7 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
     // maggiore delle notti con più ospiti: un accordo sul letto sostituisce
     // soltanto la prima voce, non cancella la seconda.
     const differenzaTariffe = round2(prezzo.notti.reduce((somma, n) => somma + n.tariffa, 0) - prezzo.prezzoNotte * prezzo.notti.length)
-    const letto = lettoPerBlocco ? round2(lettoPerBlocco[i] + differenzaTariffe) : prezzo.lettoTotale
+    const letto = lettoPerBlocco[i] !== null ? round2(lettoPerBlocco[i]! + differenzaTariffe) : prezzo.lettoTotale
     const camere = round2(aNotte * giorniTra(b.check_in, b.check_out).length)
     return { camera, aNotte, letto, pieno: round2(camere + letto) }
   })
@@ -679,6 +764,7 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
     cameraId: b.cameraId, camera: b.camera, check_in: b.check_in, check_out: b.check_out,
     notti: giorniTra(b.check_in, b.check_out).length,
     aNotte: pieni[i]!.aNotte, letto: pieni[i]!.letto, pienoCent: Math.round(pieni[i]!.pieno * 100), nottiLetto: b.nottiLetto.length,
+    accordoLetto: accordiPerBlocco[i],
   }))
 
   // Il totale concordato resta quello: si divide fra i tratti in proporzione
@@ -752,8 +838,10 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
       total_amount: concordato ?? conto.totale,
       ...scontoCampi,
       // importo e criterio vanno insieme, o il database rifiuta la riga
-      ...(b.nottiLetto.length > 0 && (accordoLetto || listiniDiversi)
-        ? { extra_bed_importo: accordoLetto?.importo ?? totaleLetto(dati.camera, b.ospiti, 1), extra_bed_criterio: accordoLetto?.criterio ?? 'notte' }
+      // Un accordo misto resta sul proprio tratto anche temporaneamente senza
+      // letto: rimettendolo non deve diventare l'accordo del tratto vicino.
+      ...((accordiPerBlocco[i] && (ambiti || b.nottiLetto.length > 0)) || (listiniDiversi && b.nottiLetto.length > 0)
+        ? { extra_bed_importo: accordiPerBlocco[i]?.importo ?? totaleLetto(dati.camera, b.ospiti, 1), extra_bed_criterio: accordiPerBlocco[i]?.criterio ?? 'notte' }
         : { extra_bed_importo: null, extra_bed_criterio: null }),
     }
     // Un tratto rimasto identico NON si tocca: la sua tariffa è quella che Ania

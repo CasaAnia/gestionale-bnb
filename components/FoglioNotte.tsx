@@ -57,7 +57,7 @@ function Pastiglia({ acceso, spenta, onClick, children }: { acceso: boolean; spe
   )
 }
 
-export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, lettoScelto, onFatto, onChiudi, sottotitolo, contoDopo }: {
+export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, lettoScelto, lettoDellaBozza, onFatto, onChiudi, sottotitolo, contoDopo }: {
   notti: NotteStriscia[]
   iso: string
   contesto: ContestoNotti
@@ -67,6 +67,8 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
   /** l'accordo del letto preso sopra: con l'importo vuoto valgono le regole.
    *  Il costo accanto a «Sì» si rifà a ogni tocco, sugli ospiti di QUESTA notte. */
   lettoScelto?: { importo: number | null; criterio: 'notte' | 'ogni4' | 'totale' }
+  /** Stessa regola del piano di salvataggio, riferita alla notte aperta. */
+  lettoDellaBozza?: (bozza: NotteStriscia[]) => { importo: number; criterio: 'notte' | 'ogni4' | 'totale' } | null
   /** «Fatto»: la striscia com'è diventata (la pagina salva e ricalcola il conto) */
   onFatto: (notti: NotteStriscia[], daQuiInPoi: boolean) => void
   onChiudi: () => void
@@ -156,7 +158,7 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
       <div data-letto-notte className="flex flex-wrap items-center mt-2" style={{ gap: 8 }}>
         <Pastiglia acceso={!notte.letto} spenta={!notte.dentro || serveIlLetto} onClick={() => { setLettoAuto(false); setBozza(b => cambiaLetto(b, iso, false, contesto, { ospitiAParte })) }}>No</Pastiglia>
         <Pastiglia acceso={notte.letto} spenta={!notte.dentro || (!lettoLibero && !notte.letto)} onClick={() => { setLettoAuto(false); setBozza(b => cambiaLetto(b, iso, true, contesto, { ospitiAParte })) }}>
-          Sì · {prezzoLettoNotte(scelta, notte.dentro ? notte.persone : contesto.ospiti, lettoScelto)}
+          Sì · {prezzoLettoNotte(scelta, notte.dentro ? notte.persone : contesto.ospiti, lettoDellaBozza?.(bozza) ?? lettoScelto)}
         </Pastiglia>
         {notte.dentro && !lettoLibero && !notte.letto && <span data-letto-non-disponibile style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{LETTO_NON_DISPONIBILE}</span>}
         {/* «No» spento: gli ospiti della notte non ci stanno senza letto, e

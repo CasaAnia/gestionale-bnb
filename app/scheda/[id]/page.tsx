@@ -817,6 +817,10 @@ export default function SchedaPage() {
             const camera = camere.find(c => c.id === cameraId) ?? null
             return ospitiPossibiliNotte(camera, capienzaCamera(camera))
           }}
+          lettoDellaBozza={bozza => {
+            const piano = pianoNotti(bozza, lineaAperta.segmenti, contestoAperto, SENZA_SCONTO)
+            return piano.tratti.find(t => t.check_in <= notteAperta.iso && notteAperta.iso < t.check_out)?.accordoLetto ?? null
+          }}
           contoDopo={(bozza, daQui) => contoDellaBozza(lineaAperta, conDaQui(bozza, daQui))}
           onFatto={(nuove, daQui) => chiediPrezzoOSalva(lineaAperta, conDaQui(nuove, daQui), () => setNotteAperta(null))} onChiudi={() => setNotteAperta(null)} />
       )}
