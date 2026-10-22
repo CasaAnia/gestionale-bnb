@@ -383,6 +383,16 @@ export function ospitiDaNotte(
 // spegne da sé; un letto messo a mano («Sì» con due persone, per chi vuole
 // letti separati) resta. `lettoAuto` è la memoria di chi chiama: vero finché
 // il letto acceso è quello automatico.
+// Quando si riapre una notte salvata, il letto necessario alla sua capienza
+// torna automatico. Prima questa informazione si perdeva alla chiusura del
+// foglio: ridurre gli ospiti lasciava il letto acceso come se fosse manuale.
+// Un letto già facoltativo (es. due persone in Allegra) resta invece manuale.
+export function lettoAutomaticoDellaNotte(notti: NotteStriscia[], iso: string, contesto: ContestoNotti): boolean {
+  const notte = notti.find(n => n.iso === iso)
+  const camera = contesto.camere.find(c => c.id === notte?.cameraId) ?? null
+  return Boolean(notte?.dentro && notte.letto && lettoObbligatorio(camera, notte.persone))
+}
+
 export function cambiaOspitiConLettoAuto(
   notti: NotteStriscia[], iso: string, quanti: number, contesto: ContestoNotti, lettoAuto: boolean,
 ): { notti: NotteStriscia[]; lettoAuto: boolean } {

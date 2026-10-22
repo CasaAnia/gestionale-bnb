@@ -425,6 +425,19 @@ if (process.env.ANTEPRIMA_DOCUMENTI === '1') {
   doc('04', marta, 'fronte', ieri, false)
 }
 
+// Regressione ospiti dopo riapertura (22/10/2026): solo dati sintetici.
+if (process.env.ANTEPRIMA_OSPITI_RIAPERTURA === '1') {
+  const camera = rooms.find(r => r.name === 'Amelia')
+  camera.base_price = 70; camera.extra_bed_price = 5
+  const cliente = ospite('aaaaaaaa-8101-4000-8000-000000008101', 'Ospite Riapertura Prova', '+39 333 000 8101')
+  guests.push(cliente)
+  bookings.push(prenotazione(camera.id, cliente.id, '2026-10-21', '2026-10-27', 2, {
+    id: 'bbbbbbbb-8101-4000-8000-000000008101',
+    extra_bed: true, extra_bed_dates: ['2026-10-21', '2026-10-23', '2026-10-24', '2026-10-25', '2026-10-26'],
+    price_per_night: 70, extra_bed_total: 25, total_amount: 445,
+  }))
+}
+
 // Scenario visivo Home compatta: nessuna richiesta web, letto extra evidente.
 if (process.env.ANTEPRIMA_HOME_COMPATTA === '1') {
   for (const b of bookings) {

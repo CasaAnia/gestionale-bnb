@@ -6,7 +6,7 @@ import {
   nottiDaSegmenti, riassuntoStriscia, cambiCamera, avvisiStriscia, camereDellaNotte, avvisoCapienza,
   lettoDisponibileNotte, prezzoLettoNotte, cambiaCamera, cambiaLetto, cambiaOspitiNotte, nonDormeQui, blocchiDaNotti,
   pianoNotti, stessaStriscia, titoloNotte, giornoDellaNotte, compatta, NESSUNA_NOTTE, CAMERA_MANCANTE,
-  cambiaOspitiConLettoAuto, ospitiDaQuiInPoi,
+  cambiaOspitiConLettoAuto, ospitiDaQuiInPoi, lettoAutomaticoDellaNotte,
   SCONTO_DECADUTO, LETTO_COMPRESO, segniDiCambio, personeColLetto,
   type SegmentoNotti, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from './strisciaNotti.ts'
@@ -748,4 +748,45 @@ test('Maria Rosaria: cambio persone 2→1 conserva Lena nel piano e alla riapert
   const riaperte=nottiDaSegmenti(salvate)
   assert.deepEqual(riaperte.map(n=>n.persone),[2,1,1,1,1,1,1])
   assert.equal(cambiCamera(riaperte),0)
+})
+
+// Regressione 22/10: letto necessario già salvato, non acceso in questa apertura.
+test('Amelia salvata: prima notte in due e successive da solo, salva e riapre due volte', () => {
+  let salvati = [seg('prova', AMELIA, '2026-10-21', '2026-10-27', {
+    num_guests: 2, extra_bed: true, extra_bed_dates: ['2026-10-21', '2026-10-23', '2026-10-24', '2026-10-25', '2026-10-26'],
+    price_per_night: 70, extra_bed_total: 25, total_amount: 445,
+  })]
+  const ctx = contesto()
+  const salva = (notti: NotteStriscia[]) => {
+    const piano = pianoNotti(notti, salvati, ctx)
+    assert.equal(piano.errore, null)
+    assert.equal(piano.crea.length, 0)
+    assert.equal(piano.annulla.length, 0)
+    salvati = salvati.map(s => ({ ...s, ...piano.aggiorna.find(a => a.id === s.id)?.campi }))
+    return nottiDaSegmenti(salvati)
+  }
+  let notti = nottiDaSegmenti(salvati)
+  const ridotta = cambiaOspitiConLettoAuto(notti, '2026-10-23', 1, ctx, lettoAutomaticoDellaNotte(notti, '2026-10-23', ctx))
+  notti = salva(ospitiDaQuiInPoi(ridotta.notti, '2026-10-23', ctx))
+  assert.deepEqual(notti.map(n => [n.persone, n.letto]), [[2,true],[1,false],[1,false],[1,false],[1,false],[1,false]])
+  assert.equal(salvati[0].total_amount, 425)
+  assert.equal(salvati[0].price_per_night, 70)
+  assert.equal(salvati[0].check_in, '2026-10-21')
+  assert.equal(salvati[0].check_out, '2026-10-27')
+  // Un'altra apertura, aumento e salvataggio, poi nuova apertura e riduzione.
+  notti = salva(cambiaOspitiConLettoAuto(notti, '2026-10-24', 2, ctx, lettoAutomaticoDellaNotte(notti, '2026-10-24', ctx)).notti)
+  assert.equal(notti[3].letto, true)
+  notti = salva(cambiaOspitiConLettoAuto(notti, '2026-10-24', 1, ctx, lettoAutomaticoDellaNotte(notti, '2026-10-24', ctx)).notti)
+  assert.deepEqual(notti.map(n => n.persone), [2,1,1,1,1,1])
+  assert.deepEqual(notti.filter(n=>n.letto).map(n=>n.iso), ['2026-10-21'])
+  assert.equal(salvati[0].total_amount, 425)
+})
+
+test('riapertura: un letto facoltativo salvato o scelto esplicitamente resta manuale', () => {
+  const notti = nottiDaSegmenti([seg('manuale', ALLEGRA, '2026-10-21', '2026-10-23', { extra_bed: true, extra_bed_dates: ['2026-10-21'], num_guests: 2 })])
+  assert.equal(lettoAutomaticoDellaNotte(notti, '2026-10-21', contesto()), false)
+  const dopo = cambiaOspitiConLettoAuto(notti, '2026-10-21', 1, contesto(), lettoAutomaticoDellaNotte(notti, '2026-10-21', contesto()))
+  assert.equal(dopo.notti[0].letto, true)
+  const amelia = nottiDaSegmenti([seg('esplicito', AMELIA, '2026-10-21', '2026-10-23', { extra_bed: true, extra_bed_dates: ['2026-10-21'] })])
+  assert.equal(cambiaOspitiConLettoAuto(amelia, '2026-10-21', 1, contesto(), false).notti[0].letto, true)
 })

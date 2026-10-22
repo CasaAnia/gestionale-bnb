@@ -20,7 +20,7 @@ import Foglio, { PiedeFoglio } from '@/components/scheda/Foglio'
 import { useMaison } from '@/components/nuova/PezziNuova'
 import {
   camereDellaNotte, avvisoCapienza, lettoDisponibileNotte, prezzoLettoNotte, titoloNotte,
-  motivoLettoObbligatorio, lettoObbligatorio,
+  motivoLettoObbligatorio, lettoObbligatorio, lettoAutomaticoDellaNotte,
   cambiaCamera, cambiaLetto, cambiaOspitiConLettoAuto, nonDormeQui, LETTO_NON_DISPONIBILE,
   type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
@@ -80,7 +80,7 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
   const [bozza, setBozza] = useState(notti)
   const [daQui, setDaQui] = useState(false)
   // il letto acceso da sé salendo di persone: tornando giù si spegne da sé
-  const [lettoAuto, setLettoAuto] = useState(false)
+  const [lettoAuto, setLettoAuto] = useState(() => lettoAutomaticoDellaNotte(notti, iso, contesto))
   const maison = useMaison()
   const notte = bozza.find(n => n.iso === iso)
   if (!notte) return null
@@ -161,7 +161,7 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
         {notte.dentro && !lettoLibero && !notte.letto && <span data-letto-non-disponibile style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{LETTO_NON_DISPONIBILE}</span>}
         {/* «No» spento: gli ospiti della notte non ci stanno senza letto, e
             non si abbassano da soli per far posto (Ania, 15/09/2026) */}
-        {serveIlLetto && <span data-letto-serve style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{motivoLettoObbligatorio(scelta, notte.persone)}</span>}
+        {serveIlLetto && <span data-letto-serve style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{motivoLettoObbligatorio(scelta, notte.persone)}. Per togliere il letto, riduci prima gli ospiti.</span>}
       </div>
 
       {/* ── Toglie la notte dal soggiorno ─────────────────────────────── */}
