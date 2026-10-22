@@ -104,8 +104,8 @@ const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 
 /** «dorme Teresa Bianchi · mamma» */
 export const testoDorme = (p: PersonaCheDorme) => `dorme ${p.nome}${p.chiE ? ` · ${minuscola(p.chiE)}` : ''}`
-/** Nella linguetta Cliente: «Mamma · dorme lei, non chi ha prenotato» */
-export const DORME_LEI = 'dorme lei, non chi ha prenotato'
+/** Nella linguetta Cliente: «Mamma · dorme qui» */
+export const DORME_LEI = 'dorme qui'
 export const etichettaDormeLei = (chiE: string) => (chiE.trim() ? `${maiuscola(chiE.trim())} · ${DORME_LEI}` : maiuscola(DORME_LEI))
 // i nomi stanno una volta sola, in lib/conLeiScheda (era «Con lei», punto 14d)
 export { TITOLO_CON_LEI as TITOLO_CHI_DORME_SCHEDA, COMANDO_CON_LEI as COMANDO_CHI_DORME } from './conLeiScheda.ts'

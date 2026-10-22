@@ -78,7 +78,7 @@ test('riga «dorme …» presente SOLO con la spunta «Non è lei a dormire qui�
   const p = chiDormeAlPosto({ ...riga, intestataria_non_dorme: true })
   assert.deepEqual(p, { nome: 'Teresa Bianchi', chiE: 'Mamma', telefono: '3405551122' })
   assert.equal(testoDorme(p!), 'dorme Teresa Bianchi · mamma')
-  assert.equal(etichettaDormeLei('Mamma'), 'Mamma · dorme lei, non chi ha prenotato')
+  assert.equal(etichettaDormeLei('Mamma'), 'Mamma · dorme qui')
   // spunta accesa ma nessun nome salvato: la riga non compare
   assert.equal(chiDormeAlPosto({ intestataria_non_dorme: true }), null)
 })

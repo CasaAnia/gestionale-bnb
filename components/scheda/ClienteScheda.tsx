@@ -13,7 +13,7 @@
 //   NOTA DEL CLIENTE / NOTA DI QUESTA PRENOTAZIONE (mattone, tutta la riga)
 //   MODIFICA DATI · CAMBIA CLIENTE · NOTA E COLORE
 //   CHI DORME IN CAMERA ─────────────────────
-//   Teresa Bianchi / MAMMA · DORME LEI, NON CHI HA PRENOTATO   +39 340 …
+//   Teresa Bianchi / MAMMA · DORME QUI   +39 340 …
 //   MODIFICA CHI DORME
 //   SOGGIORNI PRECEDENTI · 4 · 640 € ─────────
 //   Ambra / 29 apr → 4 mag · 5 notti · 2 ospiti                400 € ›
