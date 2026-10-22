@@ -17,6 +17,7 @@
 // ============================================================================
 import {
   AUTISTI, LUOGHI, genereLuogo, navettaRichiesta, oraInStruttura, periodoInStruttura, periodoOre, eFascia,
+  oreInStruttura, circaInStruttura,
   type Arrivo,
 } from './arrivo.ts'
 import { rigaDate, CAMBIO_CAMERA, ORARIO_DA_CHIEDERE } from './calendarioSchede.ts'
@@ -99,11 +100,14 @@ export function rigaArrivoArrivi(a: Arrivo, cambio: { poi?: string | null; da?: 
   if (a.tipo === 'luogo' && luogoBreve(a)) {
     const oraLuogo = periodoOre(pulita(a.luogoDa), a.modoLuogo === 'fascia' ? pulita(a.luogoA) : '')
     if (oraLuogo) {
-      parti.push(`${doveBreve(a)} ${oraLuogo}`, navettaBreve(a, true))
+      parti.push(`${doveBreve(a)} ${oraLuogo}`)
+      // l'ora grande è l'inizio in struttura: la fascia detta dalla cliente si scrive intera (22/10/2026)
+      if (!circaInStruttura(a) && eFascia(...oreInStruttura(a))) parti.push(`in struttura ${inStruttura}`)
+      parti.push(navettaBreve(a, true))
     } else if (inStruttura) {
       // niente ora al luogo, ma la stima di Ania: il luogo lo dice il prelievo, se c'è
       const prelievoConLuogo = navettaRichiesta(a.navetta) && !!pulita(a.prelievo)
-      parti.push(`in struttura ${inStruttura} circa`)
+      parti.push(`in struttura ${inStruttura}${circaInStruttura(a) ? ' circa' : ''}`)
       if (!prelievoConLuogo) parti.push(doveBreve(a))
       parti.push(navettaBreve(a, !prelievoConLuogo))
     } else {
@@ -111,8 +115,8 @@ export function rigaArrivoArrivi(a: Arrivo, cambio: { poi?: string | null; da?: 
     }
   } else if (inStruttura) {
     // l'ora grande dice già l'inizio: la fascia intera solo quando è una fascia
-    const [da, fine] = a.tipo === 'struttura' ? [a.strutturaDa, a.modoStruttura === 'fascia' ? a.strutturaA : ''] : [a.stimaDa, a.stimaA]
-    if (eFascia(da, fine)) parti.push(`in struttura ${inStruttura}${a.tipo === 'luogo' ? ' circa' : ''}`)
+    const [da, fine] = oreInStruttura(a)
+    if (eFascia(da, fine)) parti.push(`in struttura ${inStruttura}${circaInStruttura(a) ? ' circa' : ''}`)
     parti.push(navettaBreve(a, true))
   } else {
     parti.push(ORARIO_DA_CHIEDERE)

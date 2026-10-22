@@ -44,6 +44,16 @@
 // quando è una fascia si scrive l'inizio, quando non si sa resta vuota. Mai
 // l'ora di Linate: quella confusione è il difetto di partenza.
 //
+// LUOGO E STRUTTURA INSIEME (Ania, 22/10/2026): «Arrivo a Linate alle 10» e,
+// facoltativo, «In struttura alle 20» — ora precisa o fascia — si tengono
+// INSIEME. Prima, con un luogo esterno, l'ora in casa era solo la stima di
+// Ania. Ora con «Arrivo a…» le colonne `arrivo_struttura_ora_*` (che c'erano
+// già) tengono l'ora in struttura detta dalla cliente: è un dato, niente
+// «circa». La stima di Ania resta dov'era: si legge, si mostra col «circa»,
+// si conserva al salvataggio, e vale solo quando l'ora della cliente manca
+// (`fonteInStruttura`). Le righe vecchie con un luogo hanno le colonne della
+// struttura vuote: si leggono come prima, nessuna riscrittura.
+//
 // Qui dentro non c'è nessuna veste: solo il modello, i controlli e le parole.
 // Le tre superfici del riferimento leggono da qui (`pianoModuloArrivo` per
 // l'inserimento, `arrivoInScheda` per la scheda, `arrivoInHome` per la Home);
@@ -113,12 +123,15 @@ export type Arrivo = {
   modoLuogo: ModoOrario
   luogoDa: string
   luogoA: string
-  /** l'ora IN STRUTTURA detta dalla cliente, con tipo 'struttura' */
+  /** l'ora IN STRUTTURA detta dalla cliente: con tipo 'struttura', e
+   *  (facoltativa) anche con tipo 'luogo' (22/10/2026) */
   modoStruttura: ModoOrario
   strutturaDa: string
   strutturaA: string
-  /** la stima di Ania sull'arrivo in struttura: facoltativa, solo con un
-   *  luogo esterno, ed è sempre una fascia (di qui il «circa») */
+  /** la stima di Ania sull'arrivo in struttura: solo con un luogo esterno,
+   *  sempre una fascia (di qui il «circa»). Dal 22/10/2026 si scrive l'ora
+   *  in struttura della cliente; la stima già salvata resta e vale solo
+   *  quando quella manca. */
   stimaDa: string
   stimaA: string
   navetta: Navetta
@@ -183,23 +196,35 @@ function oreStima(a: Arrivo): [string, string] {
   return [pulita(a.stimaDa), pulita(a.stimaA)]
 }
 
-/** L'arrivo in struttura, per esteso: «16:00–17:00», «16:00» o ''.
- *  Con un luogo esterno vale SOLO la stima di Ania — mai l'ora del luogo. */
+/** Da dove viene l'ora in struttura: detta dalla cliente, stimata da Ania,
+ *  o non si sa. Con un luogo esterno vince l'ora della cliente; la stima
+ *  vale solo quando quella manca. MAI l'ora del luogo (22/10/2026). */
+export type FonteStruttura = 'cliente' | 'stima' | null
+export function fonteInStruttura(a: Arrivo): FonteStruttura {
+  if (a.tipo === 'da_definire') return null
+  if (periodoOre(...oreStruttura(a))) return 'cliente'
+  if (a.tipo === 'luogo' && periodoOre(...oreStima(a))) return 'stima'
+  return null
+}
+/** Le due ore in struttura che contano, secondo la fonte */
+export function oreInStruttura(a: Arrivo): [string, string] {
+  const fonte = fonteInStruttura(a)
+  return fonte === 'cliente' ? oreStruttura(a) : fonte === 'stima' ? oreStima(a) : ['', '']
+}
+/** L'arrivo in struttura, per esteso: «16:00–17:00», «16:00» o ''. */
 export function periodoInStruttura(a: Arrivo): string {
-  if (a.tipo === 'struttura') return periodoOre(...oreStruttura(a))
-  if (a.tipo === 'luogo') return periodoOre(...oreStima(a))
-  return ''
+  return periodoOre(...oreInStruttura(a))
 }
 /** L'ora che va in `check_in_time`: l'inizio di quello che sappiamo. */
 export function oraInStruttura(a: Arrivo): string {
-  if (a.tipo === 'struttura') { const [d, f] = oreStruttura(a); return d || f }
-  if (a.tipo === 'luogo') { const [d, f] = oreStima(a); return d || f }
-  return ''
+  const [d, f] = oreInStruttura(a)
+  return d || f
 }
-/** «Circa» è SOLO della stima di Ania: una fascia detta dalla cliente è un
- *  dato, non una supposizione (rilievo di Codex, 21/09/2026 sera). */
+/** «Circa» è SOLO della stima di Ania: un'ora o una fascia detta dalla
+ *  cliente è un dato, non una supposizione (rilievo di Codex, 21/09/2026
+ *  sera; vale anche con un luogo esterno dal 22/10/2026). */
 export function circaInStruttura(a: Arrivo): boolean {
-  return a.tipo === 'luogo' && !!periodoInStruttura(a)
+  return fonteInStruttura(a) === 'stima'
 }
 
 /** Non si sa NIENTE dell'orario: né in struttura, né al luogo dove arriva.
@@ -259,8 +284,10 @@ export function leggiArrivo(b: RigaPrenotazione): Arrivo {
   }
   const luogoDa = tipo === 'luogo' ? testo(riga.arrivo_luogo_ora_da) : ''
   const luogoA = tipo === 'luogo' ? testo(riga.arrivo_luogo_ora_a) : ''
-  const strutturaDa = tipo === 'struttura' ? testo(riga.arrivo_struttura_ora_da) : ''
-  const strutturaA = tipo === 'struttura' ? testo(riga.arrivo_struttura_ora_a) : ''
+  // l'ora in struttura della cliente: con «In struttura» e, dal 22/10/2026,
+  // anche con un luogo esterno (le righe vecchie lì hanno null: resta '')
+  const strutturaDa = tipo !== 'da_definire' ? testo(riga.arrivo_struttura_ora_da) : ''
+  const strutturaA = tipo !== 'da_definire' ? testo(riga.arrivo_struttura_ora_a) : ''
   return {
     tipo,
     luogo: tipo === 'luogo' ? unaDi<ChiaveLuogo>(riga.arrivo_luogo, LUOGHI.map(l => l.chiave)) : null,
@@ -293,7 +320,7 @@ export function campiArrivoVecchi(a: Arrivo): { check_in_time: string | null; sh
  *  caselle restano nella bozza e non finiscono sul server. */
 export function campiArrivo(a: Arrivo): Record<string, string | null> {
   const [luogoDa, luogoA] = a.tipo === 'luogo' ? oreLuogo(a) : ['', '']
-  const [strutturaDa, strutturaA] = a.tipo === 'struttura' ? oreStruttura(a) : ['', '']
+  const [strutturaDa, strutturaA] = a.tipo !== 'da_definire' ? oreStruttura(a) : ['', '']
   const [stimaDa, stimaA] = a.tipo === 'luogo' ? oreStima(a) : ['', '']
   return {
     ...campiArrivoVecchi(a),
@@ -319,7 +346,8 @@ export function perditeSenza0058(a: Arrivo): string[] {
   if (a.tipo === 'luogo') perse.push('il luogo dell’arrivo')
   if (a.tipo === 'luogo' && eFascia(...oreLuogo(a))) perse.push('la fascia oraria')
   if (a.tipo === 'struttura' && eFascia(...oreStruttura(a))) perse.push('la fascia oraria')
-  if (a.tipo === 'luogo' && eFascia(...oreStima(a))) perse.push('la fine della stima in struttura')
+  if (a.tipo === 'luogo' && eFascia(...oreStruttura(a))) perse.push('la fascia oraria in struttura')
+  if (a.tipo === 'luogo' && fonteInStruttura(a) === 'stima' && eFascia(...oreStima(a))) perse.push('la fine della stima in struttura')
   if (nomeAutista(a.navetta)) perse.push('quale autista')
   if (navettaRichiesta(a.navetta) && pulita(a.prelievo)) perse.push('l’ora del prelievo')
   return perse
@@ -345,10 +373,16 @@ export function cambiaTipo(a: Arrivo, tipo: TipoArrivo): Arrivo {
   return { ...a, tipo }
 }
 
-/** «Ora precisa» / «Fascia oraria» del tipo attivo. La fine scritta prima
- *  non si cancella: smette solo di contare finché il modo è «precisa». */
-export function cambiaModo(a: Arrivo, modo: ModoOrario): Arrivo {
-  return a.tipo === 'luogo' ? { ...a, modoLuogo: modo } : { ...a, modoStruttura: modo }
+/** Quale orario: quello del luogo o quello in struttura. Senza dirlo vale
+ *  quello del tipo attivo, come prima; con «Arrivo a…» l'ora in struttura
+ *  si sceglie con 'struttura' (22/10/2026). */
+export type GruppoOra = 'luogo' | 'struttura'
+const gruppoDi = (a: Arrivo, g?: GruppoOra): GruppoOra => g ?? (a.tipo === 'luogo' ? 'luogo' : 'struttura')
+
+/** «Ora precisa» / «Fascia oraria». La fine scritta prima non si cancella:
+ *  smette solo di contare finché il modo è «precisa». */
+export function cambiaModo(a: Arrivo, modo: ModoOrario, gruppo?: GruppoOra): Arrivo {
+  return gruppoDi(a, gruppo) === 'luogo' ? { ...a, modoLuogo: modo } : { ...a, modoStruttura: modo }
 }
 
 /** Il modo dell'orario del tipo attivo */
@@ -362,9 +396,10 @@ export function cambiaNavetta(a: Arrivo, navetta: Navetta): Arrivo {
   return { ...a, navetta }
 }
 
-/** Scrivere nella casella dell'ora del tipo attivo, senza toccare le altre */
-export function scriviOra(a: Arrivo, quale: 'da' | 'a', valore: string): Arrivo {
-  if (a.tipo === 'luogo') return quale === 'da' ? { ...a, luogoDa: valore } : { ...a, luogoA: valore }
+/** Scrivere in una casella dell'ora (del tipo attivo, o del gruppo detto),
+ *  senza toccare le altre */
+export function scriviOra(a: Arrivo, quale: 'da' | 'a', valore: string, gruppo?: GruppoOra): Arrivo {
+  if (gruppoDi(a, gruppo) === 'luogo') return quale === 'da' ? { ...a, luogoDa: valore } : { ...a, luogoA: valore }
   return quale === 'da' ? { ...a, strutturaDa: valore } : { ...a, strutturaA: valore }
 }
 
@@ -375,13 +410,14 @@ export const ERRORE_LUOGO = 'Scegli il luogo dell’arrivo.'
 export const ERRORE_LUOGO_ALTRO = 'Scrivi qual è il luogo dell’arrivo.'
 export const ERRORE_FASCIA = 'La fine della fascia viene prima dell’inizio.'
 export const ERRORE_FASCIA_STIMA = 'La fine della stima in struttura viene prima dell’inizio.'
+export const ERRORE_FASCIA_STRUTTURA = 'La fine della fascia in struttura viene prima dell’inizio.'
 
 /** Il primo problema da far leggere ad Ania, o null se va tutto bene. Si
  *  guarda SOLO la parte attiva: una casella lasciata a metà in un tipo che
  *  adesso non conta non deve bloccare il salvataggio (la bozza la tiene). */
 export function controllaArrivo(a: Arrivo): string | null {
   const attive = a.tipo === 'luogo'
-    ? [...oreLuogo(a), ...oreStima(a)]
+    ? [...oreLuogo(a), ...oreStruttura(a), ...oreStima(a)]
     : a.tipo === 'struttura' ? [...oreStruttura(a)] : []
   const ore = [...attive, navettaRichiesta(a.navetta) ? pulita(a.prelievo) : ''].map(pulita)
   if (ore.some(o => o && !oraCompleta(o))) return ERRORE_ORA
@@ -390,6 +426,8 @@ export function controllaArrivo(a: Arrivo): string | null {
     if (a.luogo === 'altro' && !a.luogoAltro.trim()) return ERRORE_LUOGO_ALTRO
     const [ld, lf] = oreLuogo(a)
     if (eFascia(ld, lf) && lf < ld) return ERRORE_FASCIA
+    const [cd, cf] = oreStruttura(a)
+    if (eFascia(cd, cf) && cf < cd) return ERRORE_FASCIA_STRUTTURA
     const [sd, sf] = oreStima(a)
     if (eFascia(sd, sf) && sf < sd) return ERRORE_FASCIA_STIMA
   }
@@ -408,6 +446,10 @@ export const ETICHETTA_TIPO = 'Tipo di arrivo'
 export const ETICHETTA_LUOGO = 'Luogo'
 export const ETICHETTA_ORARIO = 'Orario'
 export const ETICHETTA_STIMA = 'In struttura · stima facoltativa'
+/** Con «Arrivo a…», l'ora in struttura detta dalla cliente (22/10/2026) */
+export const ETICHETTA_IN_STRUTTURA = 'In struttura · facoltativo'
+/** Sotto la stima già salvata, quando c'è anche l'ora della cliente */
+export const AIUTO_STIMA_SUPERATA = 'Vale l’orario in struttura indicato; la stima resta salvata.'
 export const AIUTO_STIMA = 'Una tua stima, modificabile'
 export const ETICHETTA_NAVETTA = 'Navetta'
 export const ETICHETTA_AUTISTA = 'Autista'
@@ -433,7 +475,9 @@ export type PianoModulo = {
   /** i valori delle caselle dell'orario del tipo attivo */
   oraDa: string
   oraA: string
-  /** la stima in struttura si chiede solo per un luogo esterno */
+  /** con «Arrivo a…»: l'ora in struttura della cliente, facoltativa (22/10/2026) */
+  struttura: { orario: Scelta[]; caselle: 1 | 2; oraDa: string; oraA: string } | null
+  /** la stima di Ania si mostra solo se è già scritta (prenotazioni di prima) */
   stima: boolean
   navetta: Scelta[]
   autista: Scelta[]
@@ -453,7 +497,13 @@ export function pianoModuloArrivo(a: Arrivo): PianoModulo {
     caselleOrario: a.tipo === 'da_definire' ? 0 : modo === 'fascia' ? 2 : 1,
     oraDa: conLuogo ? a.luogoDa : a.strutturaDa,
     oraA: conLuogo ? a.luogoA : a.strutturaA,
-    stima: conLuogo,
+    struttura: conLuogo ? {
+      orario: MODI_ORARIO.map(m => ({ chiave: m.chiave, nome: m.nome, acceso: a.modoStruttura === m.chiave })),
+      caselle: a.modoStruttura === 'fascia' ? 2 : 1,
+      oraDa: a.strutturaDa,
+      oraA: a.strutturaA,
+    } : null,
+    stima: conLuogo && !!(pulita(a.stimaDa) || pulita(a.stimaA)),
     navetta: NAVETTE.map(n => ({ chiave: n.chiave, nome: n.nome, acceso: a.navetta === n.chiave })),
     autista: AUTISTI.map(n => ({ chiave: n.chiave, nome: n.nome, acceso: a.navetta === n.chiave })),
     prelievo: navettaRichiesta(a.navetta),
@@ -492,7 +542,7 @@ export function arrivoInScheda(a: Arrivo): VoceArrivo {
   if (a.tipo === 'da_definire') return { titolo: ARRIVO_DA_DEFINIRE, sotto: null }
   const inStruttura = periodoInStruttura(a)
   const titoloStruttura = inStruttura
-    ? `In struttura ${a.tipo === 'luogo' ? quandoInParole(...oreStima(a), true) : quandoInParole(...oreStruttura(a), false)}`
+    ? `In struttura ${quandoInParole(...oreInStruttura(a), circaInStruttura(a))}`
     : null
   if (a.tipo === 'struttura') return { titolo: titoloStruttura ?? IN_STRUTTURA_DA_DEFINIRE, sotto: null }
   const luogo = rigaLuogo(a)
@@ -579,7 +629,8 @@ export function arrivoInHome(a: Arrivo): ArrivoHome {
     grande: inStruttura || HOME_DA_DEFINIRE,
     numerico: !!inStruttura,
     circa: circaInStruttura(a),
-    sotto: !inStruttura ? HOME_ORARIO_DA_DEFINIRE : a.tipo === 'luogo' ? HOME_ARRIVO_PREVISTO : HOME_ARRIVO_IN_STRUTTURA,
+    // «previsto» quando è la stima di Ania; l'ora detta dalla cliente è «Arrivo in struttura»
+    sotto: !inStruttura ? HOME_ORARIO_DA_DEFINIRE : circaInStruttura(a) ? HOME_ARRIVO_PREVISTO : HOME_ARRIVO_IN_STRUTTURA,
     righe,
   }
 }

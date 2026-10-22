@@ -11,6 +11,7 @@ import {
   type Arrivo, type ChiaveLuogo, type ModoOrario, type Navetta,
   pianoModuloArrivo, cambiaTipo, cambiaModo, cambiaNavetta, scriviOra, nomeLuogo,
   ETICHETTA_TIPO, ETICHETTA_LUOGO, ETICHETTA_ORARIO, ETICHETTA_STIMA, AIUTO_STIMA,
+  ETICHETTA_IN_STRUTTURA, AIUTO_STIMA_SUPERATA,
   ETICHETTA_NAVETTA, ETICHETTA_AUTISTA, ETICHETTA_PRELIEVO, ETICHETTA_LUOGO_ALTRO,
 } from '@/lib/arrivo'
 
@@ -53,6 +54,19 @@ export default function ArrivoNavettaMaison({ arrivo, onArrivo }: { arrivo: Arri
           onChange={e => onArrivo({ ...arrivo, stimaA: oraDigitata(e.target.value) })} style={{ width: '4.2em', background: 'transparent', border: 0, outline: 'none', font: 'inherit', color: 'inherit' }} />
       </span>
       <p className="mz-hint" data-aiuto-stima style={{ marginTop: 3 }}>{AIUTO_STIMA}</p>
+      {piano.struttura?.oraDa.trim() && <p className="mz-hint" data-stima-superata style={{ marginTop: 3 }}>{AIUTO_STIMA_SUPERATA}</p>}
+    </div>
+  )
+  // con «Arrivo a…», l'ora in struttura della cliente (22/10/2026): facoltativa, precisa o fascia
+  const fasciaStruttura = piano.struttura?.caselle === 2
+  const inStruttura = piano.struttura && (
+    <div data-in-struttura>
+      <span className="mz-lab">{ETICHETTA_IN_STRUTTURA}</span>
+      <Seg voci={piano.struttura.orario} dati="modo-struttura" onScegli={k => onArrivo(cambiaModo(arrivo, k as ModoOrario, 'struttura'))} />
+      <div className="mz-g3" style={{ marginTop: 10 }}>
+        <div><span className="mz-lab">{fasciaStruttura ? 'Dalle' : 'In struttura'}</span><Ora valore={piano.struttura.oraDa} onValore={v => onArrivo(scriviOra(arrivo, 'da', v, 'struttura'))} dati="in-struttura-da" etichetta={fasciaStruttura ? 'In struttura, dalle' : 'In struttura alle'} /></div>
+        {fasciaStruttura && <div><span className="mz-lab">Alle</span><Ora valore={piano.struttura.oraA} onValore={v => onArrivo(scriviOra(arrivo, 'a', v, 'struttura'))} dati="in-struttura-a" etichetta="In struttura, alle" /></div>}
+      </div>
     </div>
   )
   return (
@@ -80,6 +94,7 @@ export default function ArrivoNavettaMaison({ arrivo, onArrivo }: { arrivo: Arri
           {!fascia && stima}
         </div>
         {fascia && stima && <div className="mz-g3" style={{ marginTop: 10 }}>{stima}</div>}
+        {inStruttura}
       </>}
       {arrivo.tipo === 'da_definire' && <p className="mz-hint" style={{ marginTop: 14 }} data-aiuto-nessun-orario>{AIUTO_NESSUN_ORARIO}</p>}
 

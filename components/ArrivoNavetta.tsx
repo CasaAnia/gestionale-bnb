@@ -21,6 +21,7 @@ import {
   type Arrivo, type ChiaveLuogo, type ModoOrario, type Navetta,
   pianoModuloArrivo, cambiaTipo, cambiaModo, cambiaNavetta, scriviOra,
   ETICHETTA_TIPO, ETICHETTA_LUOGO, ETICHETTA_ORARIO, ETICHETTA_STIMA, AIUTO_STIMA,
+  ETICHETTA_IN_STRUTTURA, AIUTO_STIMA_SUPERATA,
   ETICHETTA_NAVETTA, ETICHETTA_AUTISTA, ETICHETTA_PRELIEVO, ETICHETTA_LUOGO_ALTRO,
 } from '@/lib/arrivo'
 
@@ -138,7 +139,40 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
         </>
       )}
 
-      {/* ── La stima in struttura: la scrive Ania, non si calcola ───────── */}
+      {/* ── Con «Arrivo a…», l'ora in struttura detta dalla cliente ─────────
+          (22/10/2026): facoltativa, ora precisa o fascia, nessun «circa».
+          Sono le stesse caselle di «In struttura»: cambiare tipo non le perde. */}
+      {piano.struttura && (
+        <div data-in-struttura>
+          <Etichetta testo={ETICHETTA_IN_STRUTTURA} ottone />
+          <FilaPastiglie>
+            {piano.struttura.orario.map(s => (
+              <Pastiglia key={s.chiave} dati={d(`modo-struttura-${s.chiave}`)} acceso={s.acceso}
+                onClick={() => onArrivo(cambiaModo(arrivo, s.chiave as ModoOrario, 'struttura'))}>{s.nome}</Pastiglia>
+            ))}
+          </FilaPastiglie>
+          {maison && (
+            <div className="np-g2" style={{ marginTop: 10 }}>
+              {ora(piano.struttura.caselle === 2 ? 'In struttura, dalle' : 'In struttura alle', piano.struttura.oraDa, v => onArrivo(scriviOra(arrivo, 'da', v, 'struttura')), d('in-struttura-da'))}
+              {piano.struttura.caselle === 2 && ora('alle', piano.struttura.oraA, v => onArrivo(scriviOra(arrivo, 'a', v, 'struttura')), d('in-struttura-a'))}
+            </div>
+          )}
+          {!maison && <div className="flex items-center" style={{ gap: 10, marginTop: SOTTO_PASTIGLIE }}>
+            <CasellaOra valore={piano.struttura.oraDa} onValore={v => onArrivo(scriviOra(arrivo, 'da', v, 'struttura'))}
+              dati={d('in-struttura-da')} etichetta={piano.struttura.caselle === 2 ? 'In struttura, dalle' : 'In struttura alle'} />
+            {piano.struttura.caselle === 2 && (
+              <>
+                <span aria-hidden style={{ color: 'var(--color-stone)' }}>—</span>
+                <CasellaOra valore={piano.struttura.oraA} onValore={v => onArrivo(scriviOra(arrivo, 'a', v, 'struttura'))}
+                  dati={d('in-struttura-a')} etichetta="In struttura, alle" />
+              </>
+            )}
+          </div>}
+        </div>
+      )}
+
+      {/* ── La stima in struttura di Ania: solo se è già scritta (prenotazioni
+          di prima del 22/10/2026). Si conserva e resta modificabile. ────── */}
       {piano.stima && (
         <>
           <Etichetta testo={ETICHETTA_STIMA} ottone />
@@ -156,6 +190,7 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
               dati={d('struttura-a')} etichetta="In struttura, alle" />
           </div>}
           <p data-aiuto-stima className={maison ? 'np-hint' : 'mt-1.5'} style={maison ? undefined : { fontSize: 12, color: 'var(--color-stone)' }}>{AIUTO_STIMA}</p>
+          {piano.struttura?.oraDa.trim() && <p data-stima-superata className={maison ? 'np-hint' : 'mt-1'} style={maison ? undefined : { fontSize: 12, color: 'var(--color-stone)' }}>{AIUTO_STIMA_SUPERATA}</p>}
         </>
       )}
 

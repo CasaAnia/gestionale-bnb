@@ -20,6 +20,7 @@ import { conPreposizione } from './richiesteTesti.ts'
 import { euroScheda, periodoConMese, testoNotti, segmentiAttivi, trattiCamera, type SegmentoScheda, type CasellaSoggiorno } from './schedaPrenotazione.ts'
 import {
   nomeLuogo, genereLuogo, periodoInStruttura, eFascia, periodoOre, navettaRichiesta, quandoInParole,
+  oreInStruttura, circaInStruttura,
   AUTISTI, AUTISTA_DA_SCEGLIERE, NAVETTA_DA_CHIEDERE, ARRIVO_DA_DEFINIRE, type Arrivo,
 } from './arrivo.ts'
 import { MESSAGGI_SCHEDA, MESSAGGIO_ANNULLAMENTO, type TipoMessaggio } from './messaggiPrenotazione.ts'
@@ -169,8 +170,11 @@ export function arrivoInBreve(a: Arrivo, checkIn: string, oggi: string): string[
   const quando = quandoGiorno(checkIn, oggi)
   const dove = nomeLuogo(a)
   if (a.tipo === 'luogo' && dove) {
-    const stima = periodoInStruttura(a)
-    const prima = stima ? `${quando}, in struttura ${stima} circa` : `${quando}, orario in struttura da definire`
+    // l'ora in struttura: della cliente (un dato) o, se manca, la stima di Ania col «circa» (22/10/2026)
+    const inStruttura = periodoInStruttura(a)
+    const prima = !inStruttura ? `${quando}, orario in struttura da definire`
+      : circaInStruttura(a) ? `${quando}, in struttura ${inStruttura} circa`
+      : `${quando}, in struttura ${quandoInParole(...oreInStruttura(a), false)}`
     const [da, fine] = oreLuogo(a)
     const seconda = periodoOre(da, fine) ? `${verboLuogo(a)} ${quandoInParole(da, fine, false)}` : `${verboLuogo(a)} · orario da definire`
     return [prima, seconda, navettaInBreve(a, true)]
@@ -300,11 +304,9 @@ export function prossimiGiorni(caselle: CasellaSoggiorno[], oggi: string, ultima
 export function arrivoGrande(a: Arrivo, checkIn: string, oggi: string): { testo: string; circa: boolean } {
   const Quando = maiuscola(quandoGiorno(checkIn, oggi))
   if (a.tipo === 'da_definire') return { testo: ARRIVO_DA_DEFINIRE, circa: false }
-  if (a.tipo === 'luogo') {
-    const stima = periodoInStruttura(a)
-    return stima ? { testo: `${Quando}, ${stima}`, circa: true } : { testo: `${Quando}, orario da definire`, circa: false }
-  }
-  const [da, fine] = oreStruttura(a)
+  if (a.tipo === 'luogo' && circaInStruttura(a)) return { testo: `${Quando}, ${periodoInStruttura(a)}`, circa: true }
+  // l'ora detta dalla cliente, anche con un luogo esterno (22/10/2026): niente «circa»
+  const [da, fine] = oreInStruttura(a)
   if (!periodoOre(da, fine)) return { testo: `${Quando}, orario da definire`, circa: false }
   return eFascia(da, fine) ? { testo: `${Quando}, ${periodoOre(da, fine)}`, circa: false } : { testo: `${Quando} alle ${periodoOre(da, fine)}`, circa: false }
 }
