@@ -174,3 +174,22 @@ per la spiegazione). Le schermate non si ritoccano: si affiancano.
 Test: `lib/confrontoUnaImmagine.test.ts` (tutto il file: lo strumento
 esiste, compone una pagina sola con tutte le schermate dentro, e la regola
 è scritta qui e in `COLLABORAZIONE.md`).
+
+## 11. «Da incassare» comprende tutti i residui della prenotazione
+
+Ania, 23/10/2026: la Home mostra tutti gli importi ancora dovuti, anche
+senza acconto, per i mancati arrivi e per prenotazioni future confermate o
+fuori dal mese visualizzato. Le richieste ancora in attesa restano escluse.
+Ogni prenotazione compare una volta sola, anche con più camere o tratti.
+Il totale in cima, l'elenco, le partenze con residuo e la lettura del saldo
+usano il conto unico (`contoPrenotazione`): prezzo salvato meno movimenti,
+compresi quelli registrati su righe poi annullate. Un mancato arrivo vale
+per il credito già salvato, senza sommare di nuovo il prezzo originale.
+Ogni residuo positivo conta, anche un centesimo. I movimenti con lo stesso
+ID si contano una volta; due versamenti uguali con ID diversi restano due.
+Lo storico segnato saldato senza movimenti conserva il comportamento già
+approvato. Nessun prezzo o pagamento esistente viene riscritto.
+
+Test: `lib/homeTuttiResidui.test.ts`, `lib/homeMaison.test.ts`; lettura a
+pagine protetta dai test di `lib/statistiche/paginazione.test.ts`. La prova
+nell'interfaccia usa `ANTEPRIMA_TUTTI_RESIDUI=1`, esclusivamente dati inventati.

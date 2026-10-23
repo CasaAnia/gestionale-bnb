@@ -7,7 +7,7 @@
 // lib/statistiche: qui nessuna formula.
 import { supabase } from './supabase'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
-import { raccogliPagine, raccogliBlocchi, aBlocchi, mappaChiusure, intervalloAnnoPrima, spostaGiorni, type CameraStat, type PagamentoStat, type FuoriServizio, type RichiestaRiquadro } from './statistiche'
+import { daIncassare, raccogliPagine, raccogliBlocchi, aBlocchi, mappaChiusure, intervalloAnnoPrima, spostaGiorni, type CameraStat, type PagamentoStat, type FuoriServizio, type RichiestaRiquadro } from './statistiche'
 import type { SpesaPagata } from './statistiche/intervallo'
 import { inizioGiornoRoma } from './statistiche/confiniRoma'
 import type { PrenotazioneSconto } from './statistiche/sconti'
@@ -39,9 +39,12 @@ export function leggiPagamenti(da: string, a: string, cosa = 'caricare gli incas
 }
 
 // Tutti i movimenti (tabella piccola: solo acconti e saldi registrati), a pagine
-export function leggiTuttiPagamenti(cosa = 'caricare gli incassi') {
-  return pagine<PagamentoStat>(cosa, (offset, limite) => supabase.from('payments').select('booking_id, amount, paid_on')
+export async function leggiTuttiPagamenti(cosa = 'caricare gli incassi') {
+  const r = await pagine<PagamentoStat>(cosa, (offset, limite) => supabase.from('payments').select('id, booking_id, amount, paid_on')
     .order('paid_on', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limite - 1))
+  if (r.errore || !r.data) return r
+  const visti = new Set<string>()
+  return { ...r, data: r.data.filter(p => !p.id || (!visti.has(p.id) && !!visti.add(p.id))) }
 }
 
 // Spese del B&B (gruppi con ambito azienda) per data di pagamento: paid_at se
@@ -184,30 +187,15 @@ export async function leggiDatiHome(da: string, a: string, oggi: string): Promis
   const [p, pag, sp, cam, ric, fs] = await Promise.all([leggiPrenotazioni(da, a, colonne), leggiTuttiPagamenti(), leggiSpese(da, a), leggiCamere(), leggiRicostruzione(oggi), leggiFuoriServizio()])
   const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ric.errore ?? fs.errore
   if (errore) return { data: null, errore }
-  // R5: gli ID si leggono a BLOCCHI (mai un taglio silenzioso a 500)
-  const perBlocchi = (colonna: 'id' | 'group_id' | 'prenotazione_id', ids: string[]) => leggiPrenotazioniPerBlocchi(colonna, ids, colonne, 'caricare le prenotazioni da incassare')
-  const idsMese = new Set(p.data!.map(b => b.id))
-  const idsFuori = [...new Set(pag.data!.map(x => x.booking_id))].filter(id => !idsMese.has(id))
-  let fuori: PrenotazioneSconto[] = []
-  if (idsFuori.length > 0) {
-    const r = await perBlocchi('id', idsFuori)
-    if (r.errore) return { data: null, errore: r.errore }
-    fuori = r.data!
+  // Tutti i conti, fuori mese e annullati compresi: anche chi non ha mai pagato.
+  const tutti = await pagine<PrenotazioneSconto>('caricare tutti i residui', (offset, limite) =>
+    supabase.from('bookings').select(colonne).in('status', STATI_COL_CONTO)
+      .order('check_in', { ascending: true }).order('id', { ascending: true })
+      .range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>)
+  if (tutti.errore) return { data: null, errore: tutti.errore }
+  const conMovimenti = [...new Map(tutti.data!.map(b => [b.id, b])).values()]
+  try { daIncassare(conMovimenti, pag.data!) } catch {
+    return { data: null, errore: 'Non riesco a leggere tutti i conti da incassare. Riprova.' }
   }
-  // I segmenti di un soggiorno con movimenti possono stare fuori dal mese: si
-  // ricompongono i gruppi e le prenotazioni toccati, così «Da incassare» vede
-  // la prenotazione intera, anche le camere senza pagamenti (regola fissa n. 9)
-  const toccate = [...p.data!, ...fuori].filter(b => pag.data!.some(x => x.booking_id === b.id))
-  const gruppi = new Set(toccate.map(b => b.group_id).filter(Boolean) as string[])
-  const prenotazioniId = new Set(toccate.map(b => b.prenotazione_id).filter(Boolean) as string[])
-  let segmenti: PrenotazioneSconto[] = []
-  for (const [colonna, valori] of [['group_id', gruppi], ['prenotazione_id', prenotazioniId]] as const) {
-    if (valori.size === 0) continue
-    const r = await perBlocchi(colonna, [...valori])
-    if (r.errore) return { data: null, errore: r.errore }
-    segmenti = [...segmenti, ...r.data!]
-  }
-  const visti = new Set<string>()
-  const conMovimenti = [...p.data!, ...fuori, ...segmenti].filter(b => (visti.has(b.id) ? false : (visti.add(b.id), true)))
   return { data: { prenotazioni: p.data!, pagamentiMese: pag.data!.filter(x => !!x.paid_on && x.paid_on >= da && x.paid_on < a), tuttiPagamenti: pag.data!, prenotazioniConMovimenti: conMovimenti, spese: sp.data!, camere: cam.data!, ricostruzione: ric.data!, fuoriServizio: fs.data! }, errore: null }
 }

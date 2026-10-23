@@ -37,7 +37,9 @@ export default function SoldiHome({ voci, incassati, onPagato }: { voci: VoceInc
         <p className="ti"><Link href={hrefScheda(v.id, 'home')} className="mz-nome-link">{v.nome}</Link>{v.camere && ` · ${v.camere}`}{v.date && ` · ${v.date}`}</p>
         <p className="mo">{rigaConto(v, euroHome)} <span className="mat" data-residuo>{euroHome(v.residuoCent)}</span></p>
         <div className="azioni">
-          <button type="button" className="mz-lnk" onClick={() => setPagamento(v.id)} data-registra-pagamento>{REGISTRA_PAGAMENTO}</button>
+          {v.mancatoArrivo
+            ? <Link href={hrefScheda(v.id, 'home', { query: 'azione=pagato' })} className="mz-lnk" data-registra-pagamento>{REGISTRA_PAGAMENTO}</Link>
+            : <button type="button" className="mz-lnk" onClick={() => setPagamento(v.id)} data-registra-pagamento>{REGISTRA_PAGAMENTO}</button>}
           {numeroPerContatto(v.telefono) && <button type="button" className="mz-lnk q" onClick={() => openWhatsApp(numeroPerContatto(v.telefono)!, '')} data-whatsapp="apri-chat">{ICONA_WHATSAPP}{APRI_CHAT}</button>}
         </div>
       </div>)}

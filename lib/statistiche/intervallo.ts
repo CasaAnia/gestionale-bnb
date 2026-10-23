@@ -1,3 +1,5 @@
+import { contoPrenotazione } from '../prenotazioneUnica.ts'
+import { mancatoArrivo } from '../mancatoArrivo.ts'
 // ============================================================================
 // SIGNIFICATI SEPARATI su un intervallo [da, a) di giorni ISO — «Statistiche,
 // numeri corretti» (05/09/2026). Sono le QUATTRO voci mostrate identiche in
@@ -137,28 +139,30 @@ export function camereOccupate(giorno: string, prenotazioni: PrenotazioneStat[])
 
 export type DaIncassare = { id: string; chiave: string; nomi: string; dovutoCent: number; ricevutoCent: number; residuoCent: number }
 
-// Soggiorni con movimenti registrati ma non ancora saldati: residuo sopra i 50
-// centesimi. Un soggiorno è la PRENOTAZIONE (identitaSoggiorno: prenotazione_id,
-// poi group_id, poi la riga), come nel conto della scheda: il pagamento sta
-// intero sulla prenotazione anche se è registrato su una sola camera (regola
-// fissa n. 9). Col solo group_id una camera aggiunta alla prenotazione faceva
-// conto a sé (Dario Barone, 30/09/2026: «resta 630 €» su un conto saldato).
+// Tutti i residui (Ania,23/10/2026): anche senza acconto e mancati arrivi.
+// Un solo conto per identità; i movimenti sulle righe annullate restano validi.
 export function daIncassare(prenotazioni: PrenotazioneStat[], pagamenti: PagamentoStat[]): DaIncassare[] {
-  const perPrenotazione = new Map<string, number>()
-  for (const p of pagamenti) perPrenotazione.set(p.booking_id, (perPrenotazione.get(p.booking_id) ?? 0) + cent(p.amount))
+  const visti = new Set<string>()
+  const movimenti = pagamenti.filter(p => !p.id || (!visti.has(p.id) && !!visti.add(p.id)))
+  const righe = [...new Map(prenotazioni.map(b => [b.id, b])).values()]
   const gruppi = new Map<string, PrenotazioneStat[]>()
-  for (const b of prenotazioni.filter(prenotazioneValida)) {
+  for (const b of righe.filter(x => prenotazioneValida(x) || x.status === 'annullata')) {
     const k = identitaSoggiorno(b)
     if (!gruppi.has(k)) gruppi.set(k, [])
     gruppi.get(k)!.push(b)
   }
   const out: DaIncassare[] = []
   for (const [chiave, segmenti] of gruppi) {
-    const ordinati = [...segmenti].sort((x, y) => x.check_in.localeCompare(y.check_in))
-    const dovuto = segmenti.reduce((s, b) => s + cent(b.total_amount), 0)
-    const ricevuto = segmenti.reduce((s, b) => s + (perPrenotazione.get(b.id) ?? 0), 0)
-    const residuo = dovuto - ricevuto
-    if (ricevuto > 0 && residuo > 50) out.push({ id: ordinati[0].id, chiave, nomi: [...new Set(segmenti.map(b => b.guest_name).filter(Boolean))].join(', '), dovutoCent: dovuto, ricevutoCent: ricevuto, residuoCent: residuo })
+    if (!segmenti.some(x => prenotazioneValida(x) || mancatoArrivo(x))) continue
+    const ordinati = [...segmenti].sort((x, y) => x.check_in.localeCompare(y.check_in) || x.id.localeCompare(y.id))
+    const primo = ordinati.find(prenotazioneValida) ?? ordinati.find(mancatoArrivo)!
+    const conto = contoPrenotazione(segmenti, movimenti)
+    // Conserva lo storico segnato saldato senza movimenti; non inventa incassi.
+    const storicoSaldato = conto.ricevutiCent <= 0 && segmenti.some(x => prenotazioneValida(x) && x.pagato) && !segmenti.some(mancatoArrivo)
+    if (!storicoSaldato && conto.residuoCent > 0) out.push({
+      id: primo.id, chiave, nomi: [...new Set(segmenti.map(b => b.guest_name).filter(Boolean))].join(', '),
+      dovutoCent: conto.totaleCent, ricevutoCent: conto.ricevutiCent, residuoCent: conto.residuoCent,
+    })
   }
-  return out.sort((x, y) => y.residuoCent - x.residuoCent)
+  return out.sort((x, y) => y.residuoCent - x.residuoCent || x.chiave.localeCompare(y.chiave))
 }

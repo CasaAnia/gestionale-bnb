@@ -1,3 +1,5 @@
+import { contoPrenotazione } from './prenotazioneUnica.ts'
+import { mancatoArrivo } from './mancatoArrivo.ts'
 // ============================================================================
 // I SOLDI NELLA HOME «MAISON» (riferimento approvato da Ania il 28/09/2026):
 // «Da incassare» con stato, come paga, totale, ricevuti e residuo; «Incassati
@@ -37,6 +39,7 @@ export type VoceIncasso = {
   telefono: string | null
   /** l'accordo aspetta un bonifico: il foglio propone «Bonifico» */
   bonifico: boolean
+  mancatoArrivo?: boolean
 }
 
 const breve = (nome: string | null | undefined) => String(nome ?? '').split(' ').slice(-1)[0]
@@ -47,8 +50,8 @@ const valida = (b: PrenotazioneIncasso) => b.status === 'confermata' || b.status
 /** «Partita oggi», «Partita il 25 set», «In casa», «Arriva il 2 ott» */
 export function statoSoggiorno(arrivo: string, partenza: string, oggi: string): string {
   if (partenza === oggi) return 'Partita oggi'
-  if (partenza < oggi) return `Partita il ${giornoMese(partenza)}`
-  if (arrivo > oggi) return `Arriva il ${giornoMese(arrivo)}`
+  if (partenza < oggi) return `Partita il ${giornoMese(partenza)}${partenza.slice(0,4) !== oggi.slice(0,4) ? ` ${partenza.slice(0,4)}` : ''}`
+  if (arrivo > oggi) return `Arriva il ${giornoMese(arrivo)}${arrivo.slice(0,4) !== oggi.slice(0,4) ? ` ${arrivo.slice(0,4)}` : ''}`
   return 'In casa'
 }
 
@@ -68,24 +71,26 @@ export function camereInFila(segmenti: PrenotazioneIncasso[]): string {
 
 export function vociDaIncassare(prenotazioni: PrenotazioneIncasso[], pagamenti: PagamentoIncasso[], oggi: string): VoceIncasso[] {
   const gruppi = new Map<string, PrenotazioneIncasso[]>()
-  for (const b of prenotazioni.filter(valida)) {
+  for (const b of prenotazioni.filter(x => valida(x) || x.status === 'annullata')) {
     const k = chiaveDi(b)
     if (!gruppi.has(k)) gruppi.set(k, [])
     if (!gruppi.get(k)!.some(x => x.id === b.id)) gruppi.get(k)!.push(b)
   }
   return daIncassare(prenotazioni as PrenotazioneStat[], pagamenti).map(d => {
     const segmenti = (gruppi.get(d.chiave) ?? []).sort((a, z) => a.check_in.localeCompare(z.check_in))
-    const primo = segmenti[0] ?? (prenotazioni.find(b => b.id === d.id) as PrenotazioneIncasso)
-    const arrivo = segmenti.reduce((m, s) => (s.check_in < m ? s.check_in : m), primo.check_in)
-    const partenza = segmenti.reduce((m, s) => (s.check_out > m ? s.check_out : m), primo.check_out)
+    const primo = segmenti.find(s => s.id === d.id) ?? segmenti[0]
+    const mostrate = segmenti.filter(s => valida(s) || mancatoArrivo(s))
+    const noShow = segmenti.some(mancatoArrivo)
+    const arrivo = mostrate.reduce((m, s) => (s.check_in < m ? s.check_in : m), primo.check_in)
+    const partenza = mostrate.reduce((m, s) => (s.check_out > m ? s.check_out : m), primo.check_out)
     const ids = new Set(segmenti.map(s => s.id))
     const suoi = pagamenti.filter(p => ids.has(p.booking_id))
     const accordo = segmenti.find(s => s.accordo_pagamento != null) ?? primo
     return {
-      id: d.id, chiave: d.chiave, nome: nomeConAltri(primo) || d.nomi || 'Ospite',
-      camere: camereInFila(segmenti.length ? segmenti : [primo]),
+      id: d.id, chiave: d.chiave, mancatoArrivo: noShow, nome: nomeConAltri(primo) || d.nomi || 'Ospite',
+      camere: camereInFila(mostrate.length ? mostrate : [primo]),
       date: periodoCompatto(arrivo, partenza),
-      stato: `${statoSoggiorno(arrivo, partenza, oggi)} · ${comePagaBreve(accordo.accordo_pagamento, accordo.bonifico)}`,
+      stato: noShow ? 'Mancato arrivo · da incassare' : `${statoSoggiorno(arrivo, partenza, oggi)} · ${comePagaBreve(accordo.accordo_pagamento, accordo.bonifico)}`,
       totaleCent: d.dovutoCent, ricevutiCent: d.ricevutoCent, residuoCent: d.residuoCent,
       acconto: suoi.length === 1 && suoi[0].paid_on ? `acconto del ${giornoMese(suoi[0].paid_on)}` : null,
       telefono: primo.guests?.phone?.trim() || null,
@@ -105,16 +110,15 @@ export type PartenzaConResiduo = { id: string; nome: string; camera: string; res
 /** Soltanto chi parte oggi e ha ancora qualcosa da pagare: le partenze saldate non compaiono. */
 export function partenzeConResiduo(partenzeOggi: PrenotazioneIncasso[], prenotazioni: PrenotazioneIncasso[], pagamenti: PagamentoIncasso[]): PartenzaConResiduo[] {
   const out: PartenzaConResiduo[] = []
+  const debiti = new Map(daIncassare(prenotazioni, pagamenti).map(x => [x.chiave,x]))
+  const viste = new Set<string>()
   for (const b of partenzeOggi) {
-    const k = chiaveDi(b)
-    const segmenti = [b, ...prenotazioni.filter(x => x.id !== b.id && valida(x) && chiaveDi(x) === k)]
-    const ids = new Set(segmenti.map(s => s.id))
-    const dovuto = segmenti.reduce((s, x) => s + cent(x.total_amount), 0)
-    const ricevuto = pagamenti.filter(p => ids.has(p.booking_id)).reduce((s, p) => s + cent(p.amount), 0)
-    const residuo = dovuto - ricevuto
-    if (residuo <= 50) continue
+    const k = chiaveDi(b), debito = debiti.get(k)
+    if (!debito || viste.has(k)) continue
+    viste.add(k)
+    const segmenti = prenotazioni.filter(x => chiaveDi(x) === k)
     const accordo = segmenti.find(s => s.accordo_pagamento != null) ?? b
-    out.push({ id: b.id, nome: nomeConAltri(b), camera: breve(b.rooms?.name), residuoCent: residuo, bonifico: !!accordo.bonifico || comePagaBreve(accordo.accordo_pagamento, accordo.bonifico) === 'bonifico', booking: b })
+    out.push({ id: b.id, nome: nomeConAltri(b), camera: breve(b.rooms?.name), residuoCent: debito.residuoCent, bonifico: !!accordo.bonifico || comePagaBreve(accordo.accordo_pagamento, accordo.bonifico) === 'bonifico', booking: b })
   }
   return out
 }
@@ -131,14 +135,14 @@ const metodoInParole = (m: string | null | undefined) => {
 
 /** I pagamenti registrati con la data di oggi: «Giovanni Serra — contanti · saldo completo · 160 €» */
 export function incassatiOggi(prenotazioni: PrenotazioneIncasso[], pagamenti: (PagamentoIncasso & { id?: string })[], oggi: string): IncassoOggi[] {
-  return pagamenti.filter(p => p.paid_on === oggi).map((p, i) => {
-    const b = prenotazioni.find(x => x.id === p.booking_id)
+  const visti = new Set<string>()
+  const movimenti = pagamenti.filter(p => !p.id || (!visti.has(p.id) && !!visti.add(p.id)))
+  const righe = [...new Map(prenotazioni.map(b => [b.id,b])).values()]
+  return movimenti.filter(p => p.paid_on === oggi).map((p, i) => {
+    const b = righe.find(x => x.id === p.booking_id)
     const k = b ? chiaveDi(b) : p.booking_id
-    const segmenti = b ? prenotazioni.filter(x => valida(x) && chiaveDi(x) === k) : []
-    const ids = new Set(segmenti.map(s => s.id))
-    const dovuto = segmenti.reduce((s, x) => s + cent(x.total_amount), 0)
-    const ricevuto = pagamenti.filter(q => ids.has(q.booking_id)).reduce((s, q) => s + cent(q.amount), 0)
-    const saldato = segmenti.length > 0 && dovuto - ricevuto <= 50
+    const segmenti = b ? righe.filter(x => (valida(x) || x.status === 'annullata') && chiaveDi(x) === k) : []
+    const saldato = segmenti.some(x => valida(x) || mancatoArrivo(x)) && contoPrenotazione(segmenti, movimenti).residuoCent <= 0
     return { id: p.id ?? `${p.booking_id}:${i}`, bookingId: p.booking_id, nome: b ? nomeConAltri(b) : 'Ospite', testo: `${metodoInParole(p.method)} · ${saldato ? 'saldo completo' : 'acconto'}`, importoCent: cent(p.amount) }
   })
 }

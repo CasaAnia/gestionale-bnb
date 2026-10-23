@@ -507,6 +507,29 @@ if (process.env.ANTEPRIMA_CALENDARIO_SALDO === '1' || process.env.ANTEPRIMA_HOME
   }))
   payments.splice(0,payments.length,{id:'ffffffff-9901-4000-8000-000000009901',booking_id:bookings[0].id,amount:240,method:'contanti',paid_on:g(-2),created_at:ora})
 }
+// Tutti i residui: casi inventati fuori mese, futuro, camere parallele e no-show.
+if (process.env.ANTEPRIMA_TUTTI_RESIDUI === '1') {
+  const today = new Date().toISOString().slice(0,10)
+  const g = delta => new Date(Date.parse(today+'T12:00:00Z')+delta*86400000).toISOString().slice(0,10)
+  const make = (n,nome,extra={}) => {
+    const cliente=ospite(`aaaaaaaa-${n}-4000-8000-00000000${n}`,nome,`+39 333 00 ${n}`)
+    guests.push(cliente)
+    return prenotazione(ROOM.ambra,cliente.id,g(-2),g(2),2,{id:`bbbbbbbb-${n}-4000-8000-00000000${n}`,price_per_night:80,total_amount:320,...extra})
+  }
+  const a=make('9911','Alba Esempio',{pagato:true})
+  const z=make('9912','Bruno Esempio',{check_in:'2026-06-01',check_out:'2026-06-02',total_amount:80})
+  const f=make('9913','Futuro Esempio',{check_in:g(40),check_out:g(42),total_amount:160})
+  const n=make('9914','Nadia Esempio',{status:'annullata',check_in:g(-3),check_out:g(-2),total_amount:80,mancato_arrivo_centesimi:4000,cancelled_reason:'mancato_arrivo'})
+  const c=make('9915','Camere Esempio',{room_id:ROOM.lena,prenotazione_id:'dddddddd-9915-4000-8000-000000009915',group_id:'cccccccc-9915-4000-8000-000000009915'})
+  const d={...c,id:'bbbbbbbb-9916-4000-8000-000000009916',room_id:ROOM.amelia,group_id:'cccccccc-9916-4000-8000-000000009916',price_per_night:70,total_amount:280}
+  const old={...c,id:'bbbbbbbb-9917-4000-8000-000000009917',status:'annullata',total_amount:999}
+  const cent=make('9918','Centesimo Esempio',{check_in:'2026-07-01',check_out:'2026-07-02',price_per_night:0.01,total_amount:0.01})
+  bookings.splice(0,bookings.length,a,z,f,n,c,d,old,cent)
+  payments.splice(0,payments.length,
+    {id:'ffffffff-9911-4000-8000-000000009911',booking_id:a.id,amount:240,method:'contanti',paid_on:g(-2)},
+    {id:'ffffffff-9915-4000-8000-000000009915',booking_id:c.id,amount:100,method:'contanti',paid_on:g(-2)},
+    {id:'ffffffff-9917-4000-8000-000000009917',booking_id:old.id,amount:20,method:'contanti',paid_on:g(-2)})
+}
 // Scenario opt-in del dito premuto sul Calendario (02/10/2026, versione D):
 // ANTEPRIMA_RIQUADRO_PREMUTO=1, date relative a oggi, dati solo sintetici.
 //   «Susanna Esempio» — tutte e sei le voci del Da fare: letto in più solo la
@@ -746,7 +769,8 @@ const richieste = [
   richiestaFinta('dddd0003-0003-4000-8000-000000000003', 'Rosa', 'Vitale', '+393331112223', 'arrivo', 60 * 20,
     [segmentoFinto(ROOM.amelia, 'Amelia', '2026-09-24', '2026-09-26', [], 140)]),
 ]
-const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events, booking_whatsapp_log, family_groups, family_categories, family_product_rules, family_expenses, richieste }
+const mancato_arrivo_operazioni = []
+const tabelle = { mancato_arrivo_operazioni, rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events, booking_whatsapp_log, family_groups, family_categories, family_product_rules, family_expenses, richieste }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -1130,6 +1154,21 @@ const finto = createServer((req, res) => {
   // insieme, poi ricontrolla che nessuna camera sia presa due volte e che i
   // letti di casa restino due, come fa il database. Le risposte d'errore
   // hanno la forma di quelle vere (23P01, LETTI_FINITI).
+  if (process.env.ANTEPRIMA_TUTTI_RESIDUI === '1' && rpc?.[1] === 'gestisci_mancato_arrivo' && req.method === 'POST') {
+    return leggiCorpo(req).then(corpo => {
+      const precedente=mancato_arrivo_operazioni.find(x=>x.id===corpo.p_operazione)
+      if(precedente)return rispondi(res,200,precedente.risposta)
+      const q=corpo.p_richiesta,b=bookings.find(x=>x.id===q?.booking_id)
+      const received=payments.filter(p=>p.booking_id===b?.id).reduce((t,p)=>t+Math.round(p.amount*100),0)
+      if(!b || q.azione!=='incassa' || q.dovuto!==b.mancato_arrivo_centesimi || q.ricevuto!==received || !Number.isSafeInteger(q.importo) || q.importo<=0 || q.importo>b.mancato_arrivo_centesimi-received)return rispondi(res,400,{code:'P0001',message:'Conto cambiato: nessuna scrittura'})
+      const movimento={id:randomUUID(),booking_id:b.id,amount:q.importo/100,method:q.metodo,paid_on:q.data}
+      payments.push(movimento);b.pagato=received+q.importo>=b.mancato_arrivo_centesimi
+      const risposta={righe:[{...b}],dovuto:b.mancato_arrivo_centesimi,ricevuto:received+q.importo,movimento_id:movimento.id}
+      mancato_arrivo_operazioni.push({id:corpo.p_operazione,risposta})
+      console.log('[finto supabase] pagamento mancato arrivo verificato, una scrittura')
+      return rispondi(res,200,risposta)
+    })
+  }
   if (rpc && rpc[1] === 'sposta_notti' && req.method === 'POST') {
     return leggiCorpo(req).then(corpo => {
       const modoGuasto = erroreSpostaNotti

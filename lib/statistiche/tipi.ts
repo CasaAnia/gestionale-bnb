@@ -24,7 +24,7 @@ export type PrenotazioneStat = {
   guest_name?: string | null
 }
 
-export type PagamentoStat = { booking_id: string; amount: number | string; paid_on: string | null }
+export type PagamentoStat = { id?: string; booking_id: string; amount: number | string; paid_on: string | null }
 
 // ── Che cos'è UN soggiorno ──────────────────────────────────────────────────
 // La stessa identità del conto unico e dello storico cliente: le camere di una

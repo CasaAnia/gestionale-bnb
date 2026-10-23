@@ -316,7 +316,10 @@ function soldiPerCamera(prenotazioni: PrenotazioneDC[], pagamenti: PagamentoStat
   const out = new Map<string, number>()
   for (const camere of perPrenotazione.values()) {
     const ordinate = [...camere].sort((a, z) => a.check_in.localeCompare(z.check_in) || a.id.localeCompare(z.id))
-    let soldi = ordinate.reduce((x, b) => x + (registrati.get(b.id) ?? 0), 0)
+    // Il conto conserva anche i pagamenti sulle righe poi annullate.
+    const chiave = chiavePrenotazione(ordinate[0])
+    let soldi = prenotazioni.filter(b => chiavePrenotazione(b) === chiave)
+      .reduce((x, b) => x + (registrati.get(b.id) ?? 0), 0)
     ordinate.forEach((b, i) => {
       const quanto = i === ordinate.length - 1 ? soldi : Math.min(soldi, cent(b.total_amount))
       out.set(b.id, quanto)

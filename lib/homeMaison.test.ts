@@ -192,8 +192,8 @@ test('Da incassare: stesse voci e stesse cifre di daIncassare, con stato, come p
   assert.equal(russo.stato, 'In casa · contanti')
   assert.equal(russo.camere, 'Lena → Ambra')
   assert.equal(russo.residuoCent, 15000)
-  // chi non ha mai pagato non è «da incassare» (regola di prima): è un'eccezione di Da controllare
-  assert.equal(voci.some(v => v.nome === 'Senza Acconto'), false)
+  // Ania23/10: chi non ha mai pagato compare anche in Da incassare.
+  assert.equal(voci.some(v => v.nome === 'Senza Acconto'), true)
   assert.equal(statoSoggiorno('2026-10-02', '2026-10-05', OGGI), 'Arriva il 2 ott')
 })
 

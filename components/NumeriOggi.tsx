@@ -37,7 +37,7 @@ export default function NumeriOggi({ dati: n, daIncassareEuro = null }: { dati: 
           <Numero href="/arrivi" etichetta="Arrivi oggi" valore={pronto ? String(n.numeri.arriviOggi) : trattino} />
           <Numero href="/arrivi" etichetta="Partenze oggi" valore={pronto ? String(n.numeri.partenzeOggi) : trattino} />
           <Numero href={`/calendario?giorno=${n.oggi}`} etichetta="Occupate" valore={pronto ? String(n.numeri.camereOccupate) : trattino} coda={pronto ? testoOccupate(n.numeri).replace(/^\d+ /, '') : undefined} />
-          <Numero href={`#${ID_DA_INCASSARE}`} etichetta="Da incassare €" valore={daIncassareEuro == null ? trattino : daIncassareEuro.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+          <Numero href={`#${ID_DA_INCASSARE}`} etichetta="Da incassare €" valore={daIncassareEuro == null ? trattino : daIncassareEuro.toLocaleString('it-IT', { minimumFractionDigits: Number.isInteger(daIncassareEuro) ? 0 : 2, maximumFractionDigits: 2 })}
             onClick={e => { e.preventDefault(); document.getElementById(ID_DA_INCASSARE)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} />
         </div>
         {n.stato === 'errore' && <AvvisoAzione testo={n.errore} onRiprova={n.ricarica} className="mt-2 mx-[var(--home-gutter)]" />}

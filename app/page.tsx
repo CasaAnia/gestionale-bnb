@@ -25,7 +25,7 @@ import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANO
 // (lib/statisticheDati), solo prenotazioni confermate/completate; gli stessi
 // quattro significati delle Statistiche. Denaro in centesimi → euro solo qui.
 // «Da incassare €» nei numeri in cima: la somma dei residui della sezione Da incassare
-const totaleDaIncassareEuro = (voci: { residuoCent: number }[]) => Math.round(voci.reduce((t, v) => t + v.residuoCent, 0) / 100)
+const totaleDaIncassareEuro = (voci: { residuoCent: number }[]) => voci.reduce((t, v) => t + v.residuoCent, 0) / 100
 const euro = (cent: number) => (cent / 100).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 function ymd(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 function today() { return ymd(new Date()) }
