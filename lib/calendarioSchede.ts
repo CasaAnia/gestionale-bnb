@@ -100,9 +100,9 @@ export const daConfermareDalSito = (b: DatiStato) => b.status === 'in_attesa' &&
  * (la stessa lettura di oggi, lungo la catena del cambio camera). L'ordine è
  * quello di sempre: pagato, poi bonifico, poi il colore scelto, poi il blu.
  */
-export function statoScheda(b: DatiStato, coperta = false): StatoScheda {
+export function statoScheda(b: DatiStato, coperta = false, coperturaNota = false): StatoScheda {
   if (daConfermareDalSito(b)) return 'dalSito'
-  if (b.pagato || coperta) return 'pagato'
+  if (coperta || (!coperturaNota && b.pagato)) return 'pagato'
   if (b.bonifico) return 'bonifico'
   const c = (b.color ?? '').trim()
   if (c.toLowerCase() === COLORE_ESCLUSIVA) return 'esclusiva'

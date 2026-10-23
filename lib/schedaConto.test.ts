@@ -338,3 +338,9 @@ test('i nomi dei messaggi e la nota sotto la cronologia', () => {
   assert.equal(NOME_MESSAGGIO.annullamento, 'Annullamento inviato')
   assert.match(NOTA_CRONOLOGIA, /Le risposte della cliente restano solo su WhatsApp\./)
 })
+
+test('allungamento dopo saldo: con movimenti il residuo prevale sulla spunta vecchia', () => {
+  const r=riepilogoConto({totaleCent:32000,ricevutiCent:24000},true)
+  assert.equal(r.saldato,false)
+  assert.equal(r.residuoCent,8000)
+})

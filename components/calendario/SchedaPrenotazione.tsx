@@ -80,7 +80,7 @@ export function SchedaPrenotazione<T extends Prenotazione>({ booking, rigaTop, c
   const hasOutgoing = legami.outgoingIds.has(booking.id)
   // Richiesta dal sito da confermare: scheda tratteggiata verde
   const isWebPending = booking.status === 'in_attesa' && booking.source === 'sito_web'
-  const stato = statoScheda(booking, coperte === -1)
+  const stato = statoScheda(booking, coperte === -1, coperte !== undefined)
   const tintaBase = tintaScheda(stato, booking.color)
   // Acconti (come prima, Ania 29/09/2026): le notti già coperte dai soldi
   // ricevuti si colorano di verde da sinistra, il resto tiene il suo colore

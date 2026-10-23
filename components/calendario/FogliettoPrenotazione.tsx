@@ -116,7 +116,7 @@ export default function FogliettoPrenotazione({ prenotazione, tutte, camere, pag
         segmenti: righe,
         oggi,
         conto,
-        pagato: righe.some(r => r.pagato),
+        pagato: !!conto && conto.ricevutiCent <= 0 && righe.some(r => r.pagato),
         accordo: accordoPrenotazione(righe),
         arrivo: arrivo ? { dati: leggiArrivo(arrivo as unknown as Record<string, unknown>), checkIn: arrivo.check_in } : null,
         notaCliente: guest?.notes,

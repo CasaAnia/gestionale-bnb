@@ -29,6 +29,9 @@ export function nottiPagate<T extends Riga>(bookings: T[], acconti: Record<strin
   Object.values(groups).forEach(segs => {
     let money = segs.reduce((s, b) => s + (acconti[b.id] || 0), 0)
     if (money <= 0) return
+    // Un movimento reale rende esplicita anche la copertura zero: il vecchio
+    // segno pagato non può coprire notti aggiunte dopo il saldo.
+    segs.forEach(b => { map[b.id] = 0 })
     const totale = segs.reduce((s, b) => s + Number(b.total_amount), 0)
     const ordinati = [...segs].sort((a, b) => a.check_in.localeCompare(b.check_in))
     if (money >= totale) { ordinati.forEach(b => { map[b.id] = -1 }); return }

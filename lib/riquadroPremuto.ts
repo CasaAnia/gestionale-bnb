@@ -111,7 +111,7 @@ export function contoRiquadro(righe: RigaRiquadroDati[], pagamenti: DatiRiquadro
   try { conto = contoPrenotazione(righe, pagamenti) } catch { return { linea: [{ testo: TITOLO_CONTO_NON_LEGGIBILE, tipo: 'gr' }], saldato: false } }
   const ids = new Set(righe.map(r => r.id))
   const suoi = pagamenti.filter(p => ids.has(p.booking_id))
-  const r = riepilogoConto(conto, righe.some(x => x.status !== 'annullata' && x.pagato === true))
+  const r = riepilogoConto(conto, conto.ricevutiCent <= 0 && righe.some(x => x.status !== 'annullata' && x.pagato === true))
   const linea: PezzoRiquadro[] = [{ testo: r.totale, tipo: 'b' }]
   if (r.saldato) {
     const metodi = [...new Set(suoi.map(p => ((p.method ?? '').trim() || 'contanti')))]
@@ -182,7 +182,7 @@ export function contenutoRiquadro(d: DatiRiquadro): ContenutoRiquadro {
   if (note) righe.push({ etichetta: 'Note', linee: [[{ testo: note }]] })
 
   return {
-    occhiello: `${cameraCorta(d.camera)} · ${testoStato(statoScheda(p, d.coperte === -1))}`,
+    occhiello: `${cameraCorta(d.camera)} · ${testoStato(statoScheda(p, d.coperte === -1, d.coperte !== undefined))}`,
     // il nome com'è scritto sulla prenotazione (come le schede), messo in ordine da nomeCompleto
     titolo: nomeCompleto({ full_name: p.guest_name || p.guests?.full_name }) || nomeOspite(p),
     telefono: telefonoPerEsteso(guest?.phone),

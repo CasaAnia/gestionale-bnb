@@ -58,6 +58,7 @@ export function nottiPagate(bookings: PrenotazioneBarra[], acconti: Record<strin
   Object.values(groups).forEach(segs => {
     let money = segs.reduce((s, b) => s + (acconti[b.id] || 0), 0)
     if (money <= 0) return
+    segs.forEach(b => { map[b.id] = 0 })
     const totale = segs.reduce((s, b) => s + Number(b.total_amount || 0), 0)
     const ordinati = [...segs].sort((a, b) => a.check_in.localeCompare(b.check_in))
     if (money >= totale) { ordinati.forEach(b => { map[b.id] = -1 }); return }
@@ -99,7 +100,7 @@ const strisce = (letto: string, base: string) =>
 export function coloreGiorno(b: PrenotazioneBarra, giorno: string, ctx: ContestoColori): string {
   const hasExtra = giorniLettoExtra(b).has(giorno)
   const bedColor = coloreLettiPerGiorno(ctx.lettiExtra, giorno)
-  if (b.pagato) return hasExtra ? strisce(bedColor, COLORE_PAGATO) : COLORE_PAGATO
+  if (b.pagato && ctx.nottiPagate[b.id] === undefined) return hasExtra ? strisce(bedColor, COLORE_PAGATO) : COLORE_PAGATO
   const coperte = ctx.nottiPagate[b.id]
   if (coperte !== undefined) {
     const i = Math.round((Date.parse(giorno + 'T00:00:00Z') - Date.parse(b.check_in + 'T00:00:00Z')) / 86400000)

@@ -68,7 +68,9 @@ export type RiepilogoConto = {
 
 export function riepilogoConto(conto: { totaleCent: number; ricevutiCent: number }, pagato = false): RiepilogoConto {
   const residuoCent = conto.totaleCent - conto.ricevutiCent
-  const saldato = pagato || residuoCent <= 0
+  // La vecchia spunta vale soltanto senza movimenti: non anticipa il saldo
+  // di notti aggiunte dopo un pagamento registrato.
+  const saldato = (pagato && conto.ricevutiCent <= 0) || residuoCent <= 0
   const avviso = residuoCent < 0 ? OLTRE_IL_TOTALE(-residuoCent) : pagato && residuoCent > 0 ? SEGNATA_PAGATA : ''
   return {
     totale: euroScheda(conto.totaleCent),

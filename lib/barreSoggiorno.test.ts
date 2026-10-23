@@ -18,7 +18,8 @@ test('acconti lungo tutti i tratti senza falso tutto pagato',()=>{
  const barra=barreSoggiorno([a,b])[0]
  assert.equal(nottiPagateBarra(barra,{a:-1,b:2}),3)
  assert.equal(nottiPagateBarra(barra,{a:-1,b:-1}),-1)
- assert.equal(nottiPagateBarra(barra,{b:-1}),undefined)
+ // Copertura nota altrove: zero iniziale esplicito, non ripiegare su pagato.
+ assert.equal(nottiPagateBarra(barra,{b:-1}),0)
 })
 test('2→3→2 una sola scheda, senza perdere le notti del letto',()=>{
  const c={...b,id:'c',check_in:'2026-10-14',num_guests:2}

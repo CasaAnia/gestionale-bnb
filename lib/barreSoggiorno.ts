@@ -37,13 +37,14 @@ export function barreSoggiorno<T extends Tratto>(righe: T[]): BarraSoggiorno<T>[
 }
 export function nottiPagateBarra<T extends Tratto>(barra: BarraSoggiorno<T>, pagate: Record<string,number>): number | undefined {
   if (!barra.trattiBarra) return pagate[barra.id]
-  if (barra.trattiBarra.every(r=>r.pagato || pagate[r.id]===-1)) return -1
+  const saldata = (r: T) => pagate[r.id] === -1 || (pagate[r.id] === undefined && r.pagato === true)
+  if (barra.trattiBarra.every(saldata)) return -1
   let totale=0
   for (const r of barra.trattiBarra) {
     const notti=(Date.parse(r.check_out)-Date.parse(r.check_in))/86400000
-    const n=r.pagato||pagate[r.id]===-1?notti:pagate[r.id]||0
+    const n=saldata(r)?notti:pagate[r.id]||0
     totale+=n
     if(n<notti)break
   }
-  return totale||undefined
+  return totale || (barra.trattiBarra.some(r => pagate[r.id] !== undefined) ? 0 : undefined)
 }
