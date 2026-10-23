@@ -495,14 +495,15 @@ const payments = [
   { id: 'ffffffff-0007-4000-8000-000000000007', booking_id: 'bbbbbbbb-2901-4000-8000-000000002901', amount: 100, method: 'bonifico', paid_on: '2026-09-20', created_at: ora },
 ]
 // Regressione saldo dopo allungamento: solo dati inventati, tre notti saldate.
-if (process.env.ANTEPRIMA_CALENDARIO_SALDO === '1') {
+if (process.env.ANTEPRIMA_CALENDARIO_SALDO === '1' || process.env.ANTEPRIMA_HOME_RESIDUO === '1') {
   const oggi = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const g = delta => new Date(Date.parse(oggi + 'T12:00:00Z') + delta * 86400000).toISOString().slice(0,10)
+  const prolungata = process.env.ANTEPRIMA_HOME_RESIDUO === '1'
   const cliente = ospite('aaaaaaaa-9901-4000-8000-000000009901', 'Alba Esempio', '+39 333 000 9901')
   guests.push(cliente)
-  bookings.splice(0,bookings.length,prenotazione(ROOM.ambra,cliente.id,g(-2),g(1),2,{
+  bookings.splice(0,bookings.length,prenotazione(ROOM.ambra,cliente.id,g(-2),g(prolungata ? 2 : 1),2,{
     id:'bbbbbbbb-9901-4000-8000-000000009901',group_id:'cccccccc-9901-4000-8000-000000009901',
-    prenotazione_id:'dddddddd-9901-4000-8000-000000009901',price_per_night:80,total_amount:240,pagato:true,
+    prenotazione_id:'dddddddd-9901-4000-8000-000000009901',price_per_night:80,total_amount:prolungata ? 320 : 240,pagato:true,
   }))
   payments.splice(0,payments.length,{id:'ffffffff-9901-4000-8000-000000009901',booking_id:bookings[0].id,amount:240,method:'contanti',paid_on:g(-2),created_at:ora})
 }

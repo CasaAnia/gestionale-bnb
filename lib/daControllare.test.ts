@@ -96,10 +96,12 @@ test('pagamenti: concluso, pagato ma movimenti che non coprono il totale → Reg
   assert.equal(out[0].titolo, 'Ospite a · amelia · 10–12 set')
 })
 
-test('pagamenti: pagato ma incompleto con soggiorno ANCORA in corso non compare', () => {
+// Ania23/10: il residuo deve comparire subito, anche con la vecchia spunta.
+test('pagamenti: pagato ma incompleto con soggiorno ANCORA in corso compare subito', () => {
   const pren = [b('a', 'amelia', '2026-09-14', '2026-09-18', 340, { pagato: true })]
   const out = eccezioniPagamenti(pren, [{ booking_id: 'a', amount: 100, paid_on: '2026-09-14' }], OGGI)
-  assert.deepEqual(out, [])
+  assert.equal(out.length,1)
+  assert.match(out[0].motivo,/restano 240 €/)
 })
 
 test('pagamenti: movimenti oltre il totale compaiono sempre, con «Apri prenotazione»', () => {
@@ -579,4 +581,52 @@ test('arrivi senza orario: il cambio camera della stessa persona non compare, an
     b('lucaDomani', 'lena', '2026-09-16', '2026-09-17', 100, { guest_name: 'Luca Neri', guests: { full_name: null, phone: '+39 333 000 2222' } }),  // Luca è partito ieri, torna domani: arrivo vero
   ], OGGI)
   assert.deepEqual(out.map(e => e.chiave), ['arrivo:vero', 'arrivo:lucaDomani'])
+})
+
+// Regressione Home: il saldo di tre notti non nasconde la quarta aggiunta.
+test('pagamenti: vecchia spunta pagato,240su320,in corso → subito restano80',()=>{
+ const righe=[b('saldo-allungato','ambra','2026-10-21','2026-10-25',320,{pagato:true})]
+ const movimenti=[{booking_id:'saldo-allungato',amount:240,paid_on:'2026-10-21'}]
+ const out=eccezioniPagamenti(righe,movimenti,'2026-10-23')
+ assert.equal(out.length,1)
+ assert.match(out[0].motivo,/registrati 240 € su 320 € · restano 80 €/)
+ assert.equal(out[0].rimandabile,false)
+ assert.deepEqual(out[0].destinazione,{tipo:'saldo',prenotazioneId:'saldo-allungato'})
+ assert.deepEqual(eccezioniPagamenti(righe,[...movimenti,{booking_id:'saldo-allungato',amount:80,paid_on:'2026-10-23'}],'2026-10-23'),[])
+ assert.deepEqual(eccezioniPagamenti(righe,[],'2026-10-23'),[])
+})
+test('pagamenti: spunta obsoleta, avviso dal giorno arrivo, non prima',()=>{
+ const righe=[b('parziale','ambra','2026-10-23','2026-10-25',160,{pagato:true})]
+ const movimenti=[{booking_id:'parziale',amount:80,paid_on:'2026-10-22'}]
+ assert.deepEqual(eccezioniPagamenti(righe,movimenti,'2026-10-22'),[])
+ assert.match(eccezioniPagamenti(righe,movimenti,'2026-10-23')[0].motivo,/Arrivo di oggi.*restano 80 €/)
+})
+test('pagamenti: camere della stessa prenotazione,una sola voce e importi conservati',()=>{
+ const righe=[b('a','ambra','2026-10-21','2026-10-25',160,{pagato:true,prenotazione_id:'p',group_id:'g1'}),b('b','lena','2026-10-21','2026-10-25',160,{pagato:true,prenotazione_id:'p',group_id:'g2'})]
+ const movimenti=[{booking_id:'a',amount:240,paid_on:'2026-10-21'}]
+ const prima=JSON.stringify({righe,movimenti})
+ const out=eccezioniPagamenti(righe,movimenti,'2026-10-23')
+ assert.equal(out.length,1);assert.match(out[0].motivo,/restano 80 €/)
+ assert.equal(JSON.stringify({righe,movimenti}),prima)
+})
+
+test('pagamenti: vecchia spunta su soggiorno lungo,solo tratto ancora da pagare',()=>{
+ const a=b('agosto','ambra','2026-08-01','2026-09-01',3100,{pagato:true,group_id:'lungo'})
+ const z=b('settembre','ambra','2026-09-01','2026-09-10',900,{pagato:true,group_id:'lungo'})
+ const out=eccezioniPagamenti([a,z],[{booking_id:'agosto',amount:3100,paid_on:'2026-08-01'},{booking_id:'settembre',amount:300,paid_on:'2026-09-01'}],'2026-09-05')
+ assert.equal(out.length,1);assert.doesNotMatch(out[0].titolo,/ago/)
+ assert.match(out[0].motivo,/registrati 300 € su 900 € · restano 600 €/)
+ assert.deepEqual(out[0].destinazione,{tipo:'saldo',prenotazioneId:'settembre'})
+})
+
+test('pagamenti: notte aggiunta in altra camera,il residuo compare subito e non mente sulla spunta',()=>{
+ const righe=[b('prima','ambra','2026-10-21','2026-10-24',240,{group_id:'estesa',pagato:true}),b('nuova','lena','2026-10-24','2026-10-25',80,{group_id:'estesa',pagato:true})]
+ const movimenti=[{booking_id:'prima',amount:240,paid_on:'2026-10-21'}]
+ const prima=eccezioniPagamenti(righe,movimenti,'2026-10-23')
+ assert.equal(prima.length,1)
+ assert.match(prima[0].motivo,/Proseguimento dal 24 ott: registrati 0 € su 80 € · restano 80 €/)
+ assert.doesNotMatch(prima[0].motivo,/non segnato pagato/)
+ const dopo=eccezioniPagamenti(righe,movimenti,'2026-10-24')
+ assert.match(dopo[0].motivo,/Arrivo di oggi: registrati 0 € su 80 € · restano 80 €/)
+ assert.deepEqual(eccezioniPagamenti(righe,movimenti,'2026-10-20'),[])
 })

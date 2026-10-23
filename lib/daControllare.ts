@@ -271,11 +271,11 @@ function datiSoggiorno(segmenti: PrenotazioneDC[], chiaveDi: (b: PrenotazioneDC)
 // resta 1–20 set con l'anticipo di 400 €.
 // `copertoCent` è quanto arriva a quella camera dai soldi della SUA
 // prenotazione (soldiPerCamera), non solo quelli registrati su di lei.
-function trattiDaSaldare(s: Soggiorno, copertoCent: (b: PrenotazioneDC) => number): PrenotazioneDC[][] {
+function trattiDaSaldare(s: Soggiorno, copertoCent: (b: PrenotazioneDC) => number, movimentiPresenti = false): PrenotazioneDC[][] {
   const out: PrenotazioneDC[][] = []
   let corrente: PrenotazioneDC[] = []
   for (const b of s.segmenti) {
-    if (b.pagato || copertoCent(b) >= cent(b.total_amount)) {
+    if ((!movimentiPresenti && b.pagato) || copertoCent(b) >= cent(b.total_amount)) {
       if (corrente.length) out.push(corrente)
       corrente = []
       continue
@@ -347,27 +347,29 @@ export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: Pa
       // Segnato pagato ma i movimenti non ci arrivano. Senza NESSUN movimento
       // è lo storico ancora da ricostruire, non un'incongruenza: non compare.
       out.push({ ...base, titolo, motivo: `Segnato pagato ma i movimenti coprono ${euroTesto(registratiCent)} su ${euroTesto(s.totaleCent)}`, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: s.primoId } })
-    } else if (!s.pagato && registratiCent < s.totaleCent) {
+    } else if ((!s.pagato || registratiCent > 0) && registratiCent < s.totaleCent) {
       // Falso positivo corretto il 07/09/2026 (Anna e Rosa in produzione): un
       // soggiorno i cui movimenti coprono già il totale È pagato anche se la
       // colonna `pagato` è rimasta false (il gestionale lo mostra saldato e
       // «Segna come pagato» non avrebbe nulla da registrare).
       // Di un soggiorno lungo si controlla SOLO la parte ancora da saldare
       // (Ania, 11/09/2026): i mesi già pagati restano fuori.
-      for (const segmenti of trattiDaSaldare(s, registratiDi)) {
+      for (const segmenti of trattiDaSaldare(s, registratiDi, registratiCent > 0)) {
         const t = datiSoggiorno(segmenti, chiavePrenotazione)
-        if (t.primoArrivo > oggi || t.totaleCent <= 0) continue
+        if ((s.pagato ? s.primoArrivo : t.primoArrivo) > oggi || t.totaleCent <= 0) continue
         const registratiTratto = totaleRegistrato(t.segmenti)
         if (registratiTratto >= t.totaleCent) continue
         // Il pagamento si fa all'arrivo (Ania, 11/09/2026): appena l'ospite è
         // entrato il soggiorno non saldato si controlla, senza aspettare la
         // partenza. Il motivo dice a che punto è: arrivato oggi, arrivato il…,
         // oppure già concluso.
-        const quando = t.ultimaPartenza <= oggi
+        const quando = t.primoArrivo > oggi
+          ? `Proseguimento dal ${giornoBreve(t.primoArrivo)}`
+          : t.ultimaPartenza <= oggi
           ? `Soggiorno concluso il ${giornoBreve(t.ultimaPartenza)}`
           : t.primoArrivo === oggi ? 'Arrivo di oggi' : `Arrivato il ${giornoBreve(t.primoArrivo)}`
-        const motivo = registratiTratto > 0
-          ? `${quando}: registrati ${euroTesto(registratiTratto)} su ${euroTesto(t.totaleCent)}`
+        const motivo = registratiTratto > 0 || s.pagato
+          ? `${quando}: registrati ${euroTesto(registratiTratto)} su ${euroTesto(t.totaleCent)}${s.pagato ? ` · restano ${euroTesto(t.totaleCent - registratiTratto)}` : ''}`
           : `${quando} e non segnato pagato`
         const v = voce(t)
         out.push({ ...v.base, titolo: v.titolo, motivo, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: t.primoId } })

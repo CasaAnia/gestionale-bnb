@@ -302,9 +302,10 @@ test('un pagamento in più: avviso e conto cambiano insieme; col saldo l\'avviso
   const saldato = daControllareScheda(dati(ROSA, saldo))
   assert.deepEqual(saldato.map(v => v.etichetta), ['Documento'])
   assert.equal(saldato.length, 1)
-  // segnata «pagato» a mano: idem, niente avviso
+  // Ania23/10: la spunta non nasconde un residuo dimostrato dai movimenti.
   const segnata = daControllareScheda(dati(ROSA.map(s => ({ ...s, pagato: true })), DUE_DA_400, { pagato: true }))
-  assert.deepEqual(segnata.map(v => v.etichetta), ['Documento'])
+  assert.deepEqual(segnata.map(v => v.etichetta), ['Pagamento', 'Documento'])
+  assert.equal(segnata[0].dettaglio,'Registrati 800 € su 1.880 €')
 })
 
 test('scadenza futura: prima dell\'arrivo nessun avviso del pagamento, neanche con un residuo; e mai «scaduto»', () => {
