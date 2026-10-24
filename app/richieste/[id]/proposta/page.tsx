@@ -32,6 +32,7 @@ import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
+import { segnaRichiestaSitoVista } from '@/lib/richiesteSitoViste'
 import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, colonne0031Presenti, AVVISO_0025, AVVISO_0029, AVVISO_0031, type CondizioniSalvate } from '@/lib/richiesteDati'
 import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
 import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
@@ -193,6 +194,8 @@ export default function PropostaPage() {
       if (ap.error) errs.push(`altre richieste: ${ap.error.message}`)
       if (g.error) errs.push(`clienti: ${g.error.message}`)
       setRichiesta(ric.data as typeof richiesta)
+      // Solo una richiesta letta senza errori diventa vista, mai confermata.
+      if (!errs.length && ric.data?.canale === 'web') segnaRichiestaSitoVista(id)
       setManca0025(!!ric.data && !colonne0025Presenti(ric.data as unknown as Record<string, unknown>))
       setManca0029(!!ric.data && !colonne0029Presenti(ric.data as unknown as Record<string, unknown>))
       setManca0031(!!ric.data && !colonne0031Presenti(ric.data as unknown as Record<string, unknown>))
