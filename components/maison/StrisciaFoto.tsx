@@ -22,6 +22,8 @@ export function dataStriscia(d = new Date()): string {
 export default function StrisciaFoto() {
   return (
     <header className="mz-strip" style={{ backgroundImage: `url(${FOTO_STRISCIA})` }} data-striscia-foto>
+      {/* Fascia reale: iOS usa gli elementi fissi per lo sfondo della barra di stato. */}
+      <div aria-hidden="true" className="mz-home-status-background" />
       <div className="ic">
         <Link href={HREF_CERCA} aria-label="Cerca">⌕</Link>
         <Link href={HREF_NUOVA} aria-label="Nuova prenotazione">+</Link>

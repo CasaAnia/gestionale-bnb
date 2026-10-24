@@ -91,6 +91,18 @@ body:has(.mz-home) { background: var(--home-bg); }
 .mz-nome-link::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
 
 /* ── Striscia in alto ─────────────────────────────────────────────────── */
+/* Solo Home su iOS: il fondo opaco in cima evita la sfocatura di sistema
+   sopra foto e comandi. Non sposta la pagina né intercetta i tocchi.
+   Da collaudare sul dispositivo: il browser desktop non riproduce l'effetto. */
+.mz-home-status-background { display: none; }
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 1023px) {
+    .mz-home-status-background {
+      display: block; position: fixed; top: 0; left: 0; width: 100%;
+      height: 6px; background: #FFFFFF; pointer-events: none; z-index: 40;
+    }
+  }
+}
 .mz-strip { height: 118px; position: relative; color: #fff; background-size: cover; background-position: center; }
 .mz-strip::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,15,10,.1), rgba(36,31,26,.66)); }
 .mz-strip .tx { position: absolute; left: var(--home-gutter); right: var(--home-gutter); bottom: 14px; z-index: 1; }
