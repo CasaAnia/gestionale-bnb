@@ -115,14 +115,13 @@ export async function POST(req: NextRequest) {
   const id = inserita.data.id as string
 
   // Testo delle notifiche (push e Pushover): «Nome Cognome», come ovunque nel gestionale
-  const titoloPush = 'Nuova richiesta Casa Ania'
+  const titoloPush = 'Nuova richiesta'
   const notti = nottiRichiesta(d)
   const camera = camere?.find(c => c.id === d.camera_id)?.name ?? 'nessuna preferenza'
   const corpoPush = [
     `${nomeCompleto(d)} · ${d.telefono}`,
     `${formatDateRichiesta(d)} · ${notti} ${notti === 1 ? 'notte' : 'notti'}`,
     `Camera richiesta: ${camera}`,
-    'Ricevuta adesso',
   ].join('\n')
 
   // Notifica push (miglior sforzo)
