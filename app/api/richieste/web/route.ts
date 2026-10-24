@@ -3,7 +3,7 @@ import { schemaRicercaTelefono, schedeConNumero } from '@/lib/clienteTelefono'
 import { conInizialiNomeCognome } from '@/lib/maiuscole'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN } from '@/lib/richiesteWeb'
-import { formatDateRichiesta, nomeCompleto } from '@/lib/richieste'
+import { formatDateRichiesta, nomeCompleto, nottiRichiesta } from '@/lib/richieste'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { inviaPushover } from '@/lib/pushover'
@@ -115,12 +115,20 @@ export async function POST(req: NextRequest) {
   const id = inserita.data.id as string
 
   // Testo delle notifiche (push e Pushover): «Nome Cognome», come ovunque nel gestionale
-  const corpoPush = `${nomeCompleto(d)}, ${formatDateRichiesta(d)}, ${d.persone} ${d.persone === 1 ? 'persona' : 'persone'}`
+  const titoloPush = 'Nuova richiesta Casa Ania'
+  const notti = nottiRichiesta(d)
+  const camera = camere?.find(c => c.id === d.camera_id)?.name ?? 'nessuna preferenza'
+  const corpoPush = [
+    `${nomeCompleto(d)} · ${d.telefono}`,
+    `${formatDateRichiesta(d)} · ${notti} ${notti === 1 ? 'notte' : 'notti'}`,
+    `Camera richiesta: ${camera}`,
+    'Ricevuta adesso',
+  ].join('\n')
 
   // Notifica push (miglior sforzo)
   let push: { inviate: number; errori: number } = { inviate: 0, errori: 0 }
   try {
-    const titolo = 'Nuova richiesta dal sito'
+    const titolo = titoloPush
     const e = await inviaATutti(supabase, { title: titolo, body: corpoPush, url: `/richieste/${id}` })
     await registraPush(supabase, 'richiesta_web', titolo, corpoPush, { richiesta_id: id, rimosse: e.rimosse, errori: e.errori }, e.inviate)
     push = { inviate: e.inviate, errori: e.errori.length }
@@ -133,7 +141,7 @@ export async function POST(req: NextRequest) {
   let pushover: { inviato: boolean; motivo?: string } = { inviato: false }
   try {
     const base = (process.env.NEXT_PUBLIC_GESTIONALE_URL ?? 'https://gestionale-bnb-tau.vercel.app').replace(/\/$/, '')
-    pushover = await inviaPushover('🏡 Nuova richiesta Casa Ania', corpoPush, `${base}/richieste/${id}`)
+    pushover = await inviaPushover(titoloPush, corpoPush, `${base}/richieste/${id}`)
     if (!pushover.inviato) log('avviso', `pushover non inviato: ${pushover.motivo ?? ''}`)
   } catch (e) {
     log('avviso', `pushover: ${(e as Error)?.message?.slice(0, 80) ?? 'errore'}`)
