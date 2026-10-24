@@ -115,7 +115,8 @@ export async function POST(req: NextRequest) {
   const id = inserita.data.id as string
 
   // Testo delle notifiche (push e Pushover): «Nome Cognome», come ovunque nel gestionale
-  const titoloPush = 'Nuova richiesta'
+  // Uno spazio conserva il titolo visivamente vuoto, come nella prova sul telefono.
+  const titoloPush = ' '
   const notti = nottiRichiesta(d)
   const camera = camere?.find(c => c.id === d.camera_id)?.name ?? 'nessuna preferenza'
   const corpoPush = [
