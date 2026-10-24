@@ -87,10 +87,12 @@ function toStr(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).
 function strToDate(s: string) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
 function fmtMonth(d: Date) { const l = d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }); return l.charAt(0).toUpperCase() + l.slice(1) }
 
-export default function NastroRichieste({ camere, prenotazioni, pagamenti, richieste, vista, onVista, evidenziate, vaiA, adesso, desktop, orizzontale, onRichieste }: {
+export default function NastroRichieste({ camere, prenotazioni, righeConto = prenotazioni, pagamenti, richieste, vista, onVista, evidenziate, vaiA, adesso, desktop, orizzontale, onRichieste }: {
   camere: Camera[]
   /** le prenotazioni confermate e completate, con il cliente */
   prenotazioni: PrenotazioneRichieste[]
+  /** righe dello stesso archivio, comprese le annullate per i soli incassi */
+  righeConto?: PrenotazioneRichieste[]
   pagamenti: { booking_id: string; amount: number | string }[]
   /** tutte le richieste: sul nastro vanno le aperte */
   richieste: Richiesta[]
@@ -155,7 +157,7 @@ export default function NastroRichieste({ camere, prenotazioni, pagamenti, richi
     for (const x of pagamenti) s[x.booking_id] = (s[x.booking_id] || 0) + Number(x.amount)
     return s
   }, [pagamenti])
-  const pagate = useMemo(() => nottiPagate(prenotazioni, acconti, rooms), [prenotazioni, acconti, rooms])
+  const pagate = useMemo(() => nottiPagate(prenotazioni, acconti, rooms, righeConto), [prenotazioni, acconti, rooms, righeConto])
   const aperte = useMemo(() => richieste.filter(eAperta) as RichiestaNastro[], [richieste])
   // Le camere tenute dalle proposte inviate (lib/calendarioOpzioni, come nel Calendario)
   const barre = useMemo(() => barreTenute(aperte.filter(r => r.stato === 'proposta_inviata') as unknown as RichiestaTenuta[], adesso), [aperte, adesso])

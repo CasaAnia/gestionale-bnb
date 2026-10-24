@@ -129,6 +129,7 @@ export default function Calendario() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [bookings, setBookings] = useState<CalendarBooking[]>([])
   const [loading, setLoading] = useState(true)
+  const [erroreLettura, setErroreLettura] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
   const orizzontale = useOrizzontaleTelefono()
   useSchermoIntero()
@@ -261,7 +262,7 @@ export default function Calendario() {
 
   // Notti coperte dagli acconti per prenotazione (-1 = tutte), lungo tutta la
   // catena del cambio camera (lib/calendarioNastro, gli stessi conti delle Richieste)
-  const paidNightsByBooking = useMemo(() => nottiPagate(bookings, accontiByBooking, rooms), [bookings, accontiByBooking, rooms])
+  const paidNightsByBooking = useMemo(() => nottiPagate(bookings, accontiByBooking, rooms, [...bookings, ...annullateConto]), [bookings, annullateConto, accontiByBooking, rooms])
 
   // Le richieste con una proposta in giro: tengono una camera, e il calendario
   // lo deve dire (Ania, 15/09/2026). Se il database è indietro di una colonna
@@ -277,16 +278,19 @@ export default function Calendario() {
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(*)').neq('status', 'annullata'),
+      supabase.from('bookings').select('*, guests(*)'),
       supabase.from('payments').select('booking_id, amount, method'),
-    ]).then(([{ data: r }, { data: b }, { data: p }]) => {
+    ]).then(([{ data: r, error: er }, { data: b, error: eb }, { data: p, error: ep }]) => {
+      if (er || eb || ep) { setErroreLettura(true); setLoading(false); return }
       const sorted = ([...(r || [])] as Room[]).sort((a, b) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
         const bi = ROOM_ORDER.findIndex(o => b.name.includes(o))
         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
       })
       setRooms(sorted)
-      setBookings((b || []) as CalendarBooking[])
+      const righe = (b || []) as CalendarBooking[]
+      setBookings(righe.filter(r => r.status !== 'annullata'))
+      setAnnullateConto(righe.filter(r => r.status === 'annullata'))
       const sums: Record<string, number> = {}
       for (const x of (p || []) as PaymentRow[]) sums[x.booking_id] = (sums[x.booking_id] || 0) + Number(x.amount)
       setAccontiByBooking(sums)
@@ -294,9 +298,6 @@ export default function Calendario() {
       setLoading(false)
     })
     leggiTenute().then(setRichiesteTenute)
-    // senza la colonna del mancato arrivo la lettura non riesce: si va avanti senza
-    void supabase.from('bookings').select('*').eq('status', 'annullata').not('mancato_arrivo_centesimi', 'is', null)
-      .then(({ data, error }) => setAnnullateConto(error ? [] : (data || []) as CalendarBooking[]))
   }, [leggiTenute])
 
   // Quanto ha speso il cliente, questa compresa (Ania, 02/10/2026): la cifra
@@ -782,6 +783,8 @@ export default function Calendario() {
           diversa dalle Richieste): si scorre con due dita, con le frecce e con i mesi */}
       {loading ? (
         <div className="mz-caricamento">Caricamento…</div>
+      ) : erroreLettura ? (
+        <div role="alert" className="mz-caricamento">Non riesco a leggere prenotazioni e pagamenti. <button type="button" onClick={() => window.location.reload()}>Riprova</button></div>
       ) : (
         <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className={`cal-nastro ${misure.compatta ? 'compatta' : ''}`} style={{ width: totalW, position: 'relative', height: totalH }}>

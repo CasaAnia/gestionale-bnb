@@ -180,6 +180,7 @@ function Richieste() {
   const [tutte, setTutte] = useState<Richiesta[]>([])
   const [camere, setCamere] = useState<Room[]>([])
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneRichieste[]>([])
+  const [righeConto, setRigheConto] = useState<PrenotazioneRichieste[]>([])
   const [pagamenti, setPagamenti] = useState<{ booking_id: string; amount: number | string }[]>([])
   const [clienti, setClienti] = useState<ClienteSchedato[]>([])
   const [ordine, setOrdine] = useState<OrdineRichieste>('durata')
@@ -244,7 +245,7 @@ function Richieste() {
     // con ospite, acconti) più le richieste. Ogni errore finisce a schermo.
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(*)').in('status', ['confermata', 'completata']),
+      supabase.from('bookings').select('*, guests(*)').in('status', ['confermata', 'completata', 'annullata']),
       supabase.from('payments').select('booking_id, amount'),
       fetchRichieste(),
       // I clienti servono a riconoscere chi torna: valutazione, ricevuta e
@@ -259,7 +260,9 @@ function Richieste() {
       if (g.error) errs.push(`clienti: ${g.error.message}`)
       setClienti((g.data || []) as ClienteSchedato[])
       setCamere((r.data || []) as Room[])
-      setPrenotazioni((b.data || []) as unknown as PrenotazioneRichieste[])
+      const righe = (b.data || []) as unknown as PrenotazioneRichieste[]
+      setRigheConto(righe)
+      setPrenotazioni(righe.filter(r => r.status !== 'annullata'))
       setPagamenti((pay.data || []) as { booking_id: string; amount: number | string }[])
       setTutte(ric.data)
       setErrori(errs)
@@ -380,7 +383,7 @@ function Richieste() {
       {loading ? (
         <div className="mz-caricamento">Caricamento…</div>
       ) : (
-        <NastroRichieste camere={camere} prenotazioni={prenotazioni} pagamenti={pagamenti} richieste={tutte}
+        <NastroRichieste camere={camere} prenotazioni={prenotazioni} righeConto={righeConto} pagamenti={pagamenti} richieste={tutte}
           vista={vista} onVista={setVista} evidenziate={evidenziate} vaiA={vaiA} adesso={adesso}
           desktop={desktop} orizzontale={orizzontale}
           onRichieste={(gruppo, e) => setPannello({ gruppo, ancora: { x: e?.clientX ?? 0, y: e?.clientY ?? 0 } })} />

@@ -22,12 +22,16 @@ type Camera = { id: string; name: string }
  * data, qualunque sia il segmento su cui l'acconto è stato registrato.
  * Un soggiorno è la prenotazione intera (regola fissa n. 9), non il group_id.
  */
-export function nottiPagate<T extends Riga>(bookings: T[], acconti: Record<string, number>, camere: Camera[]): Record<string, number> {
+export function nottiPagate<T extends Riga>(bookings: T[], acconti: Record<string, number>, camere: Camera[], righeConto: T[] = bookings): Record<string, number> {
   const map: Record<string, number> = {}
   const groups: Record<string, T[]> = {}
   bookings.forEach(b => { const k = identitaSoggiorno(b); (groups[k] = groups[k] || []).push(b) })
   Object.values(groups).forEach(segs => {
-    let money = segs.reduce((s, b) => s + (acconti[b.id] || 0), 0)
+    // Anche un tratto annullato conserva gli incassi della stessa identità.
+    // I suoi prezzi e le sue notti restano esclusi dal calendario.
+    const chiave = identitaSoggiorno(segs[0])
+    const ids = new Set(righeConto.filter(b => identitaSoggiorno(b) === chiave).map(b => b.id))
+    let money = [...ids].reduce((s, id) => s + (acconti[id] || 0), 0)
     if (money <= 0) return
     // Un movimento reale rende esplicita anche la copertura zero: il vecchio
     // segno pagato non può coprire notti aggiunte dopo il saldo.

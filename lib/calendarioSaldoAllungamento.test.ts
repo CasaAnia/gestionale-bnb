@@ -42,3 +42,14 @@ test('riquadro calendario: flag obsoleto non nasconde gli80rimasti',()=>{
  assert.equal(conto.saldato,false);assert.match(conto.linea.map(x=>x.testo).join(''),/restano 80/);
  assert.equal(statoScheda(r,false),'pagato');
 })
+
+
+test('pagamenti su tratto annullato coprono lo stesso conto, non altre prenotazioni',()=>{
+ const annullata={...r,id:'annullata',status:'annullata',total_amount:999}
+ const altra={...r,id:'altra',prenotazione_id:'altro'}
+ const tutte=[r,annullata,annullata,altra]
+ assert.equal(nottiPagate([r],{a:240,annullata:20,altra:999},[camera],tutte).a,3)
+ assert.equal(nottiPagate([r],{a:240,annullata:80},[camera],tutte).a,-1)
+ assert.equal(nottiPagate([r],{annullata:320},[camera],tutte).a,-1)
+ assert.equal(contoRiquadro([r,annullata],[{booking_id:'a',amount:240,method:'contanti'},{booking_id:'annullata',amount:80,method:'bonifico'}]).saldato,true)
+})
