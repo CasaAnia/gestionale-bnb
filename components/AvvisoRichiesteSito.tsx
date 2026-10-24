@@ -93,10 +93,10 @@ function PopupRichiesta({ prima, errore, onRiprova, onDopo }: { prima: Richiesta
   }, [])
   return <div role="dialog" aria-modal="true" aria-labelledby="titolo-avviso-sito" data-popup-richiesta-sito
     style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'rgba(24, 32, 27, .62)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
-    <div ref={riquadro} tabIndex={-1} style={{ outline: 'none', maxHeight: 'calc(100dvh - 40px)', overflowY: 'auto', width: '100%', maxWidth: 380, background: '#FBF9F4', border: '2px solid #A9884E', borderRadius: 20, padding: '22px 24px 18px', boxShadow: '0 24px 90px #0005', textAlign: 'center', fontFamily: 'var(--font-jost), sans-serif' }}>
+    <div ref={riquadro} tabIndex={-1} style={{ outline: 'none', maxHeight: 'calc(100dvh - 40px)', overflowY: 'auto', width: '100%', maxWidth: 380, background: '#FBF9F4', border: '2px solid #A9884E', borderRadius: 20, padding: '22px 24px 18px', boxShadow: '0 24px 90px #0005', textAlign: 'center', fontFamily: 'var(--font-manrope), sans-serif' }}>
       <p style={{ color: '#8B6C39', fontSize: 12, letterSpacing: '2px', fontWeight: 600 }}>CASA ANIA · RICHIESTE</p>
       <div aria-hidden style={{ width: 52, height: 52, background: '#EEE4D2', borderRadius: '50%', margin: '12px auto 10px', display: 'grid', placeItems: 'center', fontSize: 30 }}>🔔</div>
-      <h2 id="titolo-avviso-sito" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, color: '#1F3D2F', marginBottom: 12 }}>Nuova richiesta<br />dal sito</h2>
+      <h2 id="titolo-avviso-sito" style={{ fontFamily: 'var(--font-jost), sans-serif', fontSize: 30, fontWeight: 800, lineHeight: 1.1, color: '#1F3D2F', marginBottom: 12 }}>Nuova richiesta<br />del sito</h2>
       <div style={{ margin: '0 0 16px', lineHeight: 1.25 }}>
         <p style={{ color: '#6E6558', fontSize: 14, fontWeight: 400, marginBottom: 2 }}>{nomeCompleto(prima)}{prima.telefono && <span style={{ marginLeft: 6, whiteSpace: 'nowrap' }}>· {prima.telefono}</span>}</p>
         <p style={{ color: '#6E6558', fontSize: 14 }}>{formatDateRichiesta(prima)} · {nottiRichiesta(prima)} {nottiRichiesta(prima) === 1 ? 'notte' : 'notti'}</p>
@@ -106,7 +106,7 @@ function PopupRichiesta({ prima, errore, onRiprova, onDopo }: { prima: Richiesta
       {errore && <p role="status" style={{ color: '#8E4D36', fontSize: 13, marginBottom: 12 }}>Non riesco ad aggiornare le richieste. <button className="underline" onClick={onRiprova}>Riprova</button></p>}
       <Link href={`/richieste/${prima.id}`} style={{ display: 'block', background: '#1F3D2F', color: 'white', borderRadius: 10, padding: '16px 10px', fontSize: 18, fontWeight: 700, textDecoration: 'none' }}>Apri richiesta</Link>
       <button type="button" onClick={onDopo} style={{ display: 'block', width: '100%', border: '1px solid #C9BDA7', background: 'transparent', color: '#1F3D2F', borderRadius: 10, padding: '12px 10px', fontSize: 17, fontWeight: 500, marginTop: 10 }}>Dopo</button>
-      <p style={{ color: '#847B6E', fontSize: 12, lineHeight: 1.4, marginTop: 12 }}>Con “Dopo” resta da vedere.</p>
+      <div aria-hidden="true" style={{ height: 14.4, marginTop: 12 }} />
     </div>
   </div>
 }
