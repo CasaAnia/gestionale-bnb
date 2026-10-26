@@ -15,7 +15,7 @@ const sol = (caso: Soluzione['caso'], segmenti: Soluzione['segmenti']): Soluzion
 })
 const ARRIVO = { tipo: 'arrivo' } as const
 const apertura = (nome: string) => `Gentile ${nome},\ngrazie per aver pensato a Casa Ania per il suo soggiorno.`
-const LINK = (slug: string) => `Qui può vedere le foto e i dettagli della camera: casaaniarozzano.it/camere/${slug}`
+const LINK = (slug: string) => `Qui può vedere le foto e i dettagli della camera:\nhttps://www.casaaniarozzano.it/camere/${slug}`
 const CODA = (cosa: string) => `Il pagamento avviene all'arrivo, alla consegna delle chiavi, per l'intero soggiorno: in contanti oppure con bonifico istantaneo.\n\nSe desidera ${cosa}, la prego di farmelo sapere entro 3 ore da questo messaggio. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.\n\n${CHIUSURA}`
 const R = { nome: 'Anna', cognome: 'Rossi', arrivo: '2026-09-13', partenza: '2026-09-15', persone: 1, camera_id: null }
 
@@ -33,6 +33,8 @@ Il prezzo per le 3 notti è di 210 €, a 70 € a notte.
 ${LINK('singola')}
 
 Visto che si tratta di un soggiorno di 3 notti, le segnalo anche un'alternativa. Amelia è la nostra camera più piccola e per una permanenza più lunga potrebbe risultare meno comoda. Con 10 € in più a notte posso proporle Allegra, una camera matrimoniale con il balconcino e il bagno in camera. Il prezzo per le 3 notti sarebbe di 240 €.
+
+${LINK('allegra')}
 
 ${CODA('confermare la camera')}`)
   // con più camere elencate il blocco non compare (le alternative sono già lì)

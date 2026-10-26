@@ -141,16 +141,27 @@ export function tipoCamera(camera: { name?: string | null }): string {
   const slug = slugDi(camera)
   return (slug && DESCRIZIONI_CAMERE[slug]?.tipo) || 'una camera'
 }
+const urlCamere = 'https://www.casaaniarozzano.it/camere'
 export function rigaLinkCamera(camera: { name?: string | null }): string | null {
   const slug = slugDi(camera)
-  return slug ? `Qui può vedere le foto e i dettagli della camera: ${SITO_CAMERE}/${slug}` : null
+  return slug ? `Qui può vedere le foto e i dettagli della camera:\n${urlCamere}/${slug}` : null
 }
-export const RIGA_LINK_CAMERE = `Qui può vedere le foto e i dettagli delle camere: ${SITO_CAMERE}`
-// Una camera sola → la sua pagina; più camere → la pagina delle camere
+export const RIGA_LINK_CAMERE = `Qui può vedere le foto e i dettagli delle camere:\n${urlCamere}`
 function rigaLink(sol: Soluzione): string | null {
-  const camere = [...new Set(sol.segmenti.map(s => s.camera.id))]
-  if (camere.length === 1) return rigaLinkCamera(sol.segmenti[0].camera)
-  return camere.length > 1 ? RIGA_LINK_CAMERE : null
+  const camere = [...new Map(sol.segmenti.map(s => [s.camera.id, s.camera])).values()]
+  if (camere.length === 1) return rigaLinkCamera(camere[0])
+  if (camere.length >= 4) return RIGA_LINK_CAMERE
+  if (!camere.length) return null
+  return `Qui può vedere le foto e i dettagli delle ${inParole(camere.length)} camere:\n\n${camere.map(c => `${c.name}\n${urlCamere}/${slugDi(c)}`).join('\n\n')}`
+}
+
+// Una sola rassicurazione dopo i prezzi; le alternative senza cambio non la usano.
+function fraseCambio(sol: Soluzione): string | null {
+  const cambi = sol.segmenti.slice(1).filter((s, i) => s.camera.id !== sol.segmenti[i].camera.id && s.arrivo === sol.segmenti[i].partenza).length
+  if (!cambi) return null
+  return cambi === 1
+    ? 'Al mattino mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.'
+    : 'Ogni cambio di camera avverrà al mattino: mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.'
 }
 
 // ── Gruppi di notti (persone e prezzo uguali, consecutive) ──────────────────
@@ -305,7 +316,7 @@ function casoATrePersone(richiesta: RichiestaTesto, camere: Soluzione[]): Blocch
   const righe = ordinaTrePersone(camere).map(c => {
     const s = c.segmenti[0]
     const frase = FRASI_TRE_PERSONE[slugDi(s.camera) ?? '']
-    const link = rigaLinkCamera(s.camera)
+    const link = camere.length >= 4 ? null : rigaLinkCamera(s.camera)
     return `– ${grassetto(s.camera.name ?? '')}, ${descrizioneBreve(s.camera)}.${frase ? ` ${frase}` : ''} ${paragrafoPrezzoTrePersone(c, s, periodo)}${link ? `\n${link}` : ''}`
   })
   return {
@@ -314,6 +325,7 @@ function casoATrePersone(richiesta: RichiestaTesto, camere: Soluzione[]): Blocch
     paragrafi: [
       `${HO_VERIFICATO} ${grassetto(`${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))}, per tre persone`)}, posso proporle ${inParole(camere.length)} camere:`,
       ...righe,
+      ...(camere.length >= 4 ? [RIGA_LINK_CAMERE] : []),
     ],
   }
 }
@@ -377,12 +389,12 @@ function casoA(richiesta: RichiestaTesto & { persone?: number; persone_per_notte
   const righe = camere.map(c => {
     const s = c.segmenti[0]
     const letto = fraseLettoInPiu(s)
-    const link = rigaLinkCamera(s.camera)
+    const link = camere.length >= 4 ? null : rigaLinkCamera(s.camera)
     return `– ${s.camera.name}, ${descrizioneBreve(s.camera)}.${letto ? ` ${letto}` : ''} ${paragrafoPrezzo(c, s, periodo)}${link ? `\n${link}` : ''}`
   })
   return {
     oreVariante: 'camere',
-    paragrafi: [`${testa} ho ${inParole(camere.length)} camere libere che posso proporle:`, ...righe],
+    paragrafi: [`${testa} ho ${inParole(camere.length)} camere libere che posso proporle:`, ...righe, ...(camere.length >= 4 ? [RIGA_LINK_CAMERE] : [])],
   }
 }
 
@@ -402,7 +414,8 @@ function casoB(richiesta: RichiestaTesto, sol: Soluzione): Blocchi {
         ? `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))} posso ospitarla con ${cambio} di camera durante il soggiorno:`
         : `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))} non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con ${cambio} di camera durante il soggiorno:`,
       ...sol.segmenti.map(s => rigaSegmento(s, periodo)),
-      `Il cambio di camera lo faccio io al mattino, non deve pensare a nulla. Il prezzo ${perLeNotti(sol.nottiCoperte)} è di ${formattaEuro(centesimiTotale(sol))}.`,
+      `Il prezzo complessivo ${perLeNotti(sol.nottiCoperte)} è di ${formattaEuro(centesimiTotale(sol))}.`,
+      ...(fraseCambio(sol) ? [fraseCambio(sol)!] : []),
       ...(link ? [link] : []),
     ],
   }
@@ -432,8 +445,8 @@ function casoC(richiesta: RichiestaTesto, sol: Soluzione): Blocchi {
     paragrafi: [
       `${HO_VERIFICATO} Purtroppo per ${notteDel(scoperte)} siamo al completo, ma posso ospitarla per il resto del soggiorno:`,
       ...righe,
-      ...(camere.length > 1 ? ['Il cambio di camera lo faccio io al mattino, non deve pensare a nulla.'] : []),
       `Mi dispiace per ${notteDel(scoperte)}, per ${scoperte.length === 1 ? 'la quale' : 'le quali'} dovrebbe trovare un'altra soluzione nelle vicinanze. Sarei comunque felice di ospitarla per ${nottiCoperte === 1 ? "l'altra notte" : `le altre ${nottiCoperte} notti`}, al prezzo di ${formattaEuro(centesimiTotale(sol))}.`,
+      ...(fraseCambio(sol) ? [fraseCambio(sol)!] : []),
       ...(link ? [link] : []),
     ],
   }
@@ -493,12 +506,13 @@ export function generaProposta({ richiesta, soluzione, condizione, amelia, alter
     `Il prezzo ${perLeNotti(soluzione.nottiCoperte)} è di ${formattaEuro(centesimiTotale(soluzione))}.`,
     ...(nottiScoperte(richiesta, soluzione).length ? [`Le notti del ${elencoNotti(nottiScoperte(richiesta, soluzione))} non sono più disponibili.`] : []),
     ...(periodiDelleNotti(richiesta.notti_richieste).length > 1 ? ['Le notti tra un periodo e l’altro non sono incluse: in quei giorni dovrà lasciare la camera.'] : []),
+    ...(fraseCambio(soluzione) ? [fraseCambio(soluzione)!] : []),
     ...(rigaLink(soluzione) ? [rigaLink(soluzione)!] : []),
   ] } : soluzione.caso === 'completa' ? casoA(richiesta, camereA)
     : soluzione.caso === 'cambio' ? casoB(richiesta, soluzione)
       : casoC(richiesta, soluzione)
   const paragrafi = [apertura(richiesta.nome), ...blocchi.paragrafi]
-  if (amelia && camereA.length === 1) paragrafi.push(bloccoAmelia(soluzione, amelia))
+  if (amelia && camereA.length === 1) paragrafi.push(bloccoAmelia(soluzione, amelia), ...(rigaLinkCamera(amelia.camera) ? [rigaLinkCamera(amelia.camera)!] : []))
   if (condizione) paragrafi.push(bloccoCondizione(condizione, centesimiTotale(soluzione)), fraseTreOre(blocchi.oreVariante), blocchi.chiusura ?? CHIUSURA)
   return paragrafi.join('\n\n')
 }

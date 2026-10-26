@@ -25,7 +25,7 @@ Ho verificato le date che mi ha indicato. Dal 12 al 14 ottobre è disponibile so
 
 Il prezzo per le 2 notti è di 160 €, a 80 € a notte.
 
-Qui può vedere le foto e i dettagli della camera: casaaniarozzano.it/camere/allegra`
+Qui può vedere le foto e i dettagli della camera:\nhttps://www.casaaniarozzano.it/camere/allegra`
 
 test('caso di Ania: il cliente ha chiesto Allegra e Allegra è libera → la proposta predefinita è solo Allegra', () => {
   const r = { ...OTTOBRE, camera_id: 'allegra' }

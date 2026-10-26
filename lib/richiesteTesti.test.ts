@@ -21,8 +21,8 @@ const sol = (caso: Soluzione['caso'], segmenti: Soluzione['segmenti'], nottiManc
 })
 const ARRIVO = { tipo: 'arrivo' } as const
 const apertura = (nome: string) => `Gentile ${nome},\ngrazie per aver pensato a Casa Ania per il suo soggiorno.`
-const LINK = (slug: string) => `Qui può vedere le foto e i dettagli della camera: casaaniarozzano.it/camere/${slug}`
-const LINK_CAMERE = 'Qui può vedere le foto e i dettagli delle camere: casaaniarozzano.it/camere'
+const LINK = (slug: string) => `Qui può vedere le foto e i dettagli della camera:\nhttps://www.casaaniarozzano.it/camere/${slug}`
+const LINK_CAMERE = (nomi: string[]) => `Qui può vedere le foto e i dettagli delle ${nomi.length === 2 ? 'due' : 'tre'} camere:\n\n${nomi.map(n => `${n}\nhttps://www.casaaniarozzano.it/camere/${n === 'Amelia' ? 'singola' : n.toLowerCase()}`).join('\n\n')}`
 const COND_ARRIVO = "Il pagamento avviene all'arrivo, alla consegna delle chiavi, per l'intero soggiorno: in contanti oppure con bonifico istantaneo."
 const ORE = (cosa: string) => `Se desidera ${cosa}, la prego di farmelo sapere entro 3 ore da questo messaggio. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.`
 const CODA = (cosa: string) => `${COND_ARRIVO}\n\n${ORE(cosa)}\n\n${CHIUSURA}`
@@ -100,7 +100,7 @@ Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre è disponibile 
 
 Il prezzo per le 4 notti è di 350 €. La prima notte in due a 80 €, le altre tre notti in tre a 90 € a notte.
 
-Qui può vedere le foto e i dettagli della camera: casaaniarozzano.it/camere/ambra
+Qui può vedere le foto e i dettagli della camera:\nhttps://www.casaaniarozzano.it/camere/ambra
 
 Il pagamento avviene all'arrivo, alla consegna delle chiavi, per l'intero soggiorno: in contanti oppure con bonifico istantaneo.
 
@@ -293,16 +293,15 @@ test('DUE persone, tre camere libere: testo identico a prima della modifica dell
 Ho verificato le date che mi ha indicato. Dal 29 al 31 ottobre ho quattro camere libere che posso proporle:
 
 – Amelia, una camera singola con il bagno in camera. Per le notti in cui sarete in due posso aggiungere un letto in più. Il prezzo per le 2 notti è di 150 €, a 75 € a notte.
-${LINK('singola')}
 
 – Allegra, una camera matrimoniale con il balconcino e il bagno in camera. Il prezzo per le 2 notti è di 160 €, a 80 € a notte.
-${LINK('allegra')}
 
 – Ambra, una camera matrimoniale con il bagno in camera. Il prezzo per le 2 notti è di 160 €, a 80 € a notte.
-${LINK('ambra')}
 
 – Lena, una camera tripla con il bagno privato appena fuori dalla porta, chiuso a chiave. Il prezzo per le 2 notti è di 160 €, a 80 € a notte.
-${LINK('lena')}
+
+Qui può vedere le foto e i dettagli delle camere:
+https://www.casaaniarozzano.it/camere
 
 ${CODA('confermare una delle camere')}`)
   assert.ok(!generaProposta({ richiesta: r, soluzione: tutte[0], condizione: ARRIVO, alternative: tutte }).includes('*'),
@@ -335,9 +334,11 @@ Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla
 
 – dal 18 al 21 in Ambra, una matrimoniale, con un letto in più: 90 € a notte
 
-Il cambio di camera lo faccio io al mattino, non deve pensare a nulla. Il prezzo per le 4 notti è di 345 €.
+Il prezzo complessivo per le 4 notti è di 345 €.
 
-${LINK_CAMERE}
+Al mattino mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.
+
+${LINK_CAMERE(['Amelia', 'Ambra'])}
 
 ${CODA('confermare')}`)
 })
@@ -354,9 +355,11 @@ Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla
 
 – dal 20 al 21 in Lena, una tripla con il bagno privato appena fuori dalla porta, chiuso a chiave: 90 € a notte
 
-Il cambio di camera lo faccio io al mattino, non deve pensare a nulla. Il prezzo per le 4 notti è di 345 €.
+Il prezzo complessivo per le 4 notti è di 345 €.
 
-${LINK_CAMERE}`)
+Ogni cambio di camera avverrà al mattino: mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.
+
+${LINK_CAMERE(['Amelia', 'Ambra', 'Lena'])}`)
 })
 
 test('caso B con persone variabili in un segmento: «in tre a 90 € a notte, poi in due a 80 € a notte»', () => {
@@ -370,9 +373,11 @@ Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla
 
 – dal 18 al 21 in Ambra, una matrimoniale, con un letto in più: in tre a 90 € a notte, poi in due a 80 € a notte
 
-Il cambio di camera lo faccio io al mattino, non deve pensare a nulla. Il prezzo per le 4 notti è di 335 €.
+Il prezzo complessivo per le 4 notti è di 335 €.
 
-${LINK_CAMERE}`)
+Al mattino mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.
+
+${LINK_CAMERE(['Amelia', 'Ambra'])}`)
 })
 
 test('caso C notte in mezzo, stessa camera: una riga sola con «e»', () => {
@@ -437,11 +442,9 @@ Ho verificato le date che mi ha indicato. Purtroppo per la notte del 18 settembr
 
 – dal 19 al 21 in Ambra, una matrimoniale: 80 € a notte
 
-Il cambio di camera lo faccio io al mattino, non deve pensare a nulla.
-
 Mi dispiace per la notte del 18 settembre, per la quale dovrebbe trovare un'altra soluzione nelle vicinanze. Sarei comunque felice di ospitarla per le altre 3 notti, al prezzo di 230 €.
 
-${LINK_CAMERE}`)
+${LINK_CAMERE(['Amelia', 'Ambra'])}`)
 })
 
 test('caso E: messaggio intero, senza condizione né 3 ore', () => {
@@ -560,6 +563,30 @@ test('cambio camera composto da Ania: frase neutra; proposto dal gestionale: fra
 
   // il resto del testo del cambio camera non cambia
   for (const t of [testoAMano, testoAuto]) {
-    assert.match(t, /Il cambio di camera lo faccio io al mattino, non deve pensare a nulla\./)
+    assert.match(t, /Al mattino mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla\./)
   }
+})
+
+
+test('regole approvate 26 ottobre: link specifici fino a tre alternative, generale solo con quattro, nessun trasloco fra alternative', () => {
+  const tutte = proponiSoluzioni(R, CAMERE, [])
+  for (let n = 1; n <= 4; n++) {
+    const selezionate = tutte.slice(0, n)
+    const t = generaProposta({ richiesta: R, soluzione: selezionate[0], alternative: selezionate.slice(1), condizione: null })
+    const urls = t.match(/https:\/\/www\.casaaniarozzano\.it\/camere(?:\/\w+)?/g) ?? []
+    assert.equal(urls.length, n === 4 ? 1 : n)
+    if (n === 4) assert.equal(urls[0], 'https://www.casaaniarozzano.it/camere')
+    else for (const u of urls) assert.match(u, /\/camere\/\w+$/)
+    assert.doesNotMatch(t, /bagagli|Ogni cambio/)
+  }
+})
+
+test('più cambi con ritorno nella stessa camera: una frase plurale e link senza doppioni', () => {
+  const r = { ...R, arrivo: '2026-11-01', partenza: '2026-11-05' }
+  const s = soluzioneDaComposizione(r, CAMERE, ['ambra', 'allegra', 'ambra', 'ambra'])
+  const t = generaProposta({ richiesta: r, soluzione: s, condizione: null })
+  assert.equal((t.match(/Ogni cambio di camera/g) ?? []).length, 1)
+  assert.equal((t.match(/https:\/\/www\.casaaniarozzano\.it\/camere\/ambra/g) ?? []).length, 1)
+  assert.ok(t.indexOf('Il prezzo complessivo') < t.indexOf('Ogni cambio'))
+  assert.ok(t.indexOf('Ogni cambio') < t.indexOf('Qui può vedere'))
 })

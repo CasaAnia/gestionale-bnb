@@ -1,0 +1,4 @@
+# Testi proposte — 26 ottobre 2026 — Codex
+In corso su base origin/main 8e22483, copia correzione-camere. Perimetro: lib/richiesteTesti.ts e tre file di test. Autorizzazione diretta Ania ad applicare e pubblicare le regole concordate su totale, frase cambio e link. Dettagli in diario/2026-10-26-codex-testi-proposte.md. Nessuna scrittura su richieste, prenotazioni o messaggi reali.
+Il registro storico completo resta nel checkout principale /Users/amerigogranata/gestionale-bnb/docs/collaborazione; non presente nel ramo remoto di partenza e non ricopiato qui come se fosse una nuova verifica.
+Verifiche finali locali riuscite:2246/2246,lint,diffcheck,build con configurazione sintetica. Testo generato sulla richiesta reale coerente con totale/frase/link approvati. Pubblicazione e controllo UI online in corso.
