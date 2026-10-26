@@ -336,7 +336,7 @@ Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla
 
 Il prezzo complessivo per le 4 notti è di 345 €.
 
-Al mattino mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.
+Il cambio di camera è previsto in mattinata. Per rendere tutto il più semplice possibile, mi prenderò cura personalmente dello spostamento dei suoi bagagli nella nuova camera.
 
 ${LINK_CAMERE(['Amelia', 'Ambra'])}
 
@@ -357,7 +357,7 @@ Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla
 
 Il prezzo complessivo per le 4 notti è di 345 €.
 
-Ogni cambio di camera avverrà al mattino: mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.
+I cambi di camera sono previsti in mattinata. Per rendere tutto il più semplice possibile, mi prenderò cura personalmente dello spostamento dei suoi bagagli nella nuova camera a ogni cambio.
 
 ${LINK_CAMERE(['Amelia', 'Ambra', 'Lena'])}`)
 })
@@ -375,7 +375,7 @@ Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla
 
 Il prezzo complessivo per le 4 notti è di 335 €.
 
-Al mattino mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.
+Il cambio di camera è previsto in mattinata. Per rendere tutto il più semplice possibile, mi prenderò cura personalmente dello spostamento dei suoi bagagli nella nuova camera.
 
 ${LINK_CAMERE(['Amelia', 'Ambra'])}`)
 })
@@ -563,7 +563,7 @@ test('cambio camera composto da Ania: frase neutra; proposto dal gestionale: fra
 
   // il resto del testo del cambio camera non cambia
   for (const t of [testoAMano, testoAuto]) {
-    assert.match(t, /Al mattino mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla\./)
+    assert.match(t, /Il cambio di camera è previsto in mattinata. Per rendere tutto il più semplice possibile, mi prenderò cura personalmente dello spostamento dei suoi bagagli nella nuova camera\./)
   }
 })
 
@@ -585,8 +585,8 @@ test('più cambi con ritorno nella stessa camera: una frase plurale e link senza
   const r = { ...R, arrivo: '2026-11-01', partenza: '2026-11-05' }
   const s = soluzioneDaComposizione(r, CAMERE, ['ambra', 'allegra', 'ambra', 'ambra'])
   const t = generaProposta({ richiesta: r, soluzione: s, condizione: null })
-  assert.equal((t.match(/Ogni cambio di camera/g) ?? []).length, 1)
+  assert.equal((t.match(/I cambi di camera sono previsti/g) ?? []).length, 1)
   assert.equal((t.match(/https:\/\/www\.casaaniarozzano\.it\/camere\/ambra/g) ?? []).length, 1)
-  assert.ok(t.indexOf('Il prezzo complessivo') < t.indexOf('Ogni cambio'))
-  assert.ok(t.indexOf('Ogni cambio') < t.indexOf('Qui può vedere'))
+  assert.ok(t.indexOf('Il prezzo complessivo') < t.indexOf('I cambi di camera'))
+  assert.ok(t.indexOf('I cambi di camera') < t.indexOf('Qui può vedere'))
 })

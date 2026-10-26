@@ -160,8 +160,8 @@ function fraseCambio(sol: Soluzione): string | null {
   const cambi = sol.segmenti.slice(1).filter((s, i) => s.camera.id !== sol.segmenti[i].camera.id && s.arrivo === sol.segmenti[i].partenza).length
   if (!cambi) return null
   return cambi === 1
-    ? 'Al mattino mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.'
-    : 'Ogni cambio di camera avverrà al mattino: mi occuperò personalmente di trasferire i suoi bagagli nella nuova camera, così Lei non dovrà preoccuparsi di nulla.'
+    ? 'Il cambio di camera è previsto in mattinata. Per rendere tutto il più semplice possibile, mi prenderò cura personalmente dello spostamento dei suoi bagagli nella nuova camera.'
+    : 'I cambi di camera sono previsti in mattinata. Per rendere tutto il più semplice possibile, mi prenderò cura personalmente dello spostamento dei suoi bagagli nella nuova camera a ogni cambio.'
 }
 
 // ── Gruppi di notti (persone e prezzo uguali, consecutive) ──────────────────
