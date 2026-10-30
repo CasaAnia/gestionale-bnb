@@ -426,3 +426,11 @@ test('etichetta «🛏 EXTRA»: carattere dei nomi delle camere, grandezza e col
   for (const p of ['font-size: 9.5px', 'letter-spacing: .08em', 'text-transform: uppercase', 'color: #8A1E15', 'background: #F8D9D6', 'border-radius: 3px', 'padding: 2px 5px', 'font-weight: 500'])
     assert.ok(regola.includes(p), p)
 })
+
+// La geometria del filo e quella del taglio devono avere la stessa origine.
+test('cambio camera: il filo compensa il bordo della scheda, anche dal sito', () => {
+  const css = leggi('app/maison.css')
+  assert.match(css, /\.cal-cuneo \{[^}]*inset: 0 0 0 -4px;/)
+  assert.match(css, /\.cal-scheda-in\.sito > \.cal-cuneo \{ inset: -1\.5px;/)
+  assert.match(css, /\.cal-scheda-in:has\(> \.cal-cuneo\) \{ overflow: visible;/)
+})
