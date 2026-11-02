@@ -5,6 +5,8 @@ import { ROOM_TYPE_BY_NAME } from '@/lib/roomTypes'
 import { capienzaCamera } from '@/lib/tariffe'
 import { lettiOccupatiPerNotte } from '@/lib/lettiAggiuntivi'
 import { dataItaliana } from '@/lib/dateItaliane'
+import { STATI_APERTI } from '@/lib/richieste'
+import { richiesteInAttesa, nottiOrdinate, type RichiestaAttesa } from './richiesteAttesa'
 
 // Disponibilità delle camere in SOLA LETTURA, per un assistente esterno
 // (Ania, 02/11/2026). Un solo link con il token segreto:
@@ -19,6 +21,10 @@ import { dataItaliana } from '@/lib/dateItaliane'
 //  · i letti aggiuntivi già impegnati per notte vengono da
 //    lettiOccupatiPerNotte (lib/lettiAggiuntivi.ts), la stessa lettura del
 //    calendario;
+//  · le RICHIESTE IN ATTESA (tabella richieste, stato 'in_attesa' o
+//    'proposta_inviata') si segnalano in più, per camera e notte, senza mai
+//    rendere una camera occupata; quelle senza camera vanno a parte con sole
+//    date e persone (regole in ./richiesteAttesa.ts, 02/11/2026);
 //  · nessuna scrittura su Supabase; il client admin serve solo perché qui non
 //    c'è un utente loggato (proxy.ts non copre /api).
 // Niente cache: risposta sempre fresca.
@@ -66,20 +72,29 @@ export async function GET(req: NextRequest) {
   let supabase
   try { supabase = createAdminClient() } catch { return errore(500, 'configurazione mancante') }
 
-  const [camereRes, prenotazioniRes] = await Promise.all([
+  const [camereRes, prenotazioniRes, richiesteRes] = await Promise.all([
     supabase.from('rooms').select('id, name, active, has_extra_bed, base_price, double_price').eq('active', true),
     supabase.from('bookings')
       .select('room_id, check_in, check_out, status, num_guests, extra_bed, extra_bed_dates')
       .in('status', [...STATI_CHE_OCCUPANO])
       .lt('check_in', al).gt('check_out', dal),
+    // Solo le colonne che servono: niente nome, cognome, telefono, note.
+    // (proposta_soluzione contiene i prezzi della proposta: si legge per le
+    //  camere e i periodi, non esce mai dalla risposta.)
+    supabase.from('richieste')
+      .select('id, stato, arrivo, partenza, persone, camera_id, notti_richieste, proposta_soluzione, proposta_alternative')
+      .in('stato', STATI_APERTI)
+      .lt('arrivo', al).gt('partenza', dal),
   ])
   if (camereRes.error) return errore(500, 'lettura camere non riuscita')
   if (prenotazioniRes.error) return errore(500, 'lettura prenotazioni non riuscita')
+  if (richiesteRes.error) return errore(500, 'lettura richieste non riuscita')
 
   const camere = ordinaCamere((camereRes.data ?? []) as Camera[])
   const prenotazioni = ((prenotazioniRes.data ?? []) as Prenotazione[]).filter(p => STATI_CHE_OCCUPANO.has(p.status))
   const nottiElenco = giorniTra(dal, al)
   const lettiPresi = lettiOccupatiPerNotte(prenotazioni)
+  const attesa = richiesteInAttesa((richiesteRes.data ?? []) as unknown as RichiestaAttesa[], nottiElenco)
 
   const risultatoCamere = camere.map(c => {
     const mie = prenotazioni.filter(p => p.room_id === c.id)
@@ -90,6 +105,7 @@ export async function GET(req: NextRequest) {
       persone_max: capienzaCamera(c),
       libera_tutto_il_periodo: nottiOccupate.length === 0,
       notti_occupate: nottiOccupate,
+      notti_con_richiesta_in_attesa: nottiOrdinate(attesa, c.id),
     }
   })
   const lettiPerNotte: Record<string, number> = {}
@@ -98,12 +114,21 @@ export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get('testo') === '1') {
     const righe = [
       `Disponibilità Casa Ania dal ${dataItaliana(dal)} al ${dataItaliana(al)} (${n} ${n === 1 ? 'notte' : 'notti'})`,
-      ...risultatoCamere.map(c =>
+      ...risultatoCamere.flatMap(c => [
         `${c.nome} (${c.tipo}, max ${c.persone_max}): ` +
         (c.libera_tutto_il_periodo
           ? 'LIBERA tutto il periodo'
-          : `occupata le notti del ${c.notti_occupate.map(giornoMeseCifre).join(', ')}`)),
+          : `occupata le notti del ${c.notti_occupate.map(giornoMeseCifre).join(', ')}`),
+        ...(c.notti_con_richiesta_in_attesa.length > 0
+          ? [`  richiesta in attesa per le notti del ${c.notti_con_richiesta_in_attesa.map(giornoMeseCifre).join(', ')}`]
+          : []),
+      ]),
       `Letti aggiuntivi già impegnati: ${nottiElenco.map(g => `${giornoMeseCifre(g)}: ${lettiPerNotte[g]}`).join(' · ')}`,
+      ...(attesa.senzaCamera.length > 0
+        ? [`Richieste in attesa senza camera: ${attesa.senzaCamera
+            .map(r => `dal ${giornoMeseCifre(r.dal)} al ${giornoMeseCifre(r.al)} (${r.persone} ${r.persone === 1 ? 'persona' : 'persone'})`)
+            .join(' · ')}`]
+        : []),
     ]
     return new NextResponse(righe.join('\n') + '\n', {
       status: 200,
@@ -112,7 +137,11 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(
-    { dal, al, notti: n, camere: risultatoCamere, letti_aggiuntivi_impegnati_per_notte: lettiPerNotte },
+    {
+      dal, al, notti: n, camere: risultatoCamere,
+      letti_aggiuntivi_impegnati_per_notte: lettiPerNotte,
+      richieste_in_attesa_senza_camera: attesa.senzaCamera,
+    },
     { status: 200, headers: SENZA_CACHE },
   )
 }
