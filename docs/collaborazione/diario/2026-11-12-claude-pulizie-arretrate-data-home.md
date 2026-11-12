@@ -67,3 +67,7 @@
 - Nessuna prova con login sul sito vero. Nessuna scrittura su Supabase.
 - Il conteggio «prima/dopo» viene dal calcolo locale sui dati veri, non dalla
   schermata del telefono.
+
+## Esito deploy (aggiunto alle 17:55)
+Deployment GitHub/Vercel 7743563511 per 7e9c8e3 (Production, 16:45 UTC): **success**.
+Home online non guardata con login (lo fa solo Ania): la prova dal telefono è sua.
