@@ -1,3 +1,19 @@
+## Pulizie arretrate superate e data della Home — 12/11/2026, Claude — PUBBLICATI
+
+Base origin/main `721f6d2`, copia pulita `gestionale-pulizie-arretrate` (branch `pulizie-arretrate`). Due commit, uno per pezzo; nessuna migrazione, nessun dato toccato, nessun ritocco grafico.
+
+**Pezzo 1 — `c2bbf7d` «Pulizie: gli arretrati superati da un arrivo successivo non si chiedono più».** Regola di Ania del 12/11/2026 scritta in un punto solo, `puliziaSuperata` in `lib/pulizie.ts`: una pulizia aperta della camera con scadenza D è superata se nella stessa camera un altro ospite (prenotazione confermata/completata, non un prolungamento; un cambio camera conta come arrivo nella camera in cui entra) è arrivato in un giorno ≥ D e < oggi. Se il prossimo arrivo è proprio oggi la pulizia resta, col suo ritardo. La applicano `partenzeAperte` e `pulizieAperte`, da cui passano Home («Pulizie di oggi» e «N da fare»), pagina Pulizie (elenco e «N DA FARE · N FATTE»), casella «Oggi» della striscia, cronologia della camera e arretrati della notifica push (`calcolaNotifica`); «Da controllare» non elenca pulizie dall'11/09/2026. Le superate non diventano «fatte»: nessuna scrittura, niente Registro, niente Statistiche. Sui dati veri del 12/11/2026 (lettura di sola lettura, prima del push): Home da 41 a 3 da fare, pagina Pulizie da «4 DA FARE» a «3 DA FARE», gli stessi tre (Allegra, Ambra, Lena: le partenze di oggi). Test a–h in `lib/pulizieSuperate.test.ts`; aggiornato il test dell'8 settembre «due partenze successive non fanno sparire la prima conferma» che proteggeva il comportamento precedente.
+
+**Pezzo 2 — `7482839` «Home: la data in testata si calcola nel browser e si aggiorna da sola».** Causa confermata: `dataStriscia()` calcolata alla costruzione della pagina (prerender) e `suppressHydrationWarning` lasciava nel browser il testo del server. Ora la data nasce nel browser dopo il caricamento (stato + `useEffect`, fuso Europe/Rome, stesso formato), si ricontrolla al ritorno sulla pagina (`visibilitychange`, `pageshow`) e ogni 30 secondi per il cambio di giorno; finché manca, la riga è vuota ma alta uguale. Funzione pura in `lib/dataStriscia.ts` (riesportata dal componente), test in `lib/dataStriscia.test.ts`. Altri punti con `new Date()` nel rendering (solo segnalati, nessuna data sbagliata per Ania: senza `suppressHydrationWarning` React ricalcola nel browser): `app/page.tsx` `nomeMese()`, `app/nuova/page.tsx:712` (vecchia Nuova, senza fuso di Roma), `app/calendario/page.tsx:237`, `app/arrivi/page.tsx:197`, `components/ParteCliente.tsx:47`; date locali del telefono (non di Roma) in `app/richieste/page.tsx`, `app/richieste/[id]/proposta/page.tsx`, `app/clienti/[id]/page.tsx`, `lib/daControllareDati.ts`.
+
+Verifiche: suite 2247 → 2258 test, tutti verdi; `tsc` pulito; eslint pulito sui file toccati (sulla base restano 47 errori preesistenti in file non toccati, stesso numero prima e dopo). Anteprima finta della Home (porta 3215): data «Giovedì 12 novembre 2026» in maiuscoletto, riga vuota alta uguale, aggiornamento al `pageshow` con orologio finto a domani; pulizie e pagina Pulizie con lo stesso numero.
+
+**Prova dal telefono per Ania**
+1. Apri la Home: in alto c'è la data di oggi.
+2. Sotto, «PULIZIE DI OGGI» elenca poche schede, non più decine; nessuna camera compare più volte con ritardi di settimane.
+3. Apri Pulizie: il numero «DA FARE» in alto è lo stesso della Home e sotto ci sono le stesse schede.
+4. Segna «Pulita» una camera: sparisce dalla Home e da Pulizie, e compare nel Registro.
+
 ## Filo del cambio camera — 30/10/2026, Codex — VERIFICATO IN LOCALE
 
 Base `eeec8d5`, copia isolata `fix-filo-cambio-camera`. Perimetro: allineamento del filo obliquo condiviso da Calendario, Arrivi e Richieste; nessun dato modificato.

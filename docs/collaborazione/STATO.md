@@ -1,6 +1,5 @@
-# Testi proposte — 26 ottobre 2026 — Codex
-In corso su base origin/main 8e22483, copia correzione-camere. Perimetro: lib/richiesteTesti.ts e tre file di test. Autorizzazione diretta Ania ad applicare e pubblicare le regole concordate su totale, frase cambio e link. Dettagli in diario/2026-10-26-codex-testi-proposte.md. Nessuna scrittura su richieste, prenotazioni o messaggi reali.
-Il registro storico completo resta nel checkout principale /Users/amerigogranata/gestionale-bnb/docs/collaborazione; non presente nel ramo remoto di partenza e non ricopiato qui come se fosse una nuova verifica.
-Verifiche finali locali riuscite:2246/2246,lint,diffcheck,build con configurazione sintetica. Testo generato sulla richiesta reale coerente con totale/frase/link approvati. Pubblicazione e controllo UI online in corso.
-CONCLUSO:4c3b610 pubblicato,Vercel success,versione e nuova bozza online verificate; poi ripristinata vista messaggio archiviato. Nessun invio ospiti o modifica richiesta/prenotazioni. Casi3/4camere provati localmente,non su richieste reali. Chiusura completa nel diario; nota finale conservata localmente dopo il commit.
-Revisione frase successiva approvata da Ania: singolare «Il cambio di camera è previsto in mattinata… mi prenderò cura personalmente…»; plurale «I cambi… a ogni cambio».2246test,lint,buildPASS. Pubblicazione in corso,base4c3b610; nessun messaggio inviato.
+# Pulizie arretrate superate + data Home — 12 novembre 2026 — Claude
+Base origin/main 721f6d2, copia pulita gestionale-pulizie-arretrate. Commit c2bbf7d (pulizie superate: regola unica lib/pulizie.puliziaSuperata) e 7482839 (data della Home calcolata nel browser) spinti su main. Nessuna migrazione, nessun dato scritto.
+Verifiche: 2258/2258 test, tsc pulito, eslint pulito sui file toccati (47 errori preesistenti sulla base, non toccati). Dati veri 12/11: Home da 41 a 3 da fare, /pulizie da 4 a 3 (gli stessi tre).
+Deploy Vercel: esito in fondo al diario 2026-11-12-claude-pulizie-arretrate-data-home.md. Prova dal telefono in cima a CONSEGNA-ATTIVA.md: data di oggi in Home, poche schede, Home e Pulizie con lo stesso numero.
+Aperto: un rimando oltre un arrivo in mezzo non rende la pulizia superata (scadenza = data dopo i rimandi, come da incarico). Registro precedente (testi proposte, 26/10 Codex) concluso.
