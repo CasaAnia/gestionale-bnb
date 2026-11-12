@@ -35,10 +35,16 @@ test('arrivo oggi o domani: dopo il nuovo confine si conferma sempre a mano', ()
   }
 })
 
-test('due partenze successive non fanno sparire la prima conferma mancante', () => {
+// Fino all'11/11/2026 due partenze successive tenevano aperte ENTRAMBE le
+// conferme mancanti. Dal 12/11/2026 (Ania) la prima è «superata»: il nuovo
+// ospite è arrivato l'8 e ha dormito lì, quindi la camera era stata preparata
+// (lib/pulizie.puliziaSuperata, test in lib/pulizieSuperate.test.ts).
+test('due partenze successive: la prima conferma mancante è superata dall’ospite arrivato dopo', () => {
   const bookings = [{ ...soggiorno, check_out: '2026-09-08' }, { ...soggiorno, id: 'nuovo', guest_id: 'altro', check_in: '2026-09-08', check_out: '2026-09-10' }]
-  assert.equal(pulizieAperte(bookings, room.id, '2026-09-10', []).length, 2)
+  assert.deepEqual(pulizieAperte(bookings, room.id, '2026-09-10', []).map(p => p.booking.id), ['nuovo'])
   assert.equal(conteggioGiorno([room], bookings, [], '2026-09-10', '2026-09-10').daFare, 1)
+  // il giorno stesso dell'arrivo (8 settembre) la prima era ancora da fare: arrivo = oggi, non superata
+  assert.deepEqual(pulizieAperte(bookings, room.id, '2026-09-08', []).map(p => p.booking.id), ['lungo'])
 })
 
 test('secondo esatto e frazioni di microsecondo: ultima conferma dopo il rinvio, anche con ID in ordine inverso', () => {

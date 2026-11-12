@@ -258,14 +258,37 @@ export function partenzaAperta(bookings: PrenotazionePulizie[], roomId: string, 
   return stato.chiusa ? null : stato
 }
 
-// Tutte le partenze ancora da confermare dal nuovo metodo. Un nuovo
-// ospite o una seconda partenza non cancellano una conferma mancante.
+// ------------------------------------------------- pulizie superate
+
+// Regola di Ania del 12/11/2026: una pulizia aperta della camera con
+// scadenza nel giorno D è SUPERATA quando nella stessa camera un altro
+// ospite è arrivato (prenotazione attiva, non un prolungamento; un cambio
+// camera conta come arrivo nella camera in cui entra) in un giorno >= D e
+// < oggi: dopo quella scadenza lì ha già dormito qualcuno, quindi la camera
+// era stata preparata. Se l'arrivo successivo è proprio OGGI la pulizia non
+// è superata: è quella vera di oggi, col suo ritardo. Vale per tutti i
+// tipi (fine soggiorno, cambio camera, 4 notti). Le superate non si
+// chiedono più e basta: nessuna scrittura, nessuna «fatta» in automatico,
+// niente Registro né Statistiche (ogni pulizia la segna Ania, 28/09/2026).
+// Questa è l'UNICA sede della regola: Home, pagina Pulizie, striscia della
+// settimana, notifica push e cronologia passano tutte da partenzeAperte e
+// pulizieAperte, che la applicano.
+export function puliziaSuperata(bookings: PrenotazionePulizie[], roomId: string, scadenza: string, oggi: string, escludiId?: string | null): boolean {
+  return bookings.some(b => b.room_id === roomId && b.id !== escludiId
+    && b.check_in >= scadenza && b.check_in < oggi && !continuaDa(bookings, b))
+}
+
+// Tutte le partenze ancora da confermare dal nuovo metodo. Una seconda
+// partenza non cancella una conferma mancante; la cancella soltanto un
+// ospite arrivato dopo la scadenza e prima di oggi (puliziaSuperata).
 export function partenzeAperte(bookings: PrenotazionePulizie[], roomId: string, oggi: string, events: Decisione[]): FineSoggiorno[] {
   const recenti = bookings.filter(b => b.room_id === roomId && b.check_out >= CONFERMA_MANUALE_DAL && b.check_out <= oggi && !continuaIn(bookings, b))
     .map(b => statoFineSoggiorno(bookings, b, events)).filter(s => !s.chiusa)
   const precedente = partenzaAperta(bookings, roomId, oggi, events)
   if (precedente && precedente.partenza.check_out < CONFERMA_MANUALE_DAL) recenti.unshift(precedente)
-  return recenti.sort((a, b) => a.due.localeCompare(b.due))
+  return recenti
+    .filter(s => !puliziaSuperata(bookings, roomId, s.due, oggi, s.partenza.id))
+    .sort((a, b) => a.due.localeCompare(b.due))
 }
 
 // ------------------------------------------------------------ prossimo arrivo
@@ -411,7 +434,7 @@ export function pulizieAperte(bookings: PrenotazionePulizie[], roomId: string, o
   const inCorso = bookings.find(b => b.room_id === roomId && b.check_in <= oggi && b.check_out > oggi) || null
   if (inCorso) {
     const ciclo = cicloCambio(bookings, inCorso, events)
-    if (ciclo.due && ciclo.due <= oggi) {
+    if (ciclo.due && ciclo.due <= oggi && !puliziaSuperata(bookings, roomId, ciclo.due, oggi, inCorso.id)) {
       out.push({
         roomId, tipo: 'soggiorno', booking: inCorso,
         prevista: ciclo.prevista || ciclo.due, due: ciclo.due,
