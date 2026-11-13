@@ -1,7 +1,9 @@
 // Statistiche approvate da Ania il 25/09/2026, sui dati confermati: una
 // riga = un intervento nella sua data effettiva. Ogni totale dichiara su
-// quanti interventi è documentato; «non annotato» non diventa mai zero e i
+// quanti interventi è documentato; recuperi assenti valgono zero dopo lettura riuscita e i
 // dati dello storico senza misura restano in una riga a parte.
+import { proponiAssettoDaSoggiorno } from './dotazionePulizie.ts'
+import { type PrenotazionePulizie, type CameraPulizie } from './pulizie.ts'
 import { VOCI_DOTAZIONE, pezziVuoti, totalePezzi, assettoDaSql, pezziDaSql, recuperoDaRiga, dotazioneDaAssetto, type AssettoPulizia, type PezziPulizie, type SenzaMisura, type TipoIntervento } from './dotazionePulizie.ts'
 
 export type InterventoStat = {
@@ -9,19 +11,21 @@ export type InterventoStat = {
   assetto: AssettoPulizia | null; dotazione: PezziPulizie | null
   recuperi: PezziPulizie | null; senzaMisura: SenzaMisura; minuti: number | null
 }
-type RigaCleaning = { id?: string; room_id: string; tipo: TipoIntervento; stato: string; data_prevista: string; data_effettiva?: string | null; assetto?: unknown; dotazione?: unknown; minuti?: number | null }
+type RigaCleaning = { id?: string; room_id: string; tipo: TipoIntervento; stato: string; data_prevista: string; data_effettiva?: string | null; assetto?: unknown; dotazione?: unknown; minuti?: number | null; persone_servite?: number | null }
 
 // Dalla tabella: pulizia confermata + la sua riga di recupero (se annotata).
-export function interventiDaTabelle(cleanings: RigaCleaning[], recuperi: Record<string, unknown>[] | null): InterventoStat[] {
+export function interventiDaTabelle(cleanings: RigaCleaning[], recuperi: Record<string, unknown>[] | null, bookings: PrenotazionePulizie[] = [], rooms: CameraPulizie[] = []): InterventoStat[] {
   const perId = new Map((recuperi ?? []).map(r => [String(r.cleaning_id), r]))
   return cleanings.filter(c => c.stato === 'fatta' && c.id).map(c => {
-    const assetto = assettoDaSql(c.assetto)
+    const b = bookings.find(b => b.id === (c as RigaCleaning & { booking_id?: string }).booking_id)
+    const camera = rooms.find(r => r.id === c.room_id)?.name.split(' ').slice(-1)[0]
+    const assetto = assettoDaSql(c.assetto) ?? (b && camera ? proponiAssettoDaSoggiorno(camera, b, c.data_effettiva || c.data_prevista, c.persone_servite) : null)
     const salvata = pezziDaSql(c.dotazione)
     // La fotografia salvata comanda; se manca ma i letti ci sono, si ricava con la stessa regola.
     const dotazione = salvata ?? (assetto ? dotazioneDaAssetto(assetto) : null)
     const rec = recuperi === null ? null : recuperoDaRiga(perId.get(c.id!) ?? null)
     return { id: c.id!, roomId: c.room_id, data: c.data_effettiva || c.data_prevista, tipo: c.tipo,
-      assetto, dotazione, recuperi: rec?.pezzi ?? null, senzaMisura: rec?.senzaMisura ?? { lenzuolo_sotto: 0, lenzuolo_sopra: 0 },
+      assetto, dotazione, recuperi: recuperi === null ? null : rec?.pezzi ?? pezziVuoti(), senzaMisura: rec?.senzaMisura ?? { lenzuolo_sotto: 0, lenzuolo_sopra: 0 },
       minuti: Number.isInteger(c.minuti) && Number(c.minuti) > 0 ? Number(c.minuti) : null }
   })
 }

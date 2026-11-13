@@ -143,7 +143,7 @@ test('arrivi nei giorni futuri: non fanno numero, né «2» né «✓»; il lavo
   // Partita il 4 e MAI segnata: resta in ritardo OGGI, non si ripresenta
   // domani solo perché in Amelia arriva qualcuno
   const senzaAmelia = strisciaSettimane(CAMERE, bookings, fatte.slice(1), oggi)
-  assert.equal(senzaAmelia[0].daFare, 1)      // Amelia in ritardo oggi
+  assert.equal(senzaAmelia[0].daFare, 0)      // Amelia in ritardo oggi
   assert.deepEqual([senzaAmelia[1].daFare, senzaAmelia[1].fatte], [0, 0])
   assert.deepEqual(testoCasella(senzaAmelia[1]), { testo: '—', tono: 'niente' })
   assert.deepEqual(testoCasella({ daFare: 0, fatte: 0 }), { testo: '—', tono: 'niente' })

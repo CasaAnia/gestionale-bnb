@@ -34,8 +34,8 @@ import { ricaricaDaControllare } from '@/lib/daControllareDati'
 import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import { confermateNelGiorno, prossimePulizie, rinviiInCorso } from '@/lib/pulizieVista'
 import {
-  confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi, cronologiaCamera,
-  pulizieAutomatiche, conteggioGiorno, pulizieDelGiorno, prioritaCamera, confrontaUrgenza, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
+  storicoPulizieCompleto, puliziaPresunta, confrontaDecisioni, attive, soggiornoContinuativo, pulizieAperte, prossimoArrivo, prioritaDi, cronologiaCamera,
+  conteggioGiorno, pulizieDelGiorno, prioritaCamera, confrontaUrgenza, diffDays, todayStr, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA, GIORNI_PREAVVISO,
   type PrenotazionePulizie, type CameraPulizie, type Decisione, type PuliziaAutomatica,
 } from '@/lib/pulizie'
 
@@ -128,6 +128,7 @@ export default function Pulizie() {
   const prenotazioni = useMemo(() => attive(bookings), [bookings])
   const breve = useCallback((id: string) => { const r = rooms.find(x => x.id === id); return r ? r.name.split(' ').slice(-1)[0] : 'un’altra camera' }, [rooms])
   const nomeDaPrenotazione = useCallback((bookingId: string) => { const b = bookings.find(x => x.id === bookingId); return b ? breve(b.room_id) : null }, [bookings, breve])
+  const storico = useMemo(() => storicoPulizieCompleto(prenotazioni, events, td), [prenotazioni, events, td])
   const ultimaId = (camera: string) => events.filter(e => e.room_id === camera).sort((a, b) => confrontaDecisioni(b, a))[0]?.id ?? null
   function ricarica() { setRilettura(x => x + 1) }
   function aggiornato(r: RispostaPulizia) {
@@ -140,20 +141,20 @@ export default function Pulizie() {
     const aperte = pulizieAperte(prenotazioni, room.id, td, events)
     const arrivo = prossimoArrivo(prenotazioni, room.id, td)
     const priorita = prioritaCamera(aperte, arrivo)
-    return { room, nome: breve(room.id), aperte, arrivo, priorita, cronologia: cronologiaCamera(prenotazioni, room.id, td, events, rooms) }
-  }).filter(r => r.aperte.length > 0).sort(confrontaUrgenza), [rooms, prenotazioni, events, td, breve])
+    return { room, nome: breve(room.id), aperte, arrivo, priorita, cronologia: cronologiaCamera(prenotazioni, room.id, td, storico, rooms) }
+  }).filter(r => r.aperte.length > 0).sort(confrontaUrgenza), [rooms, prenotazioni, events, storico, td, breve])
   const daFare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
   // Su un giorno che deve venire: lo stesso numero della striscia della Home
   const daFareNelGiorno = futuro ? conteggioGiorno(rooms, prenotazioni, events, giorno, td).daFare : daFare
   const prima = giornoPrima(giorno, td), dopo = giornoDopo(giorno, td)
-  const confermate = confermateNelGiorno(events, td)
+  const confermate = confermateNelGiorno(storico, td)
   // Il grafico: una riga per OGNI camera attiva, nell'ordine di sempre
-  const grafico = useMemo(() => rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, events as Parameters<typeof rigaGiornata>[3], td, conOrari)), [rooms, prenotazioni, events, td, conOrari, breve])
+  const grafico = useMemo(() => rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, storico as Parameters<typeof rigaGiornata>[3], td, conOrari)), [rooms, prenotazioni, storico, td, conOrari, breve])
   const spaziOggi = useMemo(() => rigaSpaziComuni(fuoriOggi, td), [fuoriOggi, td])
   const conto = contoGiorno(daFare, confermate)
   // Pulite oggi: in fondo, una riga sola con l'ora in cui sono state segnate
-  const fatteOggi = useMemo(() => events.filter(e => e.stato === 'fatta' && e.id && (e.data_effettiva || e.data_prevista) === td)
-    .map(e => { const o = oraSegnata(e as Parameters<typeof oraSegnata>[0], romaDi); return { id: e.id!, room_id: e.room_id, ora: o === null ? null : oraTesto(o), minuti: e.minuti ?? null } }), [events, td])
+  const fatteOggi = useMemo(() => storico.filter(e => e.stato === 'fatta' && e.id && (e.data_effettiva || e.data_prevista) === td)
+    .map(e => { const o = oraSegnata(e as Parameters<typeof oraSegnata>[0], romaDi); return { id: e.id!, room_id: e.room_id, ora: o === null ? null : oraTesto(o), minuti: e.minuti ?? null } }), [storico, td])
   const prossime = useMemo(() => prossimePulizie(prenotazioni, rooms.filter(r => r.active !== false).map(r => r.id), td, events)
     .filter(p => !camereOggi.some(c => c.room.id === p.roomId && c.aperte.some(a => a.tipo === p.tipo && a.booking.id === p.booking.id && a.due === p.data))), [prenotazioni, rooms, td, events, camereOggi])
   const rinvii = useMemo(() => rinviiInCorso(events, td), [events, td])
@@ -166,10 +167,10 @@ export default function Pulizie() {
     const priorita = prioritaCamera(aperte, arrivo)
     return { room, nome: breve(room.id), aperte, arrivo, priorita }
   }).filter(r => r.aperte.length > 0).sort(confrontaUrgenza)
-  const graficoFuturo = !futuro ? [] : rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, events as Parameters<typeof rigaGiornata>[3], giorno, conOrari,
+  const graficoFuturo = !futuro ? [] : rooms.filter(r => r.active !== false).map(r => rigaGiornata(r, breve(r.id), prenotazioni, storico as Parameters<typeof rigaGiornata>[3], giorno, conOrari,
     pulizieDelGiorno(prenotazioni, r.id, giorno, td, events)))
 
-  const apri = (camera: string, pulizia: Decisione, booking: PrenotazionePulizie | null) => setScheda({ camera, pulizia, booking })
+  const apri = (camera: string, pulizia: Decisione, booking: PrenotazionePulizie | null) => setScheda({ camera, pulizia: puliziaPresunta(pulizia) ? { ...pulizia, id: undefined } : pulizia, booking })
   const vaiA = useCallback((chiave: string) => {
     setScheda(null); setVista('oggi')
     const p = chiave.split(':')
@@ -179,7 +180,6 @@ export default function Pulizie() {
   }, [bookings, setScheda, setVista])
 
   // Registro: le pulizie automatiche di prima, con i loro due comandi
-  const automatiche = useMemo(() => pulizieAutomatiche(prenotazioni, events, td), [prenotazioni, events, td])
   async function correggiAutomatica(a: PuliziaAutomatica, chiave: string, modo: 'data' | 'tolta') {
     if (saving) return
     setSaving(a.roomId); setAvviso('')
@@ -251,7 +251,7 @@ export default function Pulizie() {
       </>}
     </>}
     {vista === 'registro' && <RegistroPulizie camere={rooms.filter(r => r.active !== false).map(r => ({ id: r.id, nome: breve(r.id) }))}
-      events={events} recuperi={recuperi} automatiche={automatiche} oggi={td} rilettura={rilettura} nomeCamera={breve}
+      events={storico} recuperi={recuperi} automatiche={[]} oggi={td} rilettura={rilettura} nomeCamera={breve}
       onApri={e => apri(breve(e.room_id), e, bookings.find(b => b.id === e.booking_id) ?? null)}
       onApriSpazi={(giorno, voce, righe) => setFoglioSpazi({ giorno, voce, righe })}
       automatica={(a, chiave) => correzione[chiave] !== undefined ? <div className="flex flex-wrap items-center gap-2 mt-3"><label className="text-xs">Fatta il<input type="date" className="ed-campo ml-2" max={td} value={correzione[chiave]} onChange={ev => setCorrezione({ ...correzione, [chiave]: ev.target.value })} /></label><button type="button" className="pul-az" disabled={!!saving || !correzione[chiave]} onClick={() => void correggiAutomatica(a, chiave, 'data')}>Conferma</button><button type="button" className="pul-az tn" onClick={() => setCorrezione(c => { const r = { ...c }; delete r[chiave]; return r })}>Annulla</button></div>

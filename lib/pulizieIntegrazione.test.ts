@@ -77,7 +77,7 @@ test('statistiche: data effettiva a cavallo del mese, zero esplicito ≠ non ann
   const settembre = statistichePulizie(tutti, '2026-09-01', '2026-10-01')
   assert.equal(settembre.interventi, 2, 'il rinvio non è un intervento; quella del 1° ottobre conta a ottobre')
   assert.deepEqual(settembre.perTipo.map(t => t.n), [1, 0, 1])
-  assert.equal(settembre.conRecuperi, 1, 'Ambra: zero esplicito conta come annotato; Lena no')
+  assert.equal(settembre.conRecuperi, 2, 'Regola 12/11: recupero mancante vale zero, se la lettura è riuscita')
   assert.equal(settembre.conAssetto, 1); assert.equal(settembre.conDurata, 1); assert.equal(settembre.minuti, 20)
   assert.equal(settembre.percentualeRecupero, null, 'Lena senza dati: niente percentuale')
   const ottobre = statistichePulizie(tutti, '2026-10-01', '2026-11-01')

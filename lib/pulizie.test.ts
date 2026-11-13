@@ -101,7 +101,7 @@ test('nessun cambio se cadrebbe alla partenza o dopo', () => {
   assert.equal(cicloCambio([corto], corto, []).due, null)
 })
 
-test('partenza senza prossimo arrivo: nessuna fretta, e resta in lista anche nei giorni dopo', () => {
+test('partenza senza prossimo arrivo: da fare oggi, chiusa automaticamente dal giorno dopo', () => {
   const p = prenotazione({ room_id: AMBRA, check_in: '2026-08-22', check_out: '2026-08-25' })
   const oggi = '2026-08-25'
   const aperte = pulizieAperte([p], AMBRA, oggi, [])
@@ -110,8 +110,7 @@ test('partenza senza prossimo arrivo: nessuna fretta, e resta in lista anche nei
   assert.equal(testoArrivo(prossimoArrivo([p], AMBRA, oggi)), 'Nessun arrivo previsto')
   // due giorni dopo, mai segnata fatta: è ancora lì, in ritardo
   const dopo = pulizieAperte([p], AMBRA, '2026-08-27', [])
-  assert.equal(dopo.length, 1)
-  assert.equal(dopo[0].ritardo, 2)
+  assert.equal(dopo.length, 0)
   // segnata fatta → sparisce
   const fatta = [decisione({ booking_id: p.id, tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: '2026-08-25', data_effettiva: '2026-08-27' })]
   assert.equal(pulizieAperte([p], AMBRA, '2026-08-27', fatta).length, 0)
@@ -304,9 +303,8 @@ test('AUTOMATICA · partenza senza arrivo → niente: si segna a mano come oggi'
   const p = prenotazione({ room_id: AMBRA, check_in: '2026-08-27', check_out: '2026-08-30' })
   assert.equal(pulizieAutomatiche([p], [], '2026-09-04').length, 0)
   const dopo = pulizieAperte([p], AMBRA, '2026-09-01', [])
-  assert.equal(dopo.length, 1)
-  assert.equal(dopo[0].ritardo, 2)
-  assert.equal(calcolaNotifica(rooms, [p], [], '2026-09-01').inRitardo.length, 1)
+  assert.equal(dopo.length, 0)
+  assert.equal(calcolaNotifica(rooms, [p], [], '2026-09-01').inRitardo.length, 0)
 })
 
 test('AUTOMATICA · pulizia manuale già segnata lo stesso giorno nella camera → nessun doppione', () => {

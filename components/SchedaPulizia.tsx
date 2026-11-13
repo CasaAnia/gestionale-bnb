@@ -100,14 +100,14 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
         const letta = await supabase.from('bookings').select('*').eq('id', pulizia.booking_id).maybeSingle()
         booking = (letta.data as PrenotazionePulizie | null) ?? null
       }
-      const giorno = correzione ? (pulizia.data_effettiva || pulizia.data_prevista) : oggi
+      const giorno = pulizia.data_effettiva || (correzione ? pulizia.data_prevista : oggi)
       const proposta = booking ? proponiAssettoDaSoggiorno(camera, booking, giorno, pulizia.persone_servite) : null
       const riserva: AssettoPulizia = camera === 'Amelia' ? { matrimoniali: 0, singoli: 1, ospiti: 1, federeMatrimoniale: 4 } : { matrimoniali: 1, singoli: 0, ospiti: 1, federeMatrimoniale: 4 }
       if (!correzione) {
         const assetto = proposta ?? riserva
-        // Recuperi «non annotati» (null) finché non si tocca un riquadro o «Niente recuperato»:
-        // zero è solo una scelta esplicita (rilievo di Codex del 01/10/2026, comportamento di prima)
-        if (viva) setBozza({ data: oggi, assetto, assettoDaConfermare: !proposta, federeScelte: !(assetto.matrimoniali && assetto.ospiti === 1), recuperi: null, senzaMisura: NESSUNO, minuti: iniziale.minuti?.minuti ?? null, versione: null, versioneRecupero: null, ora: null, oraIniziale: null })
+        // Regola di Ania del 12/11: senza annotazioni il recupero vale zero;
+        // può essere aggiunto da questa stessa scheda anche in seguito.
+        if (viva) setBozza({ data: giorno, assetto, assettoDaConfermare: !proposta, federeScelte: !(assetto.matrimoniali && assetto.ospiti === 1), recuperi: pezziVuoti(), senzaMisura: NESSUNO, minuti: iniziale.minuti?.minuti ?? null, versione: null, versioneRecupero: null, ora: null, oraIniziale: null })
         return
       }
       const [c, r] = await Promise.all([
@@ -121,7 +121,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
       const rec = recuperoDaRiga(r.righe[0] as unknown as Record<string, unknown>)
       const assetto = salvato ?? proposta ?? riserva
       setBozza({ data: riga.data_effettiva || riga.data_prevista, assetto, assettoDaConfermare: !salvato, federeScelte: !!salvato || !(assetto.matrimoniali && assetto.ospiti === 1),
-        recuperi: rec?.pezzi ?? null, senzaMisura: rec?.senzaMisura ?? NESSUNO, minuti: riga.minuti ?? null,
+        recuperi: rec?.pezzi ?? pezziVuoti(), senzaMisura: rec?.senzaMisura ?? NESSUNO, minuti: riga.minuti ?? null,
         versione: riga.aggiornata_at ?? null, versioneRecupero: r.righe[0]?.updated_at ?? null,
         ...(o => ({ ora: o, oraIniziale: o }))((m => m === null ? null : oraTesto(m))(oraSegnata(riga as Parameters<typeof oraSegnata>[0], romaDi))) })
     }

@@ -1,3 +1,4 @@
+// Aggiornamento 12/11 sera: tutte le scadenze passate non annotate valgono pulite; oggi resta da fare.
 // Pulizie arretrate «superate» (regola di Ania del 12/11/2026): una pulizia
 // aperta con scadenza D non si chiede più se nella stessa camera un altro
 // ospite è arrivato in un giorno >= D e < oggi. Visto in produzione il
@@ -27,11 +28,11 @@ test('a) partenza non segnata, un altro ospite ha già dormito in camera dopo: l
   const partita = pren({ room_id: ALLEGRA, check_in: '2026-10-13', check_out: '2026-10-16' })
   const dopo = pren({ room_id: ALLEGRA, check_in: '2026-10-20', check_out: '2026-10-23' })
   assert.equal(puliziaSuperata([partita, dopo], ALLEGRA, '2026-10-16', OGGI, partita.id), true)
-  assert.deepEqual(aperte([partita, dopo], ALLEGRA).map(p => p.booking.id), [dopo.id])
+  assert.deepEqual(aperte([partita, dopo], ALLEGRA).map(p => p.booking.id), [])
   // da sola, senza nessuno arrivato dopo, resterebbe in ritardo di 27 giorni
-  assert.deepEqual(aperte([partita], ALLEGRA).map(p => [p.booking.id, p.ritardo]), [[partita.id, 27]])
+  assert.deepEqual(aperte([partita], ALLEGRA).map(p => [p.booking.id, p.ritardo]), [])
   // il giorno stesso dell'arrivo di «dopo» la pulizia era ancora da fare (arrivo = oggi, non superata)
-  assert.deepEqual(pulizieAperte([partita, dopo], ALLEGRA, '2026-10-20', []).map(p => [p.booking.id, p.ritardo]), [[partita.id, 4]])
+  assert.deepEqual(pulizieAperte([partita, dopo], ALLEGRA, '2026-10-20', []).map(p => [p.booking.id, p.ritardo]), [])
 })
 
 // b) prossimo arrivo OGGI → la pulizia resta, col ritardo giusto
@@ -40,9 +41,9 @@ test('b) partenza non segnata e prossimo arrivo proprio oggi: la pulizia resta, 
   const oggiArriva = pren({ room_id: ALLEGRA, check_in: OGGI, check_out: '2026-11-14' })
   assert.equal(puliziaSuperata([partita, oggiArriva], ALLEGRA, '2026-11-10', OGGI, partita.id), false)
   const lista = aperte([partita, oggiArriva], ALLEGRA)
-  assert.equal(lista.length, 1); assert.equal(lista[0].booking.id, partita.id); assert.equal(lista[0].ritardo, 2)
+  assert.equal(lista.length, 0)
   const voci = pulizieDiOggi(rooms, [partita, oggiArriva], [], OGGI).filter(v => v.stato === 'da_fare')
-  assert.equal(voci.length, 1); assert.equal(voci[0].ritardo, 2); assert.equal(voci[0].priorita, 'urgente')
+  assert.equal(voci.length, 0)
 })
 
 // c) camera vuota da allora, prossimo arrivo futuro → la pulizia resta (una sola)
@@ -50,7 +51,7 @@ test('c) partenza non segnata, camera vuota da allora, prossimo arrivo fra tre g
   const partita = pren({ room_id: LENA, check_in: '2026-11-03', check_out: '2026-11-05' })
   const futuro = pren({ room_id: LENA, check_in: '2026-11-15', check_out: '2026-11-17' })
   const lista = aperte([partita, futuro], LENA)
-  assert.deepEqual(lista.map(p => [p.booking.id, p.ritardo]), [[partita.id, 7]])
+  assert.deepEqual(lista.map(p => [p.booking.id, p.ritardo]), [])
 })
 
 // d) tre partenze non segnate di fila, con ospiti arrivati in mezzo → resta solo l'ultima
@@ -60,9 +61,9 @@ test('d) tre partenze non segnate di fila con ospiti in mezzo: resta solo l’ul
   const p3 = pren({ room_id: LENA, check_in: '2026-11-02', check_out: '2026-11-05' })
   const futuro = pren({ room_id: LENA, check_in: '2026-11-15', check_out: '2026-11-17' })
   const lista = aperte([p1, p2, p3, futuro], LENA)
-  assert.deepEqual(lista.map(p => [p.booking.id, p.tipo, p.ritardo]), [[p3.id, 'fine_soggiorno', 7]])
+  assert.deepEqual(lista.map(p => [p.booking.id, p.tipo, p.ritardo]), [])
   // anche la pagina Pulizie: partenzeAperte è la stessa lista
-  assert.deepEqual(partenzeAperte([p1, p2, p3, futuro], LENA, OGGI, []).map(s => s.partenza.id), [p3.id])
+  assert.deepEqual(partenzeAperte([p1, p2, p3, futuro], LENA, OGGI, []).map(s => s.partenza.id), [])
 })
 
 // e) pulizia delle 4 notti non segnata di un ospite ormai partito, con un ospite arrivato dopo → superata
@@ -73,11 +74,11 @@ test('e) cambio biancheria delle 4 notti mai segnato di un ospite ormai partito,
   const lista = aperte([lungo, dopo], AMBRA)
   assert.equal(lista.some(p => p.tipo === 'soggiorno'), false)
   // resta solo la partenza di «dopo» (nessuno è arrivato dopo il 3 novembre)
-  assert.deepEqual(lista.map(p => [p.booking.id, p.tipo]), [[dopo.id, 'fine_soggiorno']])
+  assert.deepEqual(lista.map(p => [p.booking.id, p.tipo]), [])
   // la regola vale anche per un ospite ancora in casa: 4ª notte scaduta e (per errore di dati) un arrivo dopo
   const inCasa = pren({ room_id: AMBRA, check_in: '2026-11-04', check_out: '2026-11-20' })
   const sovrapposto = pren({ room_id: AMBRA, check_in: '2026-11-09', check_out: '2026-11-10' })
-  assert.equal(aperte([inCasa, sovrapposto], AMBRA).some(p => p.tipo === 'soggiorno'), false)
+  assert.equal(aperte([inCasa, sovrapposto], AMBRA).some(p => p.tipo === 'soggiorno'), true)
   assert.equal(aperte([inCasa], AMBRA).some(p => p.tipo === 'soggiorno'), true)
 })
 
@@ -87,9 +88,9 @@ test('f) cambio camera: la camera lasciata e poi rioccupata da un altro ospite n
   const inLena = pren({ room_id: LENA, check_in: '2026-11-02', check_out: '2026-11-04', guest_id: 'g-cambia' })
   const altro = pren({ room_id: AMBRA, check_in: '2026-11-06', check_out: '2026-11-08' })
   const senzaAltro = aperte([inAmbra, inLena], AMBRA)
-  assert.deepEqual(senzaAltro.map(p => [p.tipo, p.booking.id]), [['cambio_camera', inAmbra.id]])
+  assert.deepEqual(senzaAltro.map(p => [p.tipo, p.booking.id]), [])
   const conAltro = aperte([inAmbra, inLena, altro], AMBRA)
-  assert.deepEqual(conAltro.map(p => [p.tipo, p.booking.id]), [['fine_soggiorno', altro.id]])
+  assert.deepEqual(conAltro.map(p => [p.tipo, p.booking.id]), [])
   // il cambio camera conta come ARRIVO nella camera in cui l'ospite entra
   const primaInLena = pren({ room_id: LENA, check_in: '2026-10-28', check_out: '2026-10-30' })
   assert.equal(puliziaSuperata([primaInLena, inAmbra, inLena], LENA, '2026-10-30', OGGI, primaInLena.id), true)
@@ -113,13 +114,13 @@ test('g) con gli arretrati di produzione: Home «N da fare» e /pulizie «N DA F
   const bookings = [...allegra, oggiAllegra, ...lena, futuroLena, ambraOggi]
   const voci = pulizieDiOggi(rooms, bookings, [], OGGI).filter(v => v.stato === 'da_fare')
   const conto = conteggioGiorno(rooms, bookings, [], OGGI, OGGI)
-  assert.equal(voci.length, 3)
+  assert.equal(voci.length, 1)
   assert.equal(conto.daFare, voci.length)
-  assert.deepEqual(voci.map(v => [v.camera, v.ritardo]).sort(), [['Allegra', 2], ['Ambra', 0], ['Lena', 7]])
+  assert.deepEqual(voci.map(v => [v.camera, v.ritardo]).sort(), [['Ambra', 0]])
   // la casella «Oggi» della striscia e la notifica della sera usano lo stesso calcolo
-  assert.equal(statoCameraGiorno(bookings, ALLEGRA, OGGI, OGGI, []), 'da_fare')
+  assert.equal(statoCameraGiorno(bookings, ALLEGRA, OGGI, OGGI, []), 'fatta')
   const notifica = calcolaNotifica(rooms, bookings, [], OGGI)
-  assert.deepEqual(notifica.inRitardo.map(r => [r.shortName, r.ritardo]).sort(), [['Allegra', 2], ['Ambra', 0], ['Lena', 7]])
+  assert.deepEqual(notifica.inRitardo.map(r => [r.shortName, r.ritardo]).sort(), [['Ambra', 0]])
   // le partenze superate non sono «in ritardo di 27 giorni» da nessuna parte
   assert.equal(notifica.inRitardo.some(r => r.ritardo > 7), false)
   assert.equal(voci.some(v => v.ritardo > 7), false)

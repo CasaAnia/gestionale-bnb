@@ -57,6 +57,7 @@ export type Decisione = {
   note?: string | null     // NOTA_AUTOMATICA_* quando la riga corregge una pulizia automatica
   created_at?: string
   persone_servite?: number | null
+  minuti?: number | null
 }
 
 // PostgreSQL conserva i microsecondi; Date.parse da solo li tronca e il
@@ -156,7 +157,7 @@ export function soggiornoContinuativo(bookings: PrenotazionePulizie[], b: Prenot
 function ultimaDecisione(events: Decisione[], bookingIds: Set<string>, tipi: TipoPulizia[]): Decisione | null {
   const propri = (events || [])
     .filter(e => e.booking_id && bookingIds.has(e.booking_id) && tipi.includes(e.tipo))
-    .sort(confrontaDecisioni)
+    .sort((a, b) => (tipi.length === 1 && tipi[0] === 'soggiorno' ? a.data_prevista.localeCompare(b.data_prevista) : 0) || confrontaDecisioni(a, b))
   return propri.length ? propri[propri.length - 1] : null
 }
 
@@ -165,7 +166,7 @@ function ultimaDecisione(events: Decisione[], bookingIds: Set<string>, tipi: Tip
 function rinviiInCoda(events: Decisione[], bookingIds: Set<string>, tipi: TipoPulizia[]): Decisione[] {
   const propri = (events || [])
     .filter(e => e.booking_id && bookingIds.has(e.booking_id) && tipi.includes(e.tipo))
-    .sort(confrontaDecisioni)
+    .sort((a, b) => (tipi.length === 1 && tipi[0] === 'soggiorno' ? a.data_prevista.localeCompare(b.data_prevista) : 0) || confrontaDecisioni(a, b))
   const coda: Decisione[] = []
   for (let i = propri.length - 1; i >= 0 && propri[i].stato === 'rimandata'; i--) coda.unshift(propri[i])
   return coda
@@ -282,6 +283,7 @@ export function puliziaSuperata(bookings: PrenotazionePulizie[], roomId: string,
 // partenza non cancella una conferma mancante; la cancella soltanto un
 // ospite arrivato dopo la scadenza e prima di oggi (puliziaSuperata).
 export function partenzeAperte(bookings: PrenotazionePulizie[], roomId: string, oggi: string, events: Decisione[]): FineSoggiorno[] {
+  events = storicoPulizieCompleto(bookings, events, oggi)
   const recenti = bookings.filter(b => b.room_id === roomId && b.check_out >= CONFERMA_MANUALE_DAL && b.check_out <= oggi && !continuaIn(bookings, b))
     .map(b => statoFineSoggiorno(bookings, b, events)).filter(s => !s.chiusa)
   const precedente = partenzaAperta(bookings, roomId, oggi, events)
@@ -416,6 +418,7 @@ export function pulizieAutomatiche(tutteLePrenotazioni: PrenotazionePulizie[], e
 // Le pulizie aperte di una camera al giorno `oggi` (fine soggiorno rimasti
 // da fare + cambio 4 notti scaduto). È il cuore della sezione "Oggi".
 export function pulizieAperte(bookings: PrenotazionePulizie[], roomId: string, oggi: string, events: Decisione[]): Pulizia[] {
+  events = storicoPulizieCompleto(bookings, events, oggi)
   const out: Pulizia[] = []
 
   for (const fs of partenzeAperte(bookings, roomId, oggi, events).filter(s => s.due <= oggi)) {
@@ -433,7 +436,7 @@ export function pulizieAperte(bookings: PrenotazionePulizie[], roomId: string, o
 
   const inCorso = bookings.find(b => b.room_id === roomId && b.check_in <= oggi && b.check_out > oggi) || null
   if (inCorso) {
-    const ciclo = cicloCambio(bookings, inCorso, events)
+    const ciclo = cicloCambio(bookings, inCorso, storicoPulizieCompleto(bookings, events, oggi))
     if (ciclo.due && ciclo.due <= oggi && !puliziaSuperata(bookings, roomId, ciclo.due, oggi, inCorso.id)) {
       out.push({
         roomId, tipo: 'soggiorno', booking: inCorso,
@@ -532,7 +535,7 @@ export function cronologiaCamera(bookings: PrenotazionePulizie[], roomId: string
     }
 
     // Una sola data futura: la prossima scadenza calcolata adesso
-    const ciclo = cicloCambio(bookings, inCorso, events)
+    const ciclo = cicloCambio(bookings, inCorso, storicoPulizieCompleto(bookings, events, oggi))
     if (ciclo.due) {
       if (ciclo.due <= oggi) {
         const rit = diffDays(oggi, ciclo.due)
@@ -626,7 +629,7 @@ export function calcolaNotifica(camereLette: Record<string, unknown>[], tutteLeP
     // ...e cambio 4 notti in scadenza domani (ospite presente anche domani)
     const inCorsoDomani = bookings.find(b => b.room_id === room.id && b.check_in <= domani && b.check_out > domani)
     if (inCorsoDomani) {
-      const ciclo = cicloCambio(bookings, inCorsoDomani, events)
+      const ciclo = cicloCambio(bookings, inCorsoDomani, storicoPulizieCompleto(bookings, events, oggi))
       if (ciclo.due === domani) {
         righeDomani.push({ shortName: nome, tipo: 'soggiorno', ritardo: 0, testo: `${nome} — pulizia 4 notti · ${nomeDi(inCorsoDomani)} resta · priorità alta` })
       }
@@ -671,6 +674,7 @@ type Prenotazioni = Parameters<typeof pulizieAperte>[0]
 export type MotivoCamera = { tipo: 'partenza' | 'rimasta' | 'biancheria' | 'cambio'; booking: PrenotazionePulizie; verso?: PrenotazionePulizie | null }
 
 function esameCameraGiorno(bookings: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): { motivi: MotivoCamera[]; fatta: boolean } {
+  events = storicoPulizieCompleto(bookings, events, oggi)
   const motivi: MotivoCamera[] = []
   let fatta = false
   if (giorno < oggi) return { motivi, fatta }
@@ -701,7 +705,7 @@ function esameCameraGiorno(bookings: Prenotazioni, roomId: string, giorno: strin
   // Cambio biancheria
   const inCorso = bookings.find(b => b.room_id === roomId && b.check_in <= giorno && b.check_out > giorno) || null
   if (inCorso) {
-    const ciclo = cicloCambio(bookings, inCorso, events)
+    const ciclo = cicloCambio(bookings, inCorso, storicoPulizieCompleto(bookings, events, oggi))
     if (ciclo.due === giorno || (giorno === oggi && ciclo.due !== null && ciclo.due < oggi)) motivi.push({ tipo: 'biancheria', booking: inCorso })
   }
   if ((events || []).some(e => e.room_id === roomId && e.tipo === 'soggiorno' && e.stato === 'fatta' && (e.data_effettiva || e.data_prevista) === giorno)) fatta = true
@@ -753,7 +757,7 @@ export function pulizieDelGiorno(tutteLePrenotazioni: Prenotazioni, roomId: stri
   const { motivi } = esameCameraGiorno(bookings, roomId, giorno, oggi, events)
   return motivi.map(m => {
     if (m.tipo === 'biancheria') {
-      const ciclo = cicloCambio(bookings, m.booking, events)
+      const ciclo = cicloCambio(bookings, m.booking, storicoPulizieCompleto(bookings, events, oggi))
       return { roomId, tipo: 'soggiorno' as const, booking: m.booking, prevista: ciclo.prevista || giorno, due: giorno, ritardo: 0, rinvii: ciclo.rinvii }
     }
     const st = statoFineSoggiorno(bookings, m.booking, events)
@@ -767,4 +771,60 @@ export function conteggioGiorno(rooms: { id: string }[], tutteLePrenotazioni: Pr
   const bookings = attive(tutteLePrenotazioni)
   const stati = rooms.map(r => statoCameraGiorno(bookings, r.id, giorno, oggi, events))
   return { daFare: stati.filter(s => s === 'da_fare').length, fatte: stati.filter(s => s === 'fatta').length }
+}
+
+// Regola di Ania 12/11/2026: passato non annotato = pulito, recupero zero.
+// Proiezione ricalcolabile, senza scritture massive e senza alterare le decisioni.
+export const NOTA_PULIZIA_PRESUNTA = 'automatica: pulita senza recupero'
+export const puliziaPresunta = (e: Decisione) => e.note === NOTA_PULIZIA_PRESUNTA && !!e.id?.startsWith('auto:')
+export function storicoPulizieCompleto(tutte: PrenotazionePulizie[], events: Decisione[], oggi: string): Decisione[] {
+  const bookings = attive(tutte)
+  events = events.filter(e => !puliziaPresunta(e))
+  // Una registrazione tardiva non può cadere dopo che è già entrato un
+  // altro ospite. Conserviamo la riga e i suoi recuperi, ricollocando solo
+  // la vista sulla partenza di riferimento (regola del passato pulito).
+  events = events.map(e => {
+    if (e.stato !== 'fatta' || e.tipo === 'soggiorno' || !e.booking_id) return e
+    const b = bookings.find(b => b.id === e.booking_id)
+    const data = e.data_effettiva || e.data_prevista
+    if (!b || data <= b.check_out) return e
+    const dopo = bookings.some(x => x.room_id === b.room_id && x.id !== b.id && x.check_in >= b.check_out && x.check_in < data && !continuaDa(bookings, x))
+    return dopo ? { ...e, data_effettiva: b.check_out } : e
+  })
+  const out = [...events]
+  const aggiungi = (b: PrenotazionePulizie, tipo: TipoPulizia, data: string) => {
+    out.push({ id: `auto:${b.id}:${tipo}:${data}`, room_id: b.room_id, booking_id: b.id, tipo,
+      stato: 'fatta', data_prevista: data, data_effettiva: data, note: NOTA_PULIZIA_PRESUNTA,
+      persone_servite: Number(b.num_guests) || null })
+  }
+  // I prolungamenti nella stessa camera sono un solo soggiorno, anche se
+  // cambia il numero di persone; le azioni manuali riancorano la cadenza.
+  for (const b of bookings.filter(b => !continuaDa(bookings, b))) {
+    const { fine, tratto } = soggiornoContinuativo(bookings, b)
+    const ids = new Set(tratto.map(x => x.id))
+    const manuali = events.filter(e => e.booking_id && ids.has(e.booking_id) && e.tipo === 'soggiorno')
+      .sort((a, b) => a.data_prevista.localeCompare(b.data_prevista) || confrontaDecisioni(a, b))
+    const legacy = tratto.map(x => x.linen_next_date).filter((d): d is string => !!d).sort().at(-1)
+    let due = legacy && !manuali.length ? legacy : addDaysStr(b.check_in, NOTTI_CAMBIO)
+    const passo = (limite: string) => {
+      while (due < limite && due < fine.check_out && due < oggi) {
+        if (due >= CUTOFF_STORICO) {
+          const segmento = tratto.find(x => x.check_in < due && x.check_out >= due) ?? b
+          aggiungi(segmento, 'soggiorno', due)
+        }
+        due = addDaysStr(due, NOTTI_CAMBIO)
+      }
+    }
+    for (const e of manuali) {
+      passo(e.data_prevista)
+      if (e.stato === 'fatta') due = addDaysStr(e.data_effettiva || e.data_prevista, NOTTI_CAMBIO)
+      else if (e.prossima_data) due = e.prossima_data
+      else due = addDaysStr(e.data_prevista, NOTTI_CAMBIO)
+    }
+    passo(oggi)
+    const fs = statoFineSoggiorno(bookings, fine, events)
+    // Oggi resta da lavorare; dal giorno dopo si chiude automaticamente.
+    if (!fs.chiusa && fs.due < oggi && fs.due >= CUTOFF_STORICO) aggiungi(fine, fs.tipo, fs.due)
+  }
+  return out
 }

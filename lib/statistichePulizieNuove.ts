@@ -21,7 +21,7 @@
 // Funzioni pure, provate con node --test.
 // ============================================================================
 import { statistichePulizie, type InterventoStat } from './pulizieDotazioneStatistiche.ts'
-import { totalePezzi, type PezziPulizie } from './dotazionePulizie.ts'
+import { type PezziPulizie } from './dotazionePulizie.ts'
 import { minutiPerVoce, VOCI_SPAZI, type VoceSpazi } from './tempoPulizie.ts'
 import { spostaGiorni } from './periodoPulizie.ts'
 
@@ -101,12 +101,13 @@ export function statisticheNuove({ interventi, tempi, rinvii, dal, al, prima, ro
   const scala = (n: number) => ({ settimana: n / giorni * 7, mese: n / giorni * GIORNI_MESE, anno: n / giorni * 365 })
   // Mandati a lavare: dotazione meno recuperati, per pezzo (recuperi non
   // annotati = niente recuperato in quell'intervento, cioè tutto a lavare)
+  const bucato = base.righe.filter(r => r.dotazione && !base.daCorreggere.includes(r.id) && !r.senzaMisura.lenzuolo_sotto && !r.senzaMisura.lenzuolo_sopra)
   const mandati = PEZZI_LAVANDERIA.map(([k, nome, voci]) => {
-    const totale = voci.reduce((s, v) => s + base.dotazione[v], 0)
-    const recuperati = voci.reduce((s, v) => s + base.recuperi[v], 0)
+    const totale = bucato.reduce((s, r) => s + voci.reduce((n, v) => n + r.dotazione![v], 0), 0)
+    const recuperati = bucato.reduce((s, r) => s + voci.reduce((n, v) => n + (r.recuperi?.[v] ?? 0), 0), 0)
     return { pezzo: k, nome, totale, recuperati, aLavare: totale - recuperati, alMese: (totale - recuperati) / giorni * GIORNI_MESE }
   })
-  const preparati = totalePezzi(base.dotazione), recuperati = totalePezzi(base.recuperi)
+  const preparati = mandati.reduce((s, r) => s + r.totale, 0), recuperati = mandati.reduce((s, r) => s + r.recuperati, 0)
   const tipiRinvio = rinvii.filter(r => r.data_prevista >= dal && r.data_prevista <= al && (!roomId || r.room_id === roomId))
   // Confronto col periodo uguale precedente
   let confronto: { testo: string; meglio: boolean } | null = null

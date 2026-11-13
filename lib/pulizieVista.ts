@@ -1,7 +1,7 @@
 // Dati della pagina Pulizie approvata il 25/09/2026, dalle stesse regole
 // della Home (lib/pulizie): funzioni pure, provate in node.
 import {
-  attive, cicloCambio, confrontaDecisioni, partenzeAperte, soggiornoContinuativo, cambioCameraOut, addDaysStr,
+  storicoPulizieCompleto, attive, cicloCambio, confrontaDecisioni, partenzeAperte, soggiornoContinuativo, cambioCameraOut, addDaysStr,
   type Decisione, type PrenotazionePulizie, type TipoPulizia,
 } from './pulizie.ts'
 import { proponiAssettoDaSoggiorno, type AssettoPulizia } from './dotazionePulizie.ts'
@@ -27,6 +27,7 @@ export const confermateNelGiorno = (events: Decisione[], giorno: string) => even
 // partenze rimandate e fine soggiorno. Gli arrivi non sono pulizie.
 export type ProssimaPulizia = { roomId: string; data: string; tipo: TipoPulizia; booking: PrenotazionePulizie; rimandata: boolean }
 export function prossimePulizie(tutte: PrenotazionePulizie[], roomIds: string[], oggi: string, events: Decisione[]): ProssimaPulizia[] {
+  events = storicoPulizieCompleto(tutte, events, oggi)
   const bookings = attive(tutte)
   const out: ProssimaPulizia[] = []
   for (const roomId of roomIds) {

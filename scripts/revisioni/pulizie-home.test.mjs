@@ -53,7 +53,8 @@ const render = (rooms, bookings, events, oggi) => renderToStaticMarkup(React.cre
 test('Home vera: conferma SQL con e senza recupero, due riaperture, registro e nuovo ciclo', async () => {
   const oggi = '2026-09-08'
   const rooms = ['Amelia', 'Allegra'].map(name => ({ id: randomUUID(), name }))
-  const bookings = rooms.map((r, i) => ({ id: randomUUID(), room_id: r.id, guest_id: `prova-${i}`, num_guests: 3, status: 'confermata', check_in: '2026-09-01', check_out: i ? '2026-09-30' : oggi }))
+  // Il cambio da confermare scade oggi: quelli passati sono ora automatici.
+  const bookings = rooms.map((r, i) => ({ id: randomUUID(), room_id: r.id, guest_id: `prova-${i}`, num_guests: 3, status: 'confermata', check_in: i ? '2026-09-04' : '2026-09-01', check_out: i ? '2026-09-30' : oggi }))
   const db = await databasePulizieFinto(rooms, bookings, [])
   const righe = async table => (await db.query(`select row_to_json(r) as r from ${table} r order by created_at,id`)).rows.map(x => x.r)
   const memoria = new Map()

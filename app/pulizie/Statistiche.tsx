@@ -18,7 +18,7 @@ import { interventiDaTabelle, csvInterventi } from '@/lib/pulizieDotazioneStatis
 import { resocontoPulizie, TIPI_PULIZIA } from '@/lib/pulizieResoconto'
 import { periodoIniziale, giorniContati, precedente, testoConfronto, type Periodo } from '@/lib/periodoPulizie'
 import { statisticheNuove, ore, NOTA_MEDIE } from '@/lib/statistichePulizieNuove'
-import { addDaysStr, type CameraPulizie, type PrenotazionePulizie, type Decisione } from '@/lib/pulizie'
+import { storicoPulizieCompleto, addDaysStr, type CameraPulizie, type PrenotazionePulizie, type Decisione } from '@/lib/pulizie'
 
 const dataBreve = (s: string) => s.split('-').reverse().join('/')
 const Barra = ({ quota }: { quota: number }) => <div className="bar2"><i style={{ width: `${Math.max(0, Math.min(100, quota * 100))}%` }} /></div>
@@ -42,7 +42,7 @@ export default function StatistichePulizie({ rooms, bookings, events, recuperi, 
     void leggiFuoriCamera(leggiDal, contati?.al ?? periodo.al).then(r => { if (!viva) return; setTempi(r.righe); setErroreTempi(r.errore ?? '') })
     return () => { viva = false }
   }, [leggiDal, contati?.al, periodo.al, giro])
-  const interventi = useMemo(() => interventiDaTabelle(events as Parameters<typeof interventiDaTabelle>[0], recuperi), [events, recuperi])
+  const interventi = useMemo(() => interventiDaTabelle(storicoPulizieCompleto(bookings, events, td) as Parameters<typeof interventiDaTabelle>[0], recuperi, bookings, rooms), [events, recuperi, bookings, rooms, td])
   const roomId = camera === 'tutte' ? '' : camera
   const S = useMemo(() => contati ? statisticheNuove({ interventi, tempi: tempi ?? [], rinvii: events.filter(e => e.stato !== 'fatta'), dal: contati.dal, al: contati.al, prima, roomId, nomeCamera: nome }) : null,
     [interventi, tempi, events, contati?.dal, contati?.al, prima?.dal, prima?.al, roomId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -64,6 +64,7 @@ export default function StatistichePulizie({ rooms, bookings, events, recuperi, 
     {!S || !contati ? <p className="pul-avviso">Questo periodo non è ancora cominciato.</p> : <>
       {recuperi === null && <p role="status" className="pul-avviso">Recuperi non disponibili in questo momento: le colonne dei recuperi restano vuote.</p>}
       {erroreTempi && <p role="status" className="pul-avviso">{erroreTempi}</p>}
+      <p className="pul-nota">Le pulizie passate non annotate sono conteggiate come pulite con recupero zero. Puoi aggiungere i recuperi dal Registro. Dove mancano i letti annotati, la dotazione è ricavata dalla prenotazione.</p>
       <div className="pul-big3" data-tre-numeri>
         <div><b data-interventi={S.pulizie}>{S.pulizie}</b><small>{S.pulizie === 1 ? 'pulizia' : 'pulizie'}</small></div>
         <div><b data-lavoro={S.lavoro}>{S.lavoro ? ore(S.lavoro) : '—'}</b><small>di lavoro<br />{roomId ? 'senza gli spazi comuni' : 'con gli spazi comuni'}</small></div>
@@ -119,17 +120,17 @@ export default function StatistichePulizie({ rooms, bookings, events, recuperi, 
 
       <p className="pul-sez">Mandati a lavare</p>
       <div className="pul-pz h"><span>Pezzo</span><span>Totale</span><span>Recuperati</span><span>{S.pocheDati ? 'Nel periodo' : 'Al mese'}</span></div>
-      {S.mandati.map(m => <div key={m.pezzo} className="pul-pz" data-mandati={m.pezzo}><span>{m.nome}</span><span>{m.totale}</span><span>{m.recuperati}</span><span><b>{S.pocheDati ? m.aLavare : Math.round(m.alMese)}</b></span></div>)}
-      <p className="pul-chi">Totale = pezzi preparati nelle pulizie coi letti segnati; {S.pocheDati ? `nel periodo = totale − recuperati. ${NOTA_MEDIE}` : 'al mese = (totale − recuperati) diviso i giorni del periodo × 30,44.'}{S.base.conRecuperi < S.pulizie ? ` Recuperi annotati su ${S.base.conRecuperi} pulizie di ${S.pulizie}: dove non sono annotati, tutto conta come mandato a lavare.` : ''}</p>
+      {S.mandati.map(m => <div key={m.pezzo} className="pul-pz" data-mandati={m.pezzo}><span>{m.nome}</span><span>{m.totale}</span><span>{recuperi === null ? '—' : m.recuperati}</span><span><b>{recuperi === null ? '—' : S.pocheDati ? m.aLavare : Math.round(m.alMese)}</b></span></div>)}
+      <p className="pul-chi">Totale = pezzi delle pulizie con dotazione ricostruibile e recuperi confrontabili; esclusi i dati da correggere e le lenzuola senza misura; {S.pocheDati ? `nel periodo = totale − recuperati. ${NOTA_MEDIE}` : 'al mese = (totale − recuperati) diviso i giorni del periodo × 30,44.'}{recuperi === null ? ' Recuperi non disponibili: bucato non calcolabile.' : ''}</p>
 
       <p className="pul-sez">Biancheria</p>
-      <div className="pul-lin" data-biancheria><div><b>{S.preparati}</b><small>preparati</small></div><div className="g"><b>{S.base.conRecuperi ? S.recuperati : '—'}</b><small>recuperati{S.base.conRecuperi && S.percentuale !== null ? ` · ${Math.round(S.percentuale)}%` : ''}</small></div><div><b>{S.aLavare}</b><small>a lavare</small></div></div>
+      <div className="pul-lin" data-biancheria><div><b>{S.preparati}</b><small>preparati</small></div><div className="g"><b>{S.base.conRecuperi ? S.recuperati : '—'}</b><small>recuperati{S.base.conRecuperi && S.percentuale !== null ? ` · ${Math.round(S.percentuale)}%` : ''}</small></div><div><b>{recuperi === null ? '—' : S.aLavare}</b><small>a lavare</small></div></div>
 
       <p className="pul-sez">Rinvii e salti</p>
       <p className="pul-chi" data-rinvii>{S.rimandate} {S.rimandate === 1 ? 'rimandata' : 'rimandate'} · {S.saltate} {S.saltate === 1 ? 'cambio saltato' : 'cambi saltati'} · non sono lavori fatti</p>
       <button type="button" className="pul-az" style={{ marginTop: 18 }} onClick={esporta} data-esporta>Esporta il periodo</button>
 
-      <ProvaLavanderia mandati={S.mandati} giorni={S.giorni} pocheDati={S.pocheDati} />
+      {recuperi !== null && <ProvaLavanderia mandati={S.mandati} giorni={S.giorni} pocheDati={S.pocheDati} />}
 
       {(S.base.daCorreggere.length > 0 || senzaMisura > 0 || (storico && (storico.spostate.length + storico.saltate.length + storico.stime.length) > 0)) && <p className="pul-sez">Da sapere</p>}
       {S.base.daCorreggere.length > 0 && <p role="alert" className="pul-errore">{S.base.daCorreggere.length} {S.base.daCorreggere.length === 1 ? 'pulizia ha' : 'pulizie hanno'} recuperi oltre la dotazione: riaprile dal Registro e correggile. Sono escluse dal bucato.</p>}

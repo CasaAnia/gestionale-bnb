@@ -6,9 +6,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
 
-test('recuperi: un foglio nuovo parte «non annotato» (null); zero solo con «Niente recuperato»', () => {
+test('recuperi: regola 12/11, un foglio nuovo parte con zero recupero modificabile', () => {
   const s = leggi('components/SchedaPulizia.tsx')
-  assert.match(s, /federeScelte: !\(assetto\.matrimoniali && assetto\.ospiti === 1\), recuperi: null,/)
+  assert.match(s, /federeScelte: !\(assetto\.matrimoniali && assetto\.ospiti === 1\), recuperi: pezziVuoti\(\),/)
   assert.match(s, /onClick=\{\(\) => setBozza\(\{ \.\.\.bozza, recuperi: pezziVuoti\(\) \}\)\} data-niente-recuperato>Niente recuperato</)
   assert.match(s, /Recuperi non ancora annotati: puoi aggiungerli anche dopo\./)
   assert.match(s, /recuperi non ancora annotati/)
@@ -44,6 +44,6 @@ test('timer grande e spazi comuni: «Avvia» fermo con un altro timer in corso, 
 })
 
 test('«perché questa data?» c\'è ancora sulle camere di Oggi', () => {
-  assert.match(leggi('app/pulizie/page.tsx'), /cronologia: cronologiaCamera\(prenotazioni, room\.id, td, events, rooms\)/)
+  assert.match(leggi('app/pulizie/page.tsx'), /cronologia: cronologiaCamera\(prenotazioni, room\.id, td, storico, rooms\)/)
   assert.match(leggi('components/pulizie/SchedaCameraOggi.tsx'), /'nascondi la cronologia' : 'perché questa data\?'/)
 })

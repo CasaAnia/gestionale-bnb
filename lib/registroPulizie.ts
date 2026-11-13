@@ -13,7 +13,7 @@
 // La testata del giorno: «2 pulizie · 50 min» — pulizie confermate e tempo
 // totale noto, spazi comuni compresi. Funzioni pure, provate in node.
 // ============================================================================
-import type { Decisione, PuliziaAutomatica } from './pulizie.ts'
+import { puliziaPresunta, type Decisione, type PuliziaAutomatica } from './pulizie.ts'
 import { assettoDaSql, recuperoDaRiga, totalePezzi, totaleSenzaMisura } from './dotazionePulizie.ts'
 import { lettiTesto } from './pulizieVista.ts'
 import { minutiPerVoce, VOCI_SPAZI, type VoceSpazi } from './tempoPulizie.ts'
@@ -66,8 +66,8 @@ export function registroPulizie({ events, recuperi, tempi, automatiche, dal, al,
         const rec = recuperi === null ? undefined : perId.get(e.id)
         const letto = rec ? recuperoDaRiga(rec) : null
         righe.push({ tipo: 'pulizia', chiave: `p:${e.id}`, giorno, minutiOrd: o ?? 9999, ora: o === null ? null : oraTesto(o), camera: nomeCamera(e.room_id), roomId: e.room_id,
-          etichetta: TIPO_REGISTRO[e.tipo], letti: lettiRegistro(e.assetto), minuti: e.minuti ?? null,
-          recuperati: rec === undefined ? null : letto ? totalePezzi(letto.pezzi) + totaleSenzaMisura(letto.senzaMisura) : null, evento: e })
+          etichetta: TIPO_REGISTRO[e.tipo] + (puliziaPresunta(e) ? ' · automatica · recupero zero' : ''), letti: lettiRegistro(e.assetto), minuti: e.minuti ?? null,
+          recuperati: recuperi === null ? null : letto ? totalePezzi(letto.pezzi) + totaleSenzaMisura(letto.senzaMisura) : 0, evento: e })
       } else if (dentro(e.data_prevista)) {
         righe.push({ tipo: 'rinvio', chiave: `r:${e.id}`, giorno: e.data_prevista, minutiOrd: 10000, camera: nomeCamera(e.room_id), roomId: e.room_id,
           etichetta: e.tipo === 'soggiorno' ? '4 notti' : TIPO_REGISTRO[e.tipo],

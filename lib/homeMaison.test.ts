@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { simboliCambi, camereDaPreparare, testaRiquadro, strisciaSettimane, PULIZIA_RIMASTA } from './numeriOggi.ts'
+import { simboliCambi, camereDaPreparare, testaRiquadro, strisciaSettimane } from './numeriOggi.ts'
 import { testoSalvato, SALVATO, CHIUSURA_DA_SOLA, DURATA_SALVATO_MS } from './salvatoMaison.ts'
 
 const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
@@ -75,7 +75,7 @@ test('riquadro della striscia (02/10/2026): chi parte e chi arriva con gli orari
   assert.deepEqual(resta.map(v => [v.camera, v.resta]), [['Ambra', 'Lucia Ferri resta · biancheria della 4ª notte']])
   // la pulizia rimasta di oggi resta «pulizia rimasta da completare»
   const rimasta = camereDaPreparare(camere, [b('x1', 'lena', '2026-09-25', '2026-09-27')] as never, [], OGGI, OGGI)
-  assert.deepEqual(rimasta.map(v => v.rimasta), [PULIZIA_RIMASTA])
+  assert.deepEqual(rimasta.map(v => v.rimasta), [], 'Regola 12/11: il passato non annotato è pulito')
   // le camere del riquadro sono esattamente il numero della casella
   const giorno = strisciaSettimane(camere, prenotazioni as never, [], OGGI).find(g => g.giorno === '2026-10-04')!
   assert.equal(giorno.camere!.length, giorno.daFare)

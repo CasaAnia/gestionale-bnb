@@ -30,10 +30,7 @@ test('in ritardo: partenza di due giorni fa mai segnata, con l’arrivo di oggi 
   const vecchia = pren({ room_id: LENA, check_in: '2026-09-01', check_out: '2026-09-05', guest_name: 'Anna Verdi' })
   const arrivo = pren({ room_id: LENA, check_in: OGGI, check_out: '2026-09-09', guest_name: 'Piotr Nowak', check_in_time: '16:00' })
   const voci = pulizieDiOggi(rooms, [vecchia, arrivo], [], OGGI)
-  assert.equal(voci.length, 1)
-  assert.equal(voci[0].stato, 'da_fare'); assert.equal(voci[0].ritardo, 2); assert.equal(voci[0].priorita, 'urgente')
-  assert.equal(voci[0].riga, 'partenza del 5 settembre · Anna Verdi · arriva Piotr Nowak alle 16:00')
-  assert.equal(riassuntoPulizieOggi(voci), '1 da fare · 1 in ritardo')
+  assert.deepEqual(voci, [], 'Regola 12/11: la partenza passata senza annotazione è pulita con zero recupero')
   assert.equal(testoRitardo(2), 'in ritardo di 2 giorni'); assert.equal(testoRitardo(1), 'in ritardo di 1 giorno'); assert.equal(testoRitardo(0), '')
 })
 
@@ -87,12 +84,12 @@ test('ordine: da fare per urgenza e ritardo, poi fatte; camere inattive escluse'
   const fatta = dec({ room_id: ALLEGRA, booking_id: allegraOut.id, data_effettiva: OGGI })
   const voci = pulizieDiOggi(rooms, [ambraOut, lenaOut, lenaIn, ameliaOut, ameliaIn, allegraOut], [fatta], OGGI)
   // Amelia (arrivo oggi dopo la partenza di oggi) non è più automatica: da fare, urgente
-  assert.deepEqual(voci.map(v => `${v.stato}:${v.camera}`), ['da_fare:Lena', 'da_fare:Amelia', 'da_fare:Ambra', 'fatta:Allegra'])
-  assert.equal(voci[0].ritardo, 3); assert.equal(voci[0].priorita, 'urgente')
+  assert.deepEqual(voci.map(v => `${v.stato}:${v.camera}`), ['da_fare:Amelia', 'da_fare:Ambra', 'fatta:Allegra'])
+  assert.equal(voci[0].ritardo, 0); assert.equal(voci[0].priorita, 'urgente')
   // partita ieri e arrivo oggi = cambio ospite automatico di IERI: non è lavoro di oggi, non compare (come la striscia)
   const ieriOut = pren({ room_id: LENA, check_in: '2026-09-01', check_out: '2026-09-06', guest_name: 'G Lena' })
   assert.deepEqual(pulizieDiOggi(rooms, [ieriOut, lenaIn], [], OGGI), [])
-  assert.equal(riassuntoPulizieOggi(voci), '3 da fare · 1 in ritardo')
+  assert.equal(riassuntoPulizieOggi(voci), '2 da fare')
   const senzaLena = pulizieDiOggi(rooms.map(r => (r.id === LENA ? { ...r, active: false } : r)), [ambraOut, lenaOut, lenaIn], [], OGGI)
   assert.deepEqual(senzaLena.map(v => v.camera), ['Ambra'])
   assert.equal(riassuntoPulizieOggi([]), '')
@@ -101,13 +98,13 @@ test('ordine: da fare per urgenza e ritardo, poi fatte; camere inattive escluse'
 
 
 test('Home approvata: prossimo arrivo senza ora non inventa un orario, domani conserva quello noto', () => {
-  const partita = pren({ room_id: AMBRA, check_in: '2026-09-01', check_out: '2026-09-06', guest_name: 'Elena' })
+  const partita = pren({ room_id: AMBRA, check_in: '2026-09-01', check_out: OGGI, guest_name: 'Elena' })
   const prossima = pren({ room_id: AMBRA, check_in: '2026-09-08', check_out: '2026-09-10', guest_name: 'Anna' })
   const senza = pulizieDiOggi(rooms, [partita, prossima], [], OGGI)[0]
   assert.equal(senza.prossimo, 'Anna · domani')
   assert.ok(!senza.prossimo.includes('definire'))
   const conOra = pulizieDiOggi(rooms, [partita, { ...prossima, check_in_time: '14:00' }], [], OGGI)[0]
   assert.equal(conOra.prossimo, 'Anna · domani · 14:00')
-  assert.equal(senza.descrizione, 'partenza del 6 settembre · Elena')
+  assert.equal(senza.descrizione, 'è partito Elena')
   assert.equal(pulizieDiOggi(rooms, [partita], [], OGGI)[0].prossimo, undefined)
 })

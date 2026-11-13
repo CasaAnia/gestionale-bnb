@@ -12,7 +12,7 @@
 // Ordine: prima le da fare (più urgenti in cima, poi il ritardo), poi le
 // fatte nell'ordine in cui sono state segnate.
 import {
-  confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi, continuaDa, continuaIn, statoFineSoggiorno, cambioOspiteAutomatico, diffDays, CUTOFF_STORICO,
+  storicoPulizieCompleto, puliziaPresunta, confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi, continuaDa, continuaIn, statoFineSoggiorno, cambioOspiteAutomatico, diffDays, CUTOFF_STORICO,
   soggiornoContinuativo, type Decisione, type Priorita, type TipoPulizia,
 } from './pulizie.ts'
 import { nomeConAltri } from './guestName.ts'
@@ -66,6 +66,7 @@ type Camera = { id: string; name: string; active?: boolean | null }
 type Prenotazioni = Parameters<typeof pulizieAperte>[0]
 
 export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni, events: Decisione[], oggi: string): VocePuliziaOggi[] {
+  events = storicoPulizieCompleto(tutteLePrenotazioni, events, oggi)
   const bookings = attive(tutteLePrenotazioni)
   const camere = rooms.filter(r => r.active !== false)
   const breve = (id: string | undefined) => { const r = camere.find(x => x.id === id) ?? rooms.find(x => x.id === id); return r ? nomeBreve(r.name) : 'un’altra camera' }
@@ -137,7 +138,7 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
     v.persone = v.decisione?.persone_servite ?? (Number(b?.num_guests) || null)
     v.partenza = b ? soggiornoContinuativo(bookings, b).fine.check_out : undefined
     if (v.tipo === 'soggiorno' && b) v.biancheria = rigaBiancheria(nomeConAltri(b), diffDays(oggi, soggiornoContinuativo(bookings, b).inizio.check_in), v.partenza)
-    v.ultimaId = events.filter(e => e.room_id === v.roomId).sort((a, b) => confrontaDecisioni(b, a))[0]?.id ?? null
+    v.ultimaId = events.filter(e => e.room_id === v.roomId && !puliziaPresunta(e)).sort((a, b) => confrontaDecisioni(b, a))[0]?.id ?? null
   }
   return out.sort((a, b) => ORDINE_STATO[a.stato] - ORDINE_STATO[b.stato]
     || (a.stato === 'da_fare' ? RANK[a.priorita!] - RANK[b.priorita!] || b.ritardo - a.ritardo : 0)
