@@ -5,6 +5,7 @@
 import { supabase } from '@/lib/supabase'
 import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
 import { esitoLettura, type EsitoLettura } from './esito'
+import { leggiTutto, leggiTuttoPer } from '../leggiTutto'
 import type { Ambito, Group, Category, Rule, Fx, Receipt, Item, Subcat, Budget } from './types'
 
 // Residui (07/09/2026, pezzo 6): le scritture tornano l'esito di
@@ -19,7 +20,8 @@ export async function caricaBase() {
     supabase.from('family_groups').select('*').order('sort'),
     supabase.from('family_categories').select('*').order('sort'),
     supabase.from('family_product_rules').select('*'),
-    supabase.from('family_expenses').select('*').order('expense_date', { ascending: false }),
+    // letture complete (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+    leggiTutto<Fx>(supabase, 'family_expenses', '*', { ordine: [{ colonna: 'expense_date', ascendente: false }] }),
   ])
   if (g.error || e.error) return { needsSetup: true as const }
   return {
@@ -33,10 +35,11 @@ export async function caricaBase() {
 
 // Dettaglio prodotti: select * per tollerare la colonna category_id
 // assente (migrazione 0014 non ancora applicata).
-export async function caricaItems(expIds: string[]): Promise<Item[]> {
-  if (!expIds.length) return []
-  const it = await supabase.from('family_expense_items').select('*').in('expense_id', expIds)
-  return it.error ? [] : ((it.data || []) as Item[])
+// Lettura completa a blocchi (lib/leggiTutto): se non arriva intera torna l'errore, mai un elenco a metà.
+export async function caricaItems(expIds: string[]): Promise<{ items: Item[]; errore: string | null }> {
+  if (!expIds.length) return { items: [], errore: null }
+  const it = await leggiTuttoPer<Item & { id: string }>(supabase, 'family_expense_items', '*', 'expense_id', expIds)
+  return it.error || !it.data ? { items: [], errore: 'Non riesco a leggere il dettaglio dei prodotti. Riprova.' } : { items: it.data, errore: null }
 }
 
 // Sottocategorie (tollerante: senza migrazione 0015 restano vuote).
