@@ -1,3 +1,5 @@
+**Regola d'inizio lavoro (17/11/2026), per Claude Code, Codex e qualunque altra sessione:** prima di toccare il codice, `git fetch`; la copia deve essere su `main` pulita e uguale a `origin/main`. Se è indietro o ha modifiche non registrate, fermati e non lavorare su quella copia. Una sessione alla volta su `main`; mai due chat in parallelo sugli stessi file.
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
