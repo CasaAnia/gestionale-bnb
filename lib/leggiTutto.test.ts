@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { leggiTutto, leggiTuttoPer } from './leggiTutto.ts'
 import { ErroreLetturaIncompleta } from './statistiche/paginazione.ts'
+import { readFileSync } from 'node:fs'
 
 type Riga = { id: string; n: number }
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -83,3 +84,33 @@ test('tetto di pagine con l\'ultima ancora piena: errore esplicito, non un elenc
   assert.ok(r.error?.cause instanceof ErroreLetturaIncompleta)
   assert.match(r.error!.message, /Lettura incompleta/)
 })
+
+test('le letture di tabelle intere usano leggiTutto: nessuna tabella che cresce è letta con un select secco', () => {
+  const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
+  const punti: [string, RegExp][] = [
+    ['app/calendario/page.tsx', /leggiTutto<CalendarBooking>\(supabase, 'bookings'[\s\S]{0,200}leggiTutto<PaymentRow>\(supabase, 'payments'/],
+    ['app/arrivi/page.tsx', /leggiTutto<Riga>\(supabase, 'bookings'/],
+    ['app/clienti/page.tsx', /leggiTutto<ClienteElenco>\(supabase, 'guests'[\s\S]{0,400}leggiTutto<SoggiornoStorico>\(supabase, 'bookings'/],
+    ['app/prenotazioni/page.tsx', /leggiTutto<Record<string, unknown>>\(supabase, 'bookings'/],
+    ['app/richieste/page.tsx', /leggiTutto<Record<string, unknown>>\(supabase, 'bookings'[\s\S]{0,300}'payments'[\s\S]{0,400}'guests'/],
+    ['app/richieste/[id]/proposta/page.tsx', /leggiTutto<Record<string, unknown>>\(supabase, 'bookings'[\s\S]{0,600}'guests'/],
+    ['lib/richiesteDati.ts', /leggiTutto\(supabase, 'richieste'/],
+    ['lib/puliziePush.ts', /leggiTutto<Riga>\(supabase, 'bookings'[\s\S]{0,200}leggiTutto<Decisione>\(supabase, 'cleanings'/],
+    ['app/api/push/ringraziamento/route.ts', /leggiTutto<Riga>\(supabase, 'bookings'/],
+    ['lib/spese/dati.ts', /leggiTutto<Fx>\(supabase, 'family_expenses'[\s\S]{0,2000}leggiTuttoPer<[^>]*>\(supabase, 'family_expense_items'/],
+  ]
+  for (const [f, re] of punti) assert.match(leggi(f), re, f)
+  // e quei punti non hanno più il select secco sulla stessa tabella
+  const secchi: [string, RegExp][] = [
+    ['app/calendario/page.tsx', /supabase\.from\('(bookings|payments)'\)\.select/],
+    ['app/arrivi/page.tsx', /supabase\.from\('bookings'\)/],
+    ['app/clienti/page.tsx', /supabase\.from\('(guests|bookings)'\)/],
+    ['app/prenotazioni/page.tsx', /\.from\('bookings'\)\s*\.select/],
+    ['app/richieste/page.tsx', /supabase\.from\('(bookings|payments|guests)'\)/],
+    ['app/richieste/[id]/proposta/page.tsx', /supabase\.from\('(bookings|guests)'\)/],
+    ['lib/puliziePush.ts', /supabase\.from\('(bookings|cleanings)'\)/],
+    ['lib/spese/dati.ts', /from\('family_expenses'\)\.select\('\*'\)\.order|from\('family_expense_items'\)\.select/],
+  ]
+  for (const [f, re] of secchi) assert.doesNotMatch(leggi(f), re, `${f}: select secco su una tabella che cresce`)
+})
+
