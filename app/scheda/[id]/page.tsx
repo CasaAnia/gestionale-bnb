@@ -107,7 +107,9 @@ import { nomeOspite, nomeConAltri, salutoOspite } from '@/lib/guestName'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { nonELeiDaRiga } from '@/lib/nuovaPrenotazione'
 import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiProvenienza } from '@/lib/provenienza'
-import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheTorna'
+import type { SoggiornoStorico } from '@/lib/clienteCheTorna'
+import { soggiorniDelCliente, spesoPrimaCent } from '@/lib/spesoCliente'
+import { leggiSchedeGemelle } from '@/lib/spesoClienteDati'
 import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
 import buildWhatsappMsg, { perMessaggio, type TipoMessaggio } from '@/lib/messaggiPrenotazione'
@@ -157,6 +159,8 @@ export default function SchedaPage() {
   // (rilievo del 16/09/2026: prima si contava sulla sola riga aperta).
   const [contoLeggibile, setContoLeggibile] = useState(true)
   const [altreCliente, setAltreCliente] = useState<SoggiornoStorico[]>([])
+  // le righe delle altre schede dello stesso cliente (stesso telefono), per il totale speso
+  const [gemelle, setGemelle] = useState<{ righe: SoggiornoStorico[]; errore: boolean }>({ righe: [], errore: false })
   const [altreNotti, setAltreNotti] = useState<PrenotazioneDC[]>([])
   const [documenti, setDocumenti] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -272,6 +276,9 @@ export default function SchedaPage() {
       const attive = segmentiAttivi(tutte)
       const arrivo = attive[0]?.check_in ?? scheda.check_in
       const partenza = attive.reduce((m, s) => (s.check_out > m ? s.check_out : m), scheda.check_out)
+      // le altre schede con lo stesso telefono: il totale speso è del cliente, non della scheda
+      // (parte subito, in parallelo alle altre letture; si aspetta dopo)
+      const gemelleInCorso = scheda.guest_id ? leggiSchedeGemelle(supabase, scheda.guest_id, scheda.guests?.phone) : Promise.resolve({ righe: [], errore: null as string | null })
       const [pag, altre, vicine, doc, stanze] = await Promise.all([
         supabase.from('payments').select('*').in('booking_id', ids).order('paid_on'),
         scheda.guest_id
@@ -288,6 +295,7 @@ export default function SchedaPage() {
         // le camere di casa: servono alla striscia per sapere chi è libero
         supabase.from('rooms').select('*'),
       ])
+      const gemelleLette = await gemelleInCorso
       if (!vivo) return
       // Il conto si mostra SOLO quando camere e pagamenti sono stati riletti
       // tutti e due: dopo una scrittura incerta resta nascosto finché una
@@ -307,6 +315,7 @@ export default function SchedaPage() {
       setPagamenti((pag.data ?? []) as PagamentoStat[])
       const chiave = chiavePrenotazione(scheda)
       setAltreCliente(((altre.data ?? []) as SoggiornoStorico[]).filter(x => chiavePrenotazione(x as RigaPrenotazione) !== chiave))
+      setGemelle({ righe: gemelleLette.righe as unknown as SoggiornoStorico[], errore: !!gemelleLette.errore })
       setAltreNotti(((vicine.data ?? []) as PrenotazioneDC[]).filter(x => !ids.includes(x.id)))
       setDocumenti(doc.error ? null : (doc.count ?? 0))
       setCamere(((stanze.data ?? []) as CameraStriscia[]))
@@ -337,12 +346,15 @@ export default function SchedaPage() {
   }, [righe, pagamenti, contoLeggibile])
   const accordo = useMemo(() => accordoPrenotazione(righe) ?? booking, [righe, booking])
   // Chi è: soggiorni conclusi della stessa persona, fuori questa prenotazione
+  // Una sola funzione per numero e importo (lib/spesoCliente), la stessa della cifra
+  // rossa del Calendario e del foglietto: le righe della scheda più quelle delle
+  // altre schede con lo stesso telefono. Se quelle non si leggono tutte, niente cifra.
+  const righeCliente = useMemo(() => [...altreCliente, ...gemelle.righe], [altreCliente, gemelle])
   const soggiorni = useMemo(() => {
     if (!booking) return []
-    const persona = { guest_id: booking.guest_id ?? null, telefono: guest?.phone ?? null, full_name: booking.guest_name || guest?.full_name || null }
-    return elencoSoggiorniPersona(persona, altreCliente, oggi, chiavePrenotazione(booking))
-  }, [booking, guest, altreCliente, oggi])
-  const totaleSoggiorniCent = soggiorni.reduce((t, s) => t + s.totaleCent, 0)
+    return soggiorniDelCliente(booking as never, righeCliente as never, [], oggi)
+  }, [booking, righeCliente, oggi])
+  const totaleSoggiorniCent = !booking || gemelle.errore ? 0 : spesoPrimaCent(booking as never, righeCliente as never, [], oggi)
   const provenienza = provenienzaInParole(guest ?? booking)
   const primaRiga = primaRigaScheda(soggiorni.length, provenienza)
   const note = noteScheda(guest?.notes, booking?.notes)

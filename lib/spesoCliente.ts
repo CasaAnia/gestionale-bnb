@@ -11,7 +11,8 @@
 //             può fare (un importo mancante) la cifra non c'è.
 // Funzioni pure, provate con node --test.
 // ============================================================================
-import { elencoSoggiorniPersona, type SoggiornoStorico } from './clienteCheTorna.ts'
+import { elencoSoggiorniPersona, type SoggiornoStorico, type SoggiornoPersona } from './clienteCheTorna.ts'
+import { normalizzaTelefono } from './whatsapp.ts'
 import { chiavePrenotazione, contoPrenotazione, type RigaPrenotazione } from './prenotazioneUnica.ts'
 import { euroScheda } from './schedaPrenotazione.ts'
 import { euroTondi } from './euroTondi.ts'
@@ -19,17 +20,43 @@ import { euroTondi } from './euroTondi.ts'
 type Riga = RigaPrenotazione & {
   guest_id?: string | null; guest_name?: string | null; room_id?: string | null
   guests?: { phone?: string | null; full_name?: string | null } | null
+  rooms?: { name?: string | null } | null
+}
+
+// Lo STESSO cliente, per i soldi (17/11/2026): la stessa scheda, oppure lo
+// stesso telefono (cifre: «+39 335 123 4567» = «3351234567»). Mai il solo nome:
+// due «Antonio» con telefoni diversi sono due persone. Prima si filtrava per
+// scheda: un cliente con due schede (stesso telefono) vedeva il totale diviso.
+const cifreTel = (t: string | null | undefined) => normalizzaTelefono(t).numero
+type Chi = { guest_id?: string | null; guests?: { phone?: string | null } | null }
+export function stessoCliente(a: Chi, b: Chi): boolean {
+  if (a.guest_id && b.guest_id && a.guest_id === b.guest_id) return true
+  const ta = cifreTel(a.guests?.phone), tb = cifreTel(b.guests?.phone)
+  return !!ta && ta === tb
+}
+
+/** Le altre schede con lo stesso telefono (cifre) della scheda `guestId`: serve a chi legge i soggiorni per scheda */
+export function schedeStessoTelefono(guestId: string, telefono: string | null | undefined, guests: { id: string; phone?: string | null }[]): string[] {
+  const t = cifreTel(telefono)
+  if (!t) return []
+  return guests.filter(g => g.id !== guestId && cifreTel(g.phone) === t).map(g => g.id)
+}
+
+/** I soggiorni CONCLUSI del cliente fuori da questa prenotazione: la fonte unica di numero e importo,
+ *  per la cifra rossa, il foglietto, il riquadro e la testata della scheda. */
+export function soggiorniDelCliente(prenotazione: Riga, tutte: Riga[], camere: { id: string; name: string }[], oggi: string): SoggiornoPersona[] {
+  const chiave = chiavePrenotazione(prenotazione)
+  const altre = (prenotazione.guest_id || prenotazione.guests?.phone)
+    ? tutte.filter(b => stessoCliente(b, prenotazione) && chiavePrenotazione(b) !== chiave).map(b => ({ ...b, rooms: b.rooms ?? camere.find(c => c.id === b.room_id) ?? null }))
+    : []
+  const guest = prenotazione.guests ?? null
+  const persona = { guest_id: prenotazione.guest_id ?? null, telefono: guest?.phone ?? null, full_name: prenotazione.guest_name || guest?.full_name || null }
+  return elencoSoggiorniPersona(persona, altre as unknown as SoggiornoStorico[], oggi, chiave)
 }
 
 /** I soggiorni conclusi del cliente fuori da questa prenotazione, in centesimi (il foglietto) */
 export function spesoPrimaCent(prenotazione: Riga, tutte: Riga[], camere: { id: string; name: string }[], oggi: string): number {
-  const chiave = chiavePrenotazione(prenotazione)
-  const altre = prenotazione.guest_id
-    ? tutte.filter(b => b.guest_id === prenotazione.guest_id && chiavePrenotazione(b) !== chiave).map(b => ({ ...b, rooms: camere.find(c => c.id === b.room_id) ?? null }))
-    : []
-  const guest = prenotazione.guests ?? null
-  const persona = { guest_id: prenotazione.guest_id ?? null, telefono: guest?.phone ?? null, full_name: prenotazione.guest_name || guest?.full_name || null }
-  return elencoSoggiorniPersona(persona, altre as unknown as SoggiornoStorico[], oggi, chiave).reduce((t, s) => t + s.totaleCent, 0)
+  return soggiorniDelCliente(prenotazione, tutte, camere, oggi).reduce((t, s) => t + s.totaleCent, 0)
 }
 
 /** Tutto, questa compresa: `righeQuesta` sono tutte le righe di questa prenotazione. null se il conto non si fa. */

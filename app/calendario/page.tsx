@@ -9,7 +9,6 @@ import { nottiPagate, legamiCatene } from '@/lib/calendarioNastro'
 import { SchedaPrenotazione, SchedaTenuta } from '@/components/calendario/SchedaPrenotazione'
 import RiquadroPremuto, { ContenutoPremuto } from '@/components/calendario/RiquadroPremuto'
 import { contenutoRiquadro, type RigaRiquadroDati } from '@/lib/riquadroPremuto'
-import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { EXTRA_BED_MAX } from '@/lib/tariffe'
 import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
@@ -41,7 +40,7 @@ import {
 import { campiLibera, indirizzoPrenotazioneNuova, testoConferma, quandoInParole, type MotivoLibera } from '@/lib/opzioneLibera'
 import { hrefScheda } from '@/lib/provenienzaScheda'
 import { chiavePrenotazione } from '@/lib/prenotazioneUnica'
-import { spesoConQuestaCent } from '@/lib/spesoCliente'
+import { spesoConQuestaCent, soggiorniDelCliente } from '@/lib/spesoCliente'
 import { oggiARoma } from '@/lib/spese/adattatore'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -574,10 +573,9 @@ export default function Calendario() {
           .filter(c => c.da && c.a && c.camera && c.da.check_out === c.a.check_in)
           .map(c => ({ giorno: c.a!.check_in, camera: c.camera }))
       : []
-    // i soggiorni conclusi della stessa persona fuori da questa prenotazione (come la scheda)
-    const altre = b.guest_id ? bookings.filter(x => x.guest_id === b.guest_id && chiavePrenotazione(x) !== chiave).map(conCamera) : []
-    const persona = { guest_id: b.guest_id ?? null, telefono: b.guests?.phone ?? null, full_name: b.guest_name || b.guests?.full_name || null }
-    const volte = elencoSoggiorniPersona(persona, altre as unknown as SoggiornoStorico[], oggi, chiave).length
+    // i soggiorni conclusi dello stesso cliente fuori da questa prenotazione: la funzione unica di lib/spesoCliente
+    type R = Parameters<typeof spesoConQuestaCent>[0]
+    const volte = soggiorniDelCliente(b as unknown as R, bookings as unknown as R[], rooms, oggi).length
     return contenutoRiquadro({
       premuta: conCamera(b), camera: rooms.find(c => c.id === b.room_id)?.name, coperte: nottiPagateBarra(b, paidNightsByBooking),
       righe, pagamenti, cambi, volte, spesoCent: spesoPerBooking[b.id] ?? null, oggi,

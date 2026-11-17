@@ -32,12 +32,11 @@ import { statoPrenotazione, rigaPerMessaggi } from '@/lib/messaggiFase'
 import { mancatoArrivo } from '@/lib/mancatoArrivo'
 import { arriviDeiPeriodi } from '@/lib/arriviPeriodi'
 import { leggiArrivo } from '@/lib/arrivo'
-import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { provenienzaInParole } from '@/lib/provenienza'
 import { vuoleRicevuta } from '@/lib/valutazione'
 import { nomeConAltri } from '@/lib/guestName'
 import { oggiARoma } from '@/lib/spese/adattatore'
-import { spesoPrimaCent } from '@/lib/spesoCliente'
+import { spesoPrimaCent, soggiorniDelCliente } from '@/lib/spesoCliente'
 import {
   ALTEZZA_FOGLIETTO, LARGHEZZA_FOGLIETTO_MAC, APRI_LA_SCHEDA, CHIUDI,
   testaFoglietto, statoFoglietto, iconeFoglietto, dormeFoglietto, righeFoglietto, righeInArrivo, arrivoDaMostrare, cameraCorta,
@@ -102,13 +101,8 @@ export default function FogliettoPrenotazione({ prenotazione, tutte, camere, pag
     if (!errore) { try { conto = contoPrenotazione(righe, pagamenti) } catch { conto = null } }
     const vive = segmentiAttivi(righe) as Riga[]
     const arrivo = arrivoDaMostrare(arriviDeiPeriodi(vive), oggi)
-    // i soggiorni conclusi della stessa persona, fuori da questa prenotazione (come la scheda)
-    const chiave = chiavePrenotazione(prenotazione)
-    const altre = prenotazione.guest_id
-      ? tutte.filter(b => b.guest_id === prenotazione.guest_id && chiavePrenotazione(b) !== chiave).map(b => ({ ...b, rooms: camere.find(c => c.id === b.room_id) ?? null }))
-      : []
-    const persona = { guest_id: prenotazione.guest_id ?? null, telefono: guest?.phone ?? null, full_name: prenotazione.guest_name || guest?.full_name || null }
-    const soggiorni = elencoSoggiorniPersona(persona, altre as unknown as SoggiornoStorico[], oggi, chiave)
+    // i soggiorni conclusi dello stesso cliente, fuori da questa prenotazione: la funzione unica di lib/spesoCliente
+    const soggiorni = soggiorniDelCliente(prenotazione, tutte, camere, oggi)
     // lo speso prima: la stessa funzione della cifra sulle schede del Calendario (lib/spesoCliente)
     return {
       stato: statoFoglietto(statoPrenotazione(righe, prenotazione), ultimaPartenza, oggi, righe.some(mancatoArrivo)),
