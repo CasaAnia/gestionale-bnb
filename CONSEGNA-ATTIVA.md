@@ -1,3 +1,15 @@
+## Risposte di Ania, test obbligatori, letture complete, migrazioni e copie — 17/11/2026, Claude — PUBBLICATO
+
+Base origin/main `8651bd8`, copia pulita `gestionale-cifra-rossa`; commit fino a `b411dba`, deploy Vercel success per 01f8127, 01f4b52, d2da3bb. Suite 2272 → 2297 test verdi, build riuscita (ora con i test dentro). Nessuna migrazione applicata, nessun dato toccato; su Supabase solo letture. Dettaglio, tabelle e limiti nel diario `2026-11-17-claude-rimedi-1-e-3.md`.
+
+1. **Risposte:** in corso e future non si contano nella cifra (REGOLE-FISSE 12); la scheda cliente unisce le schede con lo stesso telefono con la stessa funzione (`7de9bb8`); stesso nome con telefoni diversi: nulla cambia.
+2. **Test obbligatori (REGOLE-FISSE 13):** `npm run build` = `npm test && next build`; provato su Vercel (ramo con test rosso: Error, produzione invariata); test resi indipendenti da fuso e ora (18 prove con orologio finto); workflow GitHub `test.yml`.
+3. **Letture complete:** `lib/leggiTutto.ts` in dieci punti (Calendario, Arrivi, Clienti, Prenotazioni, Richieste, proposta, push, Spese); stesse righe di prima.
+4. **Migrazioni (REGOLE-FISSE 14):** venti bozze applicate diventano migrazioni, 0066 descrive il resto; database vuoto + migrazioni = produzione su tabelle, colonne, tipi, NOT NULL e funzioni (0 differenze). **Non verificati** vincoli, indici, policy, trigger e corpi delle funzioni: serve l'estrazione `supabase/strumenti/leggi-catalogo.sql` da incollare nell'editor SQL.
+5. **Copie di lavoro:** tutto salvato nel ramo locale `archivio-2026-11-17` (non pubblicare); `gestionale-bnb` riallineata a main; nulla cancellato; regola d'inizio lavoro in CLAUDE.md e AGENTS.md.
+
+**🔴 Per chi lavora su `in-forse`:** la sua `0066_stato_in_forse.sql` ha lo stesso numero della 0066 di allineamento già in main: rinumerare 0067 prima di unire. **Per Ania:** la lista di copie e rami che si possono togliere è in `archivio/LEGGIMI.md` dell'archivio; si cancella solo col suo sì.
+
 ## Cifra rossa del Calendario — 17/11/2026, Claude — PUBBLICATA (5395ab1, Vercel success)
 
 Base origin/main `d680e8b`, copia pulita `gestionale-cifra-rossa` (branch `cifra-rossa`); deploy Vercel 7854501901 su 5395ab1 success. Due commit; nessuna migrazione, nessun dato toccato, nessun ritocco grafico; su Supabase solo letture. Suite 2266 → 2272 test verdi, `tsc` e eslint puliti sui file toccati, `npm run build` riuscita.
