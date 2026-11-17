@@ -9,6 +9,14 @@
 //   questa  = il totale del conto di questa prenotazione (contoPrenotazione,
 //             tutte le sue righe, anche un mancato arrivo); se il conto non si
 //             può fare (un importo mancante) la cifra non c'è.
+//
+// REGOLA DI ANIA, 17/11/2026: «speso» è quello che il cliente ha già pagato,
+// più questa prenotazione. Le prenotazioni in corso e future dello stesso
+// cliente NON si contano nella cifra delle altre: sul futuro la cifra è
+// concluso + futuro, sull'in corso è concluso + in corso. Non cambiare senza
+// una sua richiesta (REGOLE-FISSE.md n. 12; test in lib/spesoCliente.test.ts).
+// Anche la scheda cliente usa questa stessa funzione (soggiorniConclusiDelCliente),
+// con le schede che hanno lo stesso telefono unite: le quattro cifre coincidono.
 // Funzioni pure, provate con node --test.
 // ============================================================================
 import { elencoSoggiorniPersona, type SoggiornoStorico, type SoggiornoPersona } from './clienteCheTorna.ts'
@@ -52,6 +60,14 @@ export function soggiorniDelCliente(prenotazione: Riga, tutte: Riga[], camere: {
   const guest = prenotazione.guests ?? null
   const persona = { guest_id: prenotazione.guest_id ?? null, telefono: guest?.phone ?? null, full_name: prenotazione.guest_name || guest?.full_name || null }
   return elencoSoggiorniPersona(persona, altre as unknown as SoggiornoStorico[], oggi, chiave)
+}
+
+/** La scheda cliente (17/11/2026): tutti i soggiorni CONCLUSI del cliente, schede con lo stesso telefono
+ *  comprese, con la STESSA funzione della cifra rossa (nessuna prenotazione esclusa). */
+export function soggiorniConclusiDelCliente(cliente: { id: string; phone?: string | null; full_name?: string | null }, tutte: Riga[], camere: { id: string; name: string }[], oggi: string): { elenco: SoggiornoPersona[]; n: number; ricaviCent: number } {
+  const rif = { id: '', guest_id: cliente.id, guest_name: cliente.full_name ?? null, guests: { phone: cliente.phone ?? null, full_name: cliente.full_name ?? null } } as Riga
+  const elenco = soggiorniDelCliente(rif, tutte, camere, oggi)
+  return { elenco, n: elenco.length, ricaviCent: elenco.reduce((t, s) => t + s.totaleCent, 0) }
 }
 
 /** I soggiorni conclusi del cliente fuori da questa prenotazione, in centesimi (il foglietto) */

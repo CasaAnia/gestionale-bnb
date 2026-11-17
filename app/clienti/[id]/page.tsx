@@ -27,7 +27,8 @@ import FoglioMaison from '@/components/maison/FoglioMaison'
 import FoglioCliente from '@/components/scheda/FoglioCliente'
 import { IconeContatto } from '@/components/scheda/TestataMaison'
 import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
-import { soggiorniConclusi } from '@/lib/clienteCheTorna'
+import { soggiorniConclusiDelCliente } from '@/lib/spesoCliente'
+import { leggiSchedeGemelle } from '@/lib/spesoClienteDati'
 import { righeStorico, testoCamere } from '@/lib/storicoCliente'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import { storicoCliente, prenotazioneValida } from '@/lib/statistiche'
@@ -71,7 +72,11 @@ export default function ClienteDetail() {
       ])
       if (rg.error) return { data: null, error: rg.error }
       if (rb.error) return { data: null, error: rb.error }
-      return { data: { cliente: rg.data, prenotazioni: rb.data || [] }, error: null }
+      // le altre schede con lo stesso telefono (17/11/2026): i soggiorni sono del cliente, non della scheda;
+      // se la lettura non arriva intera si mostra l'errore, mai numeri a metà
+      const gemelle = await leggiSchedeGemelle(supabase, id as string, (rg.data as { phone?: string | null } | null)?.phone)
+      if (gemelle.errore) return { data: null, error: new Error(gemelle.errore) }
+      return { data: { cliente: rg.data, prenotazioni: [...(rb.data || []), ...gemelle.righe] as Record<string, unknown>[] }, error: null }
     }, 'caricare il cliente').then(({ data, errore }) => {
       if (!vivo) return
       if (errore) { setErroreCaricamento(errore); setLoading(false); return }
@@ -146,7 +151,9 @@ export default function ClienteDetail() {
   const stella = valutazioneDi(guest) === 'ottimo'
   const ricevuta = vuoleRicevuta(guest)
   const problema = valutazioneDi(guest) === 'problematico'
-  const riga = rigaTestaCliente(guest, soggiorniConclusi(bookings, oggiStr))
+  // la stessa funzione della cifra rossa del Calendario: soggiorni conclusi, schede con lo stesso telefono unite
+  const conclusi = soggiorniConclusiDelCliente({ id: String(guest.id), phone: guest.phone, full_name: guest.full_name }, bookings, [], oggiStr)
+  const riga = rigaTestaCliente(guest, { n: conclusi.n, ricaviCent: conclusi.ricaviCent })
   const soggiorni = righeStorico(bookings)
   const nota = (guest.notes ?? '').trim()
   const motivo = (guest.motivo_problematico ?? '').trim()
@@ -193,7 +200,7 @@ export default function ClienteDetail() {
       <section className="np-sec cli-numeri" style={{ paddingTop: 16 }} data-numeri-cliente>
         <div className="g3">
           <div><p className="sch-k">Soggiorni</p><p className="sch-big">{storico.soggiorni}</p></div>
-          <div><p className="sch-k">Totale speso</p><p className="sch-big">{Math.round(storico.totaleSpesoCent / 100).toLocaleString('it-IT')} €</p></div>
+          <div><p className="sch-k">Totale speso</p><p className="sch-big">{Math.round(conclusi.ricaviCent / 100).toLocaleString('it-IT')} €</p></div>
           <div><p className="sch-k">Annullate</p><p className="sch-big mat">{storico.annullate}</p></div>
         </div>
         {/* Ultimi arrivi: solo orari realmente registrati, dal più recente */}

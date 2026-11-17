@@ -152,3 +152,48 @@ test('causa 6 — la cifra accorciata non cambia mai il conto: con i centesimi n
   // tondo: come sempre
   assert.deepEqual(formeCifra(138000), ['1.380 €', '1.380'])
 })
+
+// ── 17/11/2026, risposte di Ania ─────────────────────────────────────────────
+// 1. «Speso» = quello che il cliente ha già pagato (soggiorni CONCLUSI) più
+//    questa prenotazione. Le prenotazioni in corso e future dello stesso
+//    cliente non si contano nella cifra delle altre.
+// 2. La scheda cliente unisce le schede con lo stesso telefono e usa la stessa
+//    funzione della cifra rossa: le quattro cifre coincidono sempre.
+import { soggiorniConclusiDelCliente } from './spesoCliente.ts'
+
+test('regola 17/11/2026: concluso + questa; in corso e futuro non si contano nelle cifre degli altri soggiorni', () => {
+  const OGGI3 = '2026-11-17'
+  const conclusoA = sc('s1', { status: 'completata', check_in: '2026-11-01', check_out: '2026-11-04', total_amount: 300 })
+  const inCorsoB = sc('s2', { check_in: '2026-11-15', check_out: '2026-11-20', total_amount: 200 })
+  const futuroC = sc('s3', { check_in: '2026-12-01', check_out: '2026-12-03', total_amount: 100 })
+  const tutte3 = [conclusoA, inCorsoB, futuroC]
+  const cifra = (r: typeof conclusoA) => spesoConQuestaCent(r as never, [r] as never, tutte3 as never, camere2, OGGI3)
+  assert.equal(cifra(futuroC), 40000)   // concluso + futuro, senza l'in corso
+  assert.equal(cifra(inCorsoB), 50000)  // concluso + in corso, senza il futuro
+  assert.equal(cifra(conclusoA), 30000) // il concluso: solo sé stesso
+  // la regola è scritta in testa a lib/spesoCliente.ts e in REGOLE-FISSE.md, con la data
+  assert.match(leggi('lib/spesoCliente.ts'), /17\/11\/2026[\s\S]{0,400}in corso e future/)
+  assert.match(leggi('REGOLE-FISSE.md'), /17\/11\/2026[\s\S]{0,900}lib\/spesoCliente\.test\.ts/)
+})
+
+test('scheda cliente: il caso A dà 1.998 € da entrambe le schede, non 1.840 e 158; stessa funzione della cifra rossa', () => {
+  const dalla1 = soggiorniConclusiDelCliente({ id: 'g1', phone: '+39 335 123 4567', full_name: 'Roberto Verdi' }, tutte2 as never, camere2, OGGI2)
+  const dalla2 = soggiorniConclusiDelCliente({ id: 'g2', phone: '3351234567', full_name: 'Roberto Verdi' }, tutte2 as never, camere2, OGGI2)
+  for (const r of [dalla1, dalla2]) { assert.equal(r.ricaviCent, 199800); assert.equal(r.n, 7); assert.equal(r.elenco.length, 7) }
+  // coincide con la cifra rossa: concluso di tutti meno questa, più questa
+  assert.equal(spesoConQuestaCent(settimo as never, [settimo] as never, tutte2 as never, camere2, OGGI2), dalla2.ricaviCent)
+  // un'altra persona (telefono diverso) non entra
+  const altro = soggiorniConclusiDelCliente({ id: 'g9', phone: '339 000 0000', full_name: 'Roberto Verdi' }, tutte2 as never, camere2, OGGI2)
+  assert.equal(altro.n, 0)
+  // futuri e in corso non entrano nel totale della scheda cliente
+  const futuro = sc('f1', { check_in: '2026-12-10', check_out: '2026-12-12', total_amount: 500 })
+  assert.equal(soggiorniConclusiDelCliente({ id: 'g1', phone: '3351234567' }, [...tutte2, futuro] as never, camere2, OGGI2).ricaviCent, 199800)
+})
+
+test('scheda cliente: legge anche le schede con lo stesso telefono, con la funzione unica, senza sommare da sé', () => {
+  const pagina = leggi('app/clienti/[id]/page.tsx')
+  assert.match(pagina, /leggiSchedeGemelle\(/)
+  assert.match(pagina, /soggiorniConclusiDelCliente\(/)
+  assert.doesNotMatch(pagina, /soggiorniConclusi\(/)
+  assert.doesNotMatch(pagina, /storico\.totaleSpesoCent/)
+})

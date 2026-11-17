@@ -193,3 +193,21 @@ approvato. Nessun prezzo o pagamento esistente viene riscritto.
 Test: `lib/homeTuttiResidui.test.ts`, `lib/homeMaison.test.ts`; lettura a
 pagine protetta dai test di `lib/statistiche/paginazione.test.ts`. La prova
 nell'interfaccia usa `ANTEPRIMA_TUTTI_RESIDUI=1`, esclusivamente dati inventati.
+
+## 12. La cifra «speso» conta i soggiorni conclusi più questa prenotazione, e uniti per telefono
+
+Ania, 17/11/2026: «speso» è quello che il cliente ha già pagato (i soggiorni
+CONCLUSI) più la prenotazione che si sta guardando. Le prenotazioni in corso e
+future dello stesso cliente non si contano nella cifra delle altre: sul futuro
+la cifra è concluso + futuro, sull'in corso concluso + in corso. La cifra rossa
+del Calendario, il foglietto, il riquadro, la testata della scheda
+prenotazione e la scheda cliente prendono i soggiorni da una funzione sola
+(`soggiorniDelCliente` / `soggiorniConclusiDelCliente` in `lib/spesoCliente.ts`).
+Stesso cliente = stessa scheda oppure stesso telefono a cifre (le schede con lo
+stesso telefono si uniscono solo in lettura, mai nel database); mai per il solo
+nome. Due schede con lo stesso nome e telefoni diversi non si uniscono: la
+decisione è di Ania, più avanti.
+
+Test: `lib/spesoCliente.test.ts` → «regola 17/11/2026: concluso + questa…»,
+«causa 2 — due schede con lo stesso telefono…», «scheda cliente: il caso A dà
+1.998 €…» e la guardia «UNA sola funzione».
