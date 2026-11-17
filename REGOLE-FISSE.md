@@ -230,3 +230,17 @@ Vercel e la produzione è rimasta quella di prima.
 
 Test: `lib/bloccoTest.test.ts` (tutto il file).
 
+## 14. Ogni modifica al database passa da un file in supabase/migrations
+
+Ogni modifica al database passa da un file in supabase/migrations, prima di applicarla. Niente modifiche fatte solo nel SQL Editor.
+Il 17/11/2026 il database vero e il repo non coincidevano (colonne e tabelle aggiunte a mano,
+venti migrazioni applicate ma ferme in `supabase/proposte/`): è stato riallineato (`0066` e le
+bozze applicate rese migrazioni regolari). Una proposta non ancora applicata resta in
+`supabase/proposte/` con `.BOZZA.sql` e passa fra le migrazioni solo DOPO l'applicazione, quando il
+confronto fra lo schema vero e quello costruito dalle migrazioni dà zero differenze.
+Prova: `node scripts/schema/confronta-schema.mjs openapi.json [--catalogo catalogo-produzione.json]`
+su un PostgreSQL di collaudo (mai produzione); il catalogo (vincoli, indici, policy, trigger, corpi
+delle funzioni) si estrae con `supabase/strumenti/leggi-catalogo.sql`, una SELECT sola.
+
+Test: `lib/migrazioniAllineate.test.ts` (tutto il file).
+
