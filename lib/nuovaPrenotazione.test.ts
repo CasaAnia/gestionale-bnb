@@ -321,7 +321,7 @@ test('le persone in più stanno nelle due colonne di sempre', () => {
     extra_phone_2_name: 'Ada Riva', chi_e_2: 'Amica',
   })
   assert.equal(RINUNCIABILI.has('chi_e_2'), true)
-  assert.match(readFileSync(new URL('../supabase/proposte/0056_chi_e_seconda_persona.BOZZA.sql', import.meta.url), 'utf8'), /add column if not exists chi_e_2 text/)
+  assert.match(readFileSync(new URL('../supabase/migrations/0056_chi_e_seconda_persona.sql', import.meta.url), 'utf8'), /add column if not exists chi_e_2 text/)
   // la terza non entra: la pagina lo dice
   const tre = campiConLei([
     { id: '1', nome: 'A', chiE: '', telefono: '' }, { id: '2', nome: 'B', chiE: '', telefono: '' }, { id: '3', nome: 'C', chiE: '', telefono: '' },
@@ -1596,7 +1596,7 @@ test('il rifiuto del database per camera doppia si legge in italiano', () => {
   assert.equal(messaggioSovrapposizione({ code: '23505' }), null)
   // la proposta che accende il vincolo (applicata in produzione il 17/09/2026):
   // contano solo confermate e completate, come STATI_CHE_OCCUPANO
-  const sql = readFileSync(new URL('../supabase/proposte/0051_camera_non_due_volte.BOZZA.sql', import.meta.url), 'utf8')
+  const sql = readFileSync(new URL('../supabase/migrations/0051_camera_non_due_volte.sql', import.meta.url), 'utf8')
   assert.match(sql, /exclude using gist/)
   assert.match(sql, /daterange\(check_in, check_out, '\[\)'\)/)
   assert.match(sql, /where \(status in \('confermata', 'completata'\)\)/)
@@ -1806,7 +1806,7 @@ test('Q5 — la spunta «Non è lei a dormire qui» si salva e si rilegge; senza
   assert.match(comp, /\{!nonELei && \(\s*<div data-intestataria className="np-persona primo">/)
   assert.match(pagina, /void supabase\.from\('bookings'\)\.select\(COLONNA_NON_E_LEI\)\.limit\(1\)\.then\(\(\{ error \}\) => \{ if \(vivo\) setColonnaNonELei\(!error\) \}\)/)
   assert.match(pagina, /\.\.\.campiChiDorme\(persone, nonELei, colonnaNonELei\),/)
-  assert.match(leggiFile('supabase/proposte/0061_chi_dorme_in_camera.BOZZA.sql'), /add column if not exists intestataria_non_dorme boolean not null default false/)
+  assert.match(leggiFile('supabase/migrations/0061_chi_dorme_in_camera.sql'), /add column if not exists intestataria_non_dorme boolean not null default false/)
 })
 
 test('in fondo: «Sto guardando…», Salva, gli avvisi in mattone sotto, la conferma B e «Apri la prenotazione»', () => {

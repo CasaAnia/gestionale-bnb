@@ -18,7 +18,7 @@ create function auth.uid() returns uuid language sql as 'select ''cccccccc-0000-
 create role authenticated; create role anon; create role service_role;
 create table public.rooms (id uuid primary key, name text not null, active boolean not null default true);
 `
-const sqlProposta = () => readFileSync(new URL('../../supabase/proposte/0034_room_closures.BOZZA.sql', import.meta.url), 'utf8').split('\n').filter(r => !r.trim().startsWith('--')).join('\n')
+const sqlProposta = () => readFileSync(new URL('../../supabase/migrations/0034_room_closures.sql', import.meta.url), 'utf8').split('\n').filter(r => !r.trim().startsWith('--')).join('\n')
 
 const R1 = '11111111-1111-4111-8111-111111111111', R2 = '22222222-2222-4222-8222-222222222222', R5 = '55555555-5555-4555-8555-555555555555'
 let db: PGlite

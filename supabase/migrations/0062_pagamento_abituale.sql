@@ -1,3 +1,8 @@
+-- STATO (17/11/2026): APPLICATA IN PRODUZIONE; ora è una migrazione regolare (era in supabase/proposte/).
+-- Verificato contro lo schema vero (scripts/schema/confronta-schema.mjs, lettura): colonne, tipi, NOT NULL e
+-- funzioni chiamabili coincidono. NON verificabili senza il catalogo: vincoli CHECK, indici, policy RLS, trigger e
+-- corpi delle funzioni (supabase/strumenti/leggi-catalogo.sql). Dove il testo qui sotto dice «proposta», «bozza»
+-- o «NON APPLICATA», è il testo d'origine: vale questa riga. Applicarla di nuovo non cambia nulla.
 -- 🔴 DA APPLICARE A MANO (serve l'autorizzazione di Ania), dopo il backup.
 -- 0062 · «Paga di solito con»: come paga di solito la cliente
 -- (ritocchi «Maison» del 29/09/2026, punto D1).

@@ -18,7 +18,7 @@ test('web → database → rilettura → proposta → conferma: 23,25,26 restano
       create table richieste(id uuid primary key default gen_random_uuid(),nome text,cognome text,arrivo date,partenza date,persone int,camera_id uuid,telefono text,note text,canale text,stato text,proposta_soluzione jsonb,proposta_alternative jsonb,persone_per_notte jsonb,prenotazione_id uuid,chiusa_at timestamptz,motivo_rifiuto text);
       create table bookings(id uuid primary key default gen_random_uuid(),room_id uuid,guest_id uuid,check_in date,check_out date,num_guests int,extra_bed boolean,extra_bed_dates jsonb,price_per_night numeric,extra_bed_total numeric,total_amount numeric,status text,source text,notes text,bonifico boolean,pagato boolean,group_id uuid,guest_name text);
     `)
-    const sql = readFileSync(new URL('../supabase/proposte/0044_notti_richieste.BOZZA.sql',import.meta.url),'utf8').split('-- VERIFICA:')[0]
+    const sql = readFileSync(new URL('../supabase/migrations/0044_notti_richieste.sql',import.meta.url),'utf8').split('-- VERIFICA:')[0]
     await db.exec(sql)
     await db.exec(sql) // ripetibile
     const rpc = readFileSync(new URL('../supabase/migrations/0031_richieste_persone_per_notte.sql',import.meta.url),'utf8')

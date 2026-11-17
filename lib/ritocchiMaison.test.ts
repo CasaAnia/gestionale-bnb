@@ -145,7 +145,7 @@ test('D1: «paga di solito con» si salva alla PRIMA prenotazione e poi non si a
   const senzaColonna = campiDaModulo({ ...moduloDaCliente(c), pagamento: 'bonifico' }, c, { colonnaRicevuta: true, conProvenienza: false })
   assert.ok(senzaColonna.ok && !('pagamento_abituale' in senzaColonna.campi), 'senza la 0062 non si scrive')
   // la proposta della colonna
-  const sql = leggi('supabase/proposte/0062_pagamento_abituale.BOZZA.sql')
+  const sql = leggi('supabase/migrations/0062_pagamento_abituale.sql')
   assert.match(sql, /alter table public\.guests\s+add column if not exists pagamento_abituale text/)
   assert.match(sql, /check \(pagamento_abituale is null or pagamento_abituale in \('contanti', 'bonifico'\)\)/)
 })

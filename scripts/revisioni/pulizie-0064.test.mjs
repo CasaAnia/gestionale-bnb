@@ -140,7 +140,7 @@ test('0064: timer area_comune precedente conservato e consumato una sola volta n
     await db.exec('reset role')
     await db.query('insert into pulizie_timer(chiave,trascorsi,versione) values ($1,420,1)',[chiave])
     const {readFile}=await import('node:fs/promises')
-    await db.exec(await readFile(new URL('../../supabase/proposte/0064_bagagli_e_partenza.BOZZA.sql',import.meta.url),'utf8'))
+    await db.exec(await readFile(new URL('../../supabase/migrations/0064_bagagli_e_partenza.sql',import.meta.url),'utf8'))
     await db.exec('set role authenticated')
     const prima=await tempo({azione:'leggi'})
     assert.equal(prima.data.timer.find(t=>t.chiave===chiave).trascorsi,420)

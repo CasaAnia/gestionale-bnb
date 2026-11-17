@@ -207,9 +207,13 @@ test('8a67af1 fedeltà: il metodo personale assente resta non indicato', () => {
     'per Casa Mia il metodo è facoltativo: assente deve restare non indicato, non diventare Contanti')
 })
 
-test('8a67af1 perimetro: una proposta SQL non autorizzata non vive nella cartella delle migrazioni operative', () => {
+test('8a67af1 perimetro: la 0023 è stata autorizzata e applicata (01/09/2026): ora è una migrazione regolare, con la riga di stato', () => {
+  // Fino al 17/11/2026 qui si controllava che la proposta NON stesse in migrations/: finché non era autorizzata.
+  // Ania l'ha applicata in produzione il 01/09/2026 (registro) e il confronto con lo schema vero (17/11/2026)
+  // vede la funzione elabora_sostituisci_bozze: passa fra le migrazioni (REGOLE-FISSE n. 14).
   const qui = dirname(fileURLToPath(import.meta.url))
   const migrazione = resolve(qui, '..', '..', 'supabase', 'migrations', '0023_elaborazione_bozze_atomica.sql')
-  assert.equal(existsSync(migrazione), false,
-    'la scheda esclude migrazioni/RPC: finché è una proposta deve stare in proposte/*.BOZZA.sql, non nel percorso applicabile da db push')
+  assert.equal(existsSync(migrazione), true)
+  assert.match(readFileSync(migrazione, 'utf8').split('\n').slice(0, 8).join('\n'), /^-- STATO/m)
+  assert.equal(existsSync(resolve(qui, '..', '..', 'supabase', 'proposte', '0023_elaborazione_bozze_atomica.BOZZA.sql')), false)
 })

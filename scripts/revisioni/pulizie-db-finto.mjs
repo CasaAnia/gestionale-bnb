@@ -9,7 +9,7 @@ export async function databasePulizieFinto(rooms, bookings, cleanings, { con0059
     grant usage on schema private to authenticated;
     create table rooms(id uuid primary key);
     create table bookings(id uuid primary key, room_id uuid, status text, check_in date, check_out date, num_guests integer);`)
-  for (const p of ['migrations/0018_pulizie_storico.sql', 'migrations/0039_biancheria_recuperata.sql', 'proposte/0045_pulizie_manuali.BOZZA.sql', ...(con0059 || con0064 ? ['proposte/0059_pulizie_dotazione_tempi.BOZZA.sql'] : []), ...(con0064 ? ['proposte/0064_bagagli_e_partenza.BOZZA.sql'] : [])]) await db.exec(await readFile(new URL(`../../supabase/${p}`, import.meta.url), 'utf8'))
+  for (const p of ['migrations/0018_pulizie_storico.sql', 'migrations/0039_biancheria_recuperata.sql', 'migrations/0045_pulizie_manuali.sql', ...(con0059 || con0064 ? ['migrations/0059_pulizie_dotazione_tempi.sql'] : []), ...(con0064 ? ['migrations/0064_bagagli_e_partenza.sql'] : [])]) await db.exec(await readFile(new URL(`../../supabase/${p}`, import.meta.url), 'utf8'))
   for (const r of rooms) await db.query('insert into rooms values ($1)', [r.id])
   for (const b of bookings) await db.query('insert into bookings values ($1,$2,$3,$4,$5,$6)', [b.id, b.room_id, b.status, b.check_in, b.check_out, b.num_guests])
   for (const c of cleanings) await db.query(`insert into cleanings(id,room_id,booking_id,tipo,stato,data_prevista,data_effettiva,prossima_data,cambio_biancheria,created_at,persone_servite)

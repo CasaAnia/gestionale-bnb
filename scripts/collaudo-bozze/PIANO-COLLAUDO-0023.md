@@ -39,7 +39,7 @@ Nessun segreto in chat, log o repository.
 1. `node scripts/collaudo-bozze/passo1-struttura.mjs`
    — conformità STATICA della bozza (vincoli R6); apre il REGISTRO
    durevole e salva la FOTOGRAFIA DI BASE prima di ogni effetto;
-   applica `supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql`
+   applica `supabase/migrations/0023_elaborazione_bozze_atomica.sql`
    e verifica la struttura: firma `(uuid, jsonb, text)`, security
    definer, search_path vuoto, EXECUTE al solo service_role (anon,
    authenticated e PUBLIC negati).

@@ -24,7 +24,7 @@ create table public.payments (
   amount numeric not null, method text not null default 'contanti', paid_on date not null default current_date, created_at timestamptz not null default now());
 `
 function sqlProposta(): string {
-  const file = readFileSync(new URL('../../supabase/proposte/0033_pagamenti_idempotenti.BOZZA.sql', import.meta.url), 'utf8')
+  const file = readFileSync(new URL('../../supabase/migrations/0033_pagamenti_idempotenti.sql', import.meta.url), 'utf8')
   return file.split('\n').filter(r => !r.trim().startsWith('--')).join('\n')
 }
 

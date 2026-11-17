@@ -52,7 +52,7 @@ Schermate a 390 px (accanto a questo file):
 - C4a–C4e fatte: `?da=` su ogni link (Home: arrivi, da incassare, richieste, da controllare; Calendario; Arrivi; Richieste; elenco Prenotazioni; scheda cliente), resta dopo i salvataggi (le linguette tengono l'indirizzo, e passando a un'altra camera `conDaDellaScheda` lo riporta). La freccia usa la cronologia quando c'è, altrimenti la pagina di provenienza.
 
 ## D · Clienti
-- D1a fatta: `supabase/proposte/0062_pagamento_abituale.BOZZA.sql`, **da applicare a mano** (autorizzazione di Ania); il codice regge senza.
+- D1a fatta: `supabase/migrations/0062_pagamento_abituale.sql`, **da applicare a mano** (autorizzazione di Ania); il codice regge senza.
 - D1b fatta. D1c fatta. D1e fatta. D1f fatta.
 - D1d fatta per Nuova prenotazione, «Come paga» della scheda (quando la prenotazione non dice ancora niente: un come paga già scelto resta il suo) e Aggiungi pagamento (scheda e Home). **Non fatta per la proposta delle Richieste, motivo:** lì le chip sono All'arrivo · Caparra · Pagamento completo · Personalizzata, non Contanti | Bonifico, e c'è la decisione di Ania «nessuna preselezione, le sceglie Ania ogni volta».
 - D2a–D2i fatte (dal Mac anche senza lo zoom del 20%, come le altre pagine Maison).

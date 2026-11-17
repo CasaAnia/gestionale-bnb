@@ -14,7 +14,7 @@ nuovo entrambi provati; migrazione solo proposta.
 Ogni voce alla fine è **fatta** oppure **non fatta** col motivo.
 
 ## P1 · Due colonne nuove (migrazione NON applicata)
-- [x] P1.1 Bozza `supabase/proposte/0064_bagagli_e_partenza.BOZZA.sql` (primo numero libero dopo 0063) con `bookings.bagagli_alle time null` e `bookings.check_out_time time null`, nessun default, nessun dato toccato → **fatta** — 0064 (0063 è la proposta di Codex in attesa)
+- [x] P1.1 Bozza `supabase/migrations/0064_bagagli_e_partenza.sql` (primo numero libero dopo 0063) con `bookings.bagagli_alle time null` e `bookings.check_out_time time null`, nessun default, nessun dato toccato → **fatta** — 0064 (0063 è la proposta di Codex in attesa)
 - [x] P1.2 Grant e RLS come le altre colonne di bookings (nessuna policy nuova: valgono quelle della tabella) → **fatta**
 - [x] P1.3 In cima le istruzioni per Ania (SQL Editor, select di controllo dopo) → **fatta**
 - [x] P1.4 Senza la migrazione tutto ciò che usa le due colonne resta nascosto, senza errori; colonna assente ≠ errore di rete/permessi (questi si dicono) → **fatta** — lib/schema0064 + useParte0064; provato in anteprima senza 0064

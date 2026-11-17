@@ -104,7 +104,7 @@ test('riconosce la funzione mancante dai suoi codici', () => {
 })
 
 test('la proposta 0053 è una transazione e ricontrolla la disponibilità', () => {
-  const sql = readFileSync(new URL('../supabase/proposte/0053_notti_in_un_colpo.BOZZA.sql', import.meta.url), 'utf8')
+  const sql = readFileSync(new URL('../supabase/migrations/0053_notti_in_un_colpo.sql', import.meta.url), 'utf8')
   assert.match(sql, /create or replace function public\.sposta_notti/)
   assert.match(sql, /get diagnostics toccate = row_count/)
   assert.match(sql, /raise exception 'il tratto % non c''è più/)

@@ -32,5 +32,5 @@ alter table public.cleanings drop column if exists assetto, drop column if exist
 drop function if exists private.dotazione_da_assetto(jsonb);
 drop function if exists private.assetto_pulito(jsonb);
 commit;
--- Poi rieseguire per intero supabase/proposte/0045_pulizie_manuali.BOZZA.sql
+-- Poi rieseguire per intero supabase/migrations/0045_pulizie_manuali.sql
 -- (ripristina gestisci_pulizia della 0045; è idempotente).

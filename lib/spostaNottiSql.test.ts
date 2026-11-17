@@ -42,7 +42,7 @@ create table public.bookings (
 `
 
 const proposta = (nome: string) =>
-  readFileSync(new URL(`../supabase/proposte/${nome}`, import.meta.url), 'utf8')
+  readFileSync(new URL(`../supabase/migrations/${nome}`, import.meta.url), 'utf8')
     .split('\n').filter(r => !r.trim().startsWith('--')).join('\n')
 
 let db: PGlite
@@ -52,7 +52,7 @@ before(async () => {
   await db.exec(SCHEMA)
   await db.exec(`insert into public.rooms (id, name) values ('${AMBRA}','Ambra'),('${ALLEGRA}','Allegra'),('${LENA}','Lena'),('${AMELIA}','Amelia')`)
   await db.exec(`insert into public.guests (id, full_name) values ('${OSPITE}','Cliente di prova')`)
-  for (const nome of ['0051_camera_non_due_volte.BOZZA.sql', '0053_notti_in_un_colpo.BOZZA.sql', '0054_due_letti_in_tutto.BOZZA.sql']) {
+  for (const nome of ['0051_camera_non_due_volte.sql', '0053_notti_in_un_colpo.sql', '0054_due_letti_in_tutto.sql']) {
     await db.exec(proposta(nome))
   }
 })

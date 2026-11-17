@@ -8,7 +8,7 @@
 //
 // SCRITTURE: esclusivamente attraverso il PRIMITIVO ATOMICO — la RPC
 // `elabora_sostituisci_bozze` della proposta
-// supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql (da
+// supabase/migrations/0023_elaborazione_bozze_atomica.sql (da
 // applicare a mano con autorizzazione separata; gli stati elaborabili
 // li fissa il SERVER, non questo strumento). Qui non esiste alcuna
 // DELETE/INSERT/PATCH diretta sulle tabelle: senza quella RPC lo

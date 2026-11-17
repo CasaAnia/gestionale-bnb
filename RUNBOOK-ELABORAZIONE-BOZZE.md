@@ -50,7 +50,7 @@ comando: niente resta acceso da solo.
    dei duplicati è uno STOP, mai «nessun duplicato»), e scrive bozze +
    righe + `doc_total` con UNA SOLA chiamata atomica: la RPC
    `elabora_sostituisci_bozze` della proposta
-   `supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql` (tutto
+   `supabase/migrations/0023_elaborazione_bozze_atomica.sql` (tutto
    o niente, arbitraggio concorrente e stati elaborabili FISSATI nel
    database, mai dal chiamante). Finché la 0023 non è applicata e
    collaudata (autorizzazione separata) lo strumento NON PUÒ scrivere
@@ -92,7 +92,7 @@ comando: niente resta acceso da solo.
 
 - Richiede il via libera dell'utente nella conversazione E il contratto
   database: la proposta
-  `supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql`
+  `supabase/migrations/0023_elaborazione_bozze_atomica.sql`
   applicata a mano nell'editor SQL e collaudata in un ambiente isolato
   (autorizzazione SUA, separata; finché è una bozza NON va spostata fra
   le migrazioni operative). La sola variabile d'ambiente non basta:

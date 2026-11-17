@@ -31,7 +31,7 @@ import { readFileSync } from 'node:fs'
 const url = process.env.DATABASE_URL
 if (!url) { console.log('DA COLLAUDARE: nessuna DATABASE_URL — il collaudo non è partito.'); process.exit(2) }
 
-const proposta = (nome) => readFileSync(new URL(`../../supabase/proposte/${nome}`, import.meta.url), 'utf8')
+const proposta = (nome) => readFileSync(new URL(`../../supabase/migrations/${nome}`, import.meta.url), 'utf8')
 
 const SCHEMA = `
 drop schema if exists public cascade;
@@ -81,7 +81,7 @@ async function prepara() {
   await pool.query(SCHEMA)
   await pool.query(`insert into public.rooms (id, name) values ($1,'Ambra'),($2,'Allegra'),($3,'Lena'),($4,'Amelia')`, [AMBRA, ALLEGRA, LENA, AMELIA])
   await pool.query(`insert into public.guests (id, full_name) values ($1, 'Cliente di prova')`, [OSPITE])
-  for (const nome of ['0051_camera_non_due_volte.BOZZA.sql', '0053_notti_in_un_colpo.BOZZA.sql', '0054_due_letti_in_tutto.BOZZA.sql']) {
+  for (const nome of ['0051_camera_non_due_volte.sql', '0053_notti_in_un_colpo.sql', '0054_due_letti_in_tutto.sql']) {
     await pool.query(senzaCommenti(proposta(nome)))
   }
 }

@@ -1,3 +1,8 @@
+-- STATO (17/11/2026): APPLICATA IN PRODUZIONE; ora è una migrazione regolare (era in supabase/proposte/).
+-- Verificato contro lo schema vero (scripts/schema/confronta-schema.mjs, lettura): colonne, tipi, NOT NULL e
+-- funzioni chiamabili coincidono. NON verificabili senza il catalogo: vincoli CHECK, indici, policy RLS, trigger e
+-- corpi delle funzioni (supabase/strumenti/leggi-catalogo.sql). Dove il testo qui sotto dice «proposta», «bozza»
+-- o «NON APPLICATA», è il testo d'origine: vale questa riga. Applicarla di nuovo non cambia nulla.
 -- ============================================================================
 -- 0043 — COLONNE DI bookings GIÀ IN PRODUZIONE SENZA MIGRAZIONE («drift») — ***PROPOSTA/BOZZA***
 -- ============================================================================
@@ -14,10 +19,14 @@
 -- Tipi: dedotti dal codice che le scrive e le legge (app/nuova, scheda
 -- prenotazione, Calendario, Arrivi) e dagli stub dei test PGlite.
 --
+-- 17/11/2026: in produzione `pagato` e `bonifico` sono boolean con default false ma PUÒ essere nullo (aggiunte a mano):
+-- la bozza diceva NOT NULL, qui sono allineate alla realtà (lo dice la descrizione di PostgREST). Il codice è già
+-- scritto per reggere il nullo.
+--
 -- ROLLBACK: nessuno consigliato — le colonne contengono dati veri.
 
-alter table public.bookings add column if not exists pagato boolean not null default false;              -- «Segna come pagato» (flag; i movimenti stanno in payments)
-alter table public.bookings add column if not exists bonifico boolean not null default false;            -- paga con bonifico (barra viola nel Calendario)
+alter table public.bookings add column if not exists pagato boolean default false;                         -- «Segna come pagato» (flag; i movimenti stanno in payments)
+alter table public.bookings add column if not exists bonifico boolean default false;                       -- paga con bonifico (barra viola nel Calendario)
 alter table public.bookings add column if not exists guest_name text;                                    -- nome scritto sulla prenotazione, diverso dal cliente (lib/guestName)
 alter table public.bookings add column if not exists extra_bed_dates jsonb;                              -- notti (YYYY-MM-DD) col letto aggiuntivo
 alter table public.bookings add column if not exists extra_phone_1 text;                                 -- contatto in più 1 (numero)

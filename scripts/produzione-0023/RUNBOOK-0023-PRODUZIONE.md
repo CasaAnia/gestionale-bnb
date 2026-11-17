@@ -12,7 +12,7 @@ runbook. Stesse cautele della 0022. DUE autorizzazioni SEPARATE:
   stato trovato. A non implica MAI B.
 
 Identità vincolata: la 0023 applicabile è SOLO il file collaudato
-(`supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql`, sha256
+(`supabase/migrations/0023_elaborazione_bozze_atomica.sql`, sha256
 `298b5d84…` in `identita0023.mjs`, collaudo del 01/09/2026: 2 giri, 56
 verifiche verdi). Un byte diverso = STOP: nuova versione, nuovo collaudo.
 

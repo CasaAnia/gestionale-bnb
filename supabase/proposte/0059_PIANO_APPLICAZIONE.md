@@ -3,7 +3,7 @@
 Preparata il 25/09/2026. **NON APPLICATA.** Serve l'autorizzazione di Ania
 per: applicare la SQL sul progetto vero, pubblicare l'app, unire il branch.
 
-File: `supabase/proposte/0059_pulizie_dotazione_tempi.BOZZA.sql`
+File: `supabase/migrations/0059_pulizie_dotazione_tempi.sql`
 Ripristino: `supabase/proposte/0059_RIPRISTINO.BOZZA.sql`
 Prove: `scripts/revisioni/pulizie-0059.test.mjs` (8 casi, database isolato
 PGlite con 0018 + 0039 + 0045 + 0059).

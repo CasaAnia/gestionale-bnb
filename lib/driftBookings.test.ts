@@ -10,7 +10,7 @@ import { PGlite } from '@electric-sql/pglite'
 const COLONNE = ['pagato', 'bonifico', 'guest_name', 'extra_bed_dates', 'extra_phone_1', 'extra_phone_1_name', 'extra_phone_2', 'extra_phone_2_name', 'color', 'check_in_time']
 
 function sqlProposta(): string {
-  const file = readFileSync(new URL('../supabase/proposte/0043_drift_bookings.BOZZA.sql', import.meta.url), 'utf8')
+  const file = readFileSync(new URL('../supabase/migrations/0043_drift_bookings.sql', import.meta.url), 'utf8')
   const fine = file.indexOf('-- VERIFICA')
   return file.slice(0, fine).replace(/notify pgrst[^;]*;/g, '')
 }

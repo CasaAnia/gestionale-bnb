@@ -7,7 +7,7 @@ checkout principale NON sono toccati né inclusi. Tredici commit, uno per pezzo
 
 ## Da applicare (Ania) — proposta 0064
 
-`supabase/proposte/0064_bagagli_e_partenza.BOZZA.sql` — **NON applicata**.
+`supabase/migrations/0064_bagagli_e_partenza.sql` — **NON applicata**.
 In cima al file ci sono le istruzioni: SQL Editor, incolla tutto, «Run».
 Dopo, incolla le righe sotto «VERIFICA» e controlla:
 - 2 colonne nuove su `bookings` (`bagagli_alle`, `check_out_time`, tipo time),

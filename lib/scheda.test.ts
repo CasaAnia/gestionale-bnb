@@ -361,7 +361,7 @@ test('il salvataggio delle notti: si annulla, non si cancella, e il conto si rif
   assert.match(pagina, /const piano = pianoNotti\(nuove, linea\.segmenti, contestoLinea\(linea, linee, contesto\), prezzo\?\.scelta\)/)
   assert.match(pagina, /const gruppo = linea\.segmenti\[0\]\?\.group_id \|\| crypto\.randomUUID\(\)/)
   // l'annullamento lo fa la funzione della 0053, e annulla: non cancella
-  const sql = readFileSync(new URL('../supabase/proposte/0053_notti_in_un_colpo.BOZZA.sql', import.meta.url), 'utf8')
+  const sql = readFileSync(new URL('../supabase/migrations/0053_notti_in_un_colpo.sql', import.meta.url), 'utf8')
   assert.match(sql, /set status = 'annullata', cancelled_at = adesso/)
   assert.equal(/delete from public\.bookings/.test(sql), false, 'una riga viene cancellata invece che annullata')
   assert.equal(/from\('bookings'\)\.delete\(\)/.test(pagina), false)

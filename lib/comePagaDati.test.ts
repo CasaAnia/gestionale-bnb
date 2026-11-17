@@ -117,7 +117,7 @@ test('riconosce la funzione che non c’è dai suoi codici', () => {
 })
 
 test('la proposta 0052 esiste, controlla le righe toccate ed è una transazione', () => {
-  const sql = readFileSync(new URL('../supabase/proposte/0052_come_paga_atomico.BOZZA.sql', import.meta.url), 'utf8')
+  const sql = readFileSync(new URL('../supabase/migrations/0052_come_paga_atomico.sql', import.meta.url), 'utf8')
   assert.match(sql, /create or replace function public\.salva_come_paga/)
   assert.match(sql, /get diagnostics toccate = row_count/)
   assert.match(sql, /raise exception 'aggiornate % righe su %/)

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Applica su un PostgreSQL di COLLAUDO (mai produzione) tutte le migrazioni
-// operative del progetto in ordine, poi le proposte 0033 e 0034. Prima crea
+// operative del progetto in ordine (comprese quelle un tempo proposte). Prima crea
 // gli oggetti che su Supabase esistono già (ruoli anon/authenticated/
 // service_role, schema auth con users e uid() che legge il JWT, schema
 // storage con buckets/objects minimi): sono STUB dichiarati, servono solo a
@@ -57,13 +57,8 @@ for (const f of migrazioni) {
   // Come in produzione: dopo la 0020 e prima della 0021 il bootstrap dell'owner (script manuale del progetto)
   if (f.startsWith('0020_')) await esegui('supabase/bootstrap_owner.sql', readFileSync(new URL('../../supabase/bootstrap_owner.sql', import.meta.url), 'utf8'))
 }
-// DRIFT REGISTRATO (07/09/2026, pezzo 5): le colonne di bookings presenti in
-// produzione senza migrazione stanno ora nella proposta 0043 («if not
-// exists»): il collaudo la applica dal file, niente più elenco a mano qui.
-for (const f of ['0043_drift_bookings.BOZZA.sql', '0033_pagamenti_idempotenti.BOZZA.sql', '0034_room_closures.BOZZA.sql']) {
-  const sql = readFileSync(new URL(`../../supabase/proposte/${f}`, import.meta.url), 'utf8')
-  await esegui(`proposta ${f}`, sql)
-}
+// Dal 17/11/2026 le proposte 0033, 0034 e 0043 (le colonne di bookings aggiunte a mano) sono
+// migrazioni regolari: stanno già nel giro qui sopra, in ordine di numero.
 await client.end()
 for (const [stato, nome, dettaglio] of esiti) console.log(`${stato} — ${nome}${dettaglio ? ` — ${dettaglio}` : ''}`)
 process.exit(esiti.some(e => e[0] === 'ERRORE') ? 1 : 0)

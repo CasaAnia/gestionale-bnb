@@ -49,7 +49,7 @@ al codice) e **«già ospite N volte»** al posto di «N soggiorni».
 
 ## 10. Chi dorme in camera
 - D1–D11 fatte. «Papà» aggiunto alle voci (vale anche nel foglio «Con lei» della scheda).
-- D12 **fatta a metà**: la spunta si salva nella colonna `intestataria_non_dorme`, proposta in `supabase/proposte/0061_chi_dorme_in_camera.BOZZA.sql`. **Non applicata**: finché Ania non la applica a mano, la pagina non mostra la spunta (se ne accorge da sola). La scheda non la mostra ancora: sarà un lavoro a parte.
+- D12 **fatta a metà**: la spunta si salva nella colonna `intestataria_non_dorme`, proposta in `supabase/migrations/0061_chi_dorme_in_camera.sql`. **Non applicata**: finché Ania non la applica a mano, la pagina non mostra la spunta (se ne accorge da sola). La scheda non la mostra ancora: sarà un lavoro a parte.
 - Appena accesa la spunta, «Annulla» nel foglietto la rispegne e torna l’intestataria.
 
 ## 11. Nota

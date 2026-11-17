@@ -10,7 +10,7 @@ import { ErroreCollaudo } from '../collaudo-contratto/strumenti.mjs'
 
 export const FUNZIONE_0023 = 'elabora_sostituisci_bozze'
 export const FIRMA_0023 = 'uuid, jsonb, text'
-export const BOZZA_0023 = 'supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql'
+export const BOZZA_0023 = 'supabase/migrations/0023_elaborazione_bozze_atomica.sql'
 
 // CANCELLO: ogni passo si rifiuta senza l'autorizzazione esplicita
 // nell'ambiente del comando (mai in un file .env)

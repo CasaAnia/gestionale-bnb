@@ -15,7 +15,7 @@ test('SQL vera: conferma e recupero atomici, tre ospiti, doppio invio, due modif
       create table rooms(id uuid primary key);
       create table bookings(id uuid primary key, room_id uuid, status text, check_in date, check_out date, num_guests integer);
     `)
-    for (const file of ['migrations/0018_pulizie_storico.sql', 'migrations/0039_biancheria_recuperata.sql', 'proposte/0045_pulizie_manuali.BOZZA.sql']) {
+    for (const file of ['migrations/0018_pulizie_storico.sql', 'migrations/0039_biancheria_recuperata.sql', 'migrations/0045_pulizie_manuali.sql']) {
       await db.exec(await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8'))
     }
     const room = '10000000-0000-4000-8000-000000000001', booking = '20000000-0000-4000-8000-000000000001'
