@@ -31,8 +31,8 @@ test('lo stesso numero del foglietto: i soggiorni conclusi più il conto di ques
   assert.equal(spesoConQuestaCent(questa[0] as never, [{ ...questa[0], total_amount: null }] as never, tutte as never, camere, OGGI), null)
 })
 
-test('le forme della cifra, dalla più lunga: quella del foglietto → «1.381 €» → «1.381»', () => {
-  assert.deepEqual(formeCifra(138050), [euroScheda(138050), '1.381 €', '1.381'])   // la prima è quella del foglietto
+test('le forme della cifra, dalla più lunga: quella del foglietto → senza «€» (mai arrotondata)', () => {
+  assert.deepEqual(formeCifra(138050), [euroScheda(138050), euroScheda(138050).replace(/\s*€$/, '')])   // la prima è quella del foglietto
   assert.deepEqual(formeCifra(138000), ['1.380 €', '1.380'])
   assert.deepEqual(formeCifra(9000), ['90 €', '90'])
 })
@@ -143,4 +143,12 @@ test('UNA sola funzione: cifra rossa, foglietto, riquadro e testata della scheda
   assert.match(scheda, /spesoPrimaCent\(/)
   assert.match(scheda, /leggiSchedeGemelle\(/)
   assert.match(foglietto, /spesoPrimaCent\(prenotazione, tutte, camere, oggi\)/)
+})
+
+test('causa 6 — la cifra accorciata non cambia mai il conto: con i centesimi niente forma arrotondata', () => {
+  // caso vero: un soggiorno da 250,44 € mostrava «250 €» su una scheda stretta
+  assert.deepEqual(formeCifra(25044), ['250,44 €', '250,44'])
+  assert.deepEqual(formeCifra(138050), [euroScheda(138050), euroScheda(138050).replace(/\s*€$/, '')])
+  // tondo: come sempre
+  assert.deepEqual(formeCifra(138000), ['1.380 €', '1.380'])
 })

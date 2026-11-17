@@ -66,8 +66,11 @@ export function spesoConQuestaCent(prenotazione: Riga, righeQuesta: Riga[], tutt
   return spesoPrimaCent(prenotazione, tutte, camere, oggi) + questa
 }
 
-/** Le forme della cifra, dalla più lunga: «1.380,50 €» → «1.381 €» → «1.381». Se nessuna ci sta, niente. */
+/** Le forme della cifra, dalla più lunga: «1.380 €» → «1.380». Se nessuna ci sta, niente.
+ *  Con i centesimi («250,44 €») niente forma arrotondata: una cifra più corta non cambia mai il conto. */
 export function formeCifra(cent: number): string[] {
-  const tonda = euroTondi(Math.round(cent / 100) * 100)
-  return [...new Set([euroScheda(cent), tonda, tonda.replace(/\s*€$/, '')])]
+  const piena = euroScheda(cent)
+  const senzaEuro = piena.replace(/\s*€$/, '')
+  if (Math.round(cent) % 100 !== 0) return [piena, senzaEuro]
+  return [...new Set([piena, euroTondi(Math.round(cent / 100) * 100).replace(/\s*€$/, '')])]
 }
