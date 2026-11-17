@@ -1,3 +1,12 @@
+## Cifra rossa del Calendario — 17/11/2026, Claude — PUBBLICATA (5395ab1, Vercel success)
+
+Base origin/main `d680e8b`, copia pulita `gestionale-cifra-rossa` (branch `cifra-rossa`); deploy Vercel 7854501901 su 5395ab1 success. Due commit; nessuna migrazione, nessun dato toccato, nessun ritocco grafico; su Supabase solo letture. Suite 2266 → 2272 test verdi, `tsc` e eslint puliti sui file toccati, `npm run build` riuscita.
+
+**Causa (dimostrata sui dati veri):** la cifra sommava i soggiorni della stessa scheda cliente; un cliente con due schede e lo stesso telefono vedeva il totale diviso (caso vero: 1.840 € e 158 € invece di 1.998 €). Era così dal 02/10/2026; nessuna regressione successiva. **`2ed35f6`** una sola funzione, `soggiorniDelCliente` in `lib/spesoCliente.ts` (stessa scheda o stesso telefono a cifre, mai il solo nome), per cifra rossa, foglietto, riquadro e testata della scheda prenotazione; la scheda legge le altre schede con lo stesso telefono con letture a pagine complete (`lib/spesoClienteDati.ts`), se non riescono niente cifra. **`5395ab1`** la forma accorciata non arrotonda i centesimi. Dettagli, sette ipotesi, tabella dei clienti e analisi «perché si guastano le cose» nel diario `2026-11-17-claude-cifra-rossa.md`.
+
+**Non verificato:** la versione online a schermo (serve l'accesso di Ania); la tabella «dopo» è calcolata con le stesse funzioni sulle righe vere.
+**🔴 Domande per Ania, non decise:** (1) le prenotazioni in corso e future dello stesso cliente vanno contate, e su un soggiorno vecchio la cifra comprende solo ciò che è successo prima o anche i soggiorni più recenti? (2) la scheda cliente deve unire le schede con lo stesso telefono? (3) due schede con lo stesso nome e telefoni diversi sono la stessa persona?
+
 ## Pulizie arretrate superate e data della Home — 12/11/2026, Claude — PUBBLICATI
 
 Base origin/main `721f6d2`, copia pulita `gestionale-pulizie-arretrate` (branch `pulizie-arretrate`); deploy Vercel 7743563511 su 7e9c8e3 success. Due commit, uno per pezzo; nessuna migrazione, nessun dato toccato, nessun ritocco grafico.
