@@ -9,6 +9,7 @@ import BackBar from '@/components/BackBar'
 import TestaMac from '@/components/TestaMac'
 import { nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
+import { leggiTutto } from '@/lib/leggiTutto'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { periodoCompatto } from '@/lib/dateItaliane'
@@ -44,10 +45,9 @@ export default function Prenotazioni() {
 
   useEffect(() => {
     let vivo = true
-    leggiConEsito<Record<string, unknown>[]>(() => supabase
-      .from('bookings')
-      .select('*, rooms(name), guests(full_name, phone, rating)')
-      .order('check_in', { ascending: false }), 'caricare le prenotazioni')
+    // lettura completa (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+    leggiConEsito<Record<string, unknown>[]>(() => leggiTutto<Record<string, unknown>>(supabase, 'bookings', '*, rooms(name), guests(full_name, phone, rating)',
+      { ordine: [{ colonna: 'check_in', ascendente: false }] }), 'caricare le prenotazioni')
       .then(({ data, errore }) => {
         if (!vivo) return
         if (errore) { setErrore(errore); setLoading(false); return }

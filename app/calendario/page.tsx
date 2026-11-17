@@ -41,6 +41,7 @@ import { campiLibera, indirizzoPrenotazioneNuova, testoConferma, quandoInParole,
 import { hrefScheda } from '@/lib/provenienzaScheda'
 import { chiavePrenotazione } from '@/lib/prenotazioneUnica'
 import { spesoConQuestaCent, soggiorniDelCliente } from '@/lib/spesoCliente'
+import { leggiTutto } from '@/lib/leggiTutto'
 import { oggiARoma } from '@/lib/spese/adattatore'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -277,8 +278,9 @@ export default function Calendario() {
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(*)'),
-      supabase.from('payments').select('booking_id, amount, method'),
+      // letture complete (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+      leggiTutto<CalendarBooking>(supabase, 'bookings', '*, guests(*)'),
+      leggiTutto<PaymentRow>(supabase, 'payments', 'booking_id, amount, method'),
     ]).then(([{ data: r, error: er }, { data: b, error: eb }, { data: p, error: ep }]) => {
       if (er || eb || ep) { setErroreLettura(true); setLoading(false); return }
       const sorted = ([...(r || [])] as Room[]).sort((a, b) => {

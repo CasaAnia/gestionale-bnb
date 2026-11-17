@@ -21,10 +21,11 @@ import TestaMac from '@/components/TestaMac'
 import CampoRicerca from '@/components/CampoRicerca'
 import { IconeContatto } from '@/components/scheda/TestataMaison'
 import { telefonoPerEsteso } from '@/lib/whatsapp'
-import { raccogliPagine } from '@/lib/statistiche/paginazione'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { filtraElenco, iconeCliente, rigaElenco, conclusiPerCliente, SENZA_NOME, type ClienteElenco } from '@/lib/clientiElenco'
 import type { SoggiornoStorico } from '@/lib/clienteCheTorna'
+import { leggiTutto } from '@/lib/leggiTutto'
+import AvvisoAzione from '@/components/AvvisoAzione'
 
 export default function Clienti() {
   const router = useRouter()
@@ -33,15 +34,25 @@ export default function Clienti() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
+  // lettura non riuscita (o non completa): l'avviso con Riprova, mai un elenco a metà
+  const [erroreLettura, setErroreLettura] = useState<string | null>(null)
+  const [tentativo, setTentativo] = useState(0)
+
   useEffect(() => {
-    supabase.from('guests').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => { setGuests((data || []) as ClienteElenco[]); setLoading(false) })
-    // i soggiorni conclusi e lo speso di ogni cliente: una lettura sola (se non riesce, «prima volta» resta vuoto)
-    void raccogliPagine<SoggiornoStorico>((offset, limite) => supabase.from('bookings')
-      .select('id, guest_id, check_in, check_out, status, prenotazione_id, group_id, total_amount')
-      .neq('status', 'annullata').order('check_in').range(offset, offset + limite - 1))
-      .then(r => { if (!r.error) setPrenotazioni(r.data) })
-  }, [])
+    // letture complete (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+    void Promise.all([
+      leggiTutto<ClienteElenco>(supabase, 'guests', '*', { ordine: [{ colonna: 'created_at', ascendente: false }] }),
+      // i soggiorni conclusi e lo speso di ogni cliente: una lettura sola
+      leggiTutto<SoggiornoStorico>(supabase, 'bookings', 'id, guest_id, check_in, check_out, status, prenotazione_id, group_id, total_amount',
+        { filtri: q => q.neq('status', 'annullata'), ordine: [{ colonna: 'check_in' }] }),
+    ]).then(([g, b]) => {
+      if (g.error || b.error) { setErroreLettura('Non riesco a leggere i clienti. Controlla la connessione e riprova.'); setLoading(false); return }
+      setErroreLettura(null)
+      setGuests(g.data ?? [])
+      setPrenotazioni(b.data)
+      setLoading(false)
+    })
+  }, [tentativo])
 
   const filtered = filtraElenco(guests, search)
   const conclusi = useMemo(() => conclusiPerCliente(prenotazioni ?? [], oggiARoma()), [prenotazioni])
@@ -65,6 +76,8 @@ export default function Clienti() {
 
         {loading ? (
           <p className="mz-caricamento">Caricamento…</p>
+        ) : erroreLettura ? (
+          <AvvisoAzione className="mx-4 mt-3" testo={erroreLettura} onRiprova={() => { setErroreLettura(null); setLoading(true); setTentativo(t => t + 1) }} />
         ) : filtered.length === 0 ? (
           <p className="cli-vuoto">Nessun cliente trovato</p>
         ) : (

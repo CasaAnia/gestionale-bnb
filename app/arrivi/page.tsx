@@ -17,6 +17,8 @@ import { hrefScheda } from '@/lib/provenienzaScheda'
 // Tutto il resto è come prima: 90 giorni (7 prima di oggi, 83 dopo), la
 // ricerca, il box dei cambi camera, i mesi, ?apri=<id> dalla Home.
 // ============================================================================
+import { leggiTutto } from '@/lib/leggiTutto'
+import AvvisoAzione from '@/components/AvvisoAzione'
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -118,6 +120,9 @@ export default function Arrivi() {
   // tutte le prenotazioni non annullate: servono per i buchi liberi veri; a schermo vanno gli arrivi
   const [bookings, setBookings] = useState<Riga[]>([])
   const [loading, setLoading] = useState(true)
+  // lettura non riuscita (o non completa): l'avviso con Riprova, mai un calendario a metà
+  const [erroreLettura, setErroreLettura] = useState<string | null>(null)
+  const [tentativo, setTentativo] = useState(0)
   const [isDesktop, setIsDesktop] = useState(false)
   const orizzontale = useOrizzontaleTelefono()
   useSchermoIntero()
@@ -231,10 +236,11 @@ export default function Arrivi() {
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings')
-        .select('*, guests(*)')
-        .neq('status', 'annullata'),
-    ]).then(([{ data: r }, { data: b }]) => {
+      // lettura completa (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+      leggiTutto<Riga>(supabase, 'bookings', '*, guests(*)', { filtri: q => q.neq('status', 'annullata') }),
+    ]).then(([{ data: r, error: er }, { data: b, error: eb }]) => {
+      if (er || eb) { setErroreLettura('Non riesco a leggere gli arrivi. Controlla la connessione e riprova.'); setLoading(false); return }
+      setErroreLettura(null)
       const sorted = ((r || []) as { id: string; name: string }[]).sort((a, b) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
         const bi = ROOM_ORDER.findIndex(o => b.name.includes(o))
@@ -254,7 +260,7 @@ export default function Arrivi() {
       }
       setLoading(false)
     })
-  }, [])
+  }, [tentativo])
 
   useEffect(() => {
     if (!loading && scrollRef.current) {
@@ -384,6 +390,8 @@ export default function Arrivi() {
       {/* Dal Mac niente barra di scorrimento visibile sotto la griglia: si scorre con due dita, con le frecce e con i mesi */}
       {loading ? (
         <div className="mz-caricamento">Caricamento…</div>
+      ) : erroreLettura ? (
+        <AvvisoAzione className="mx-4 mt-3" testo={erroreLettura} onRiprova={() => { setErroreLettura(null); setLoading(true); setTentativo(t => t + 1) }} />
       ) : (
         <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className={`cal-nastro arrivi ${misure.compatta ? 'compatta' : modo === 'settimana' ? 'sett' : ''}`} style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
