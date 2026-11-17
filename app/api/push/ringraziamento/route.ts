@@ -8,6 +8,7 @@ import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { attive } from '@/lib/pulizie'
 import { type Riga, pretendi, rispostaErroreCron, statoPerEsitoInvio } from '@/lib/cronLettura'
+import { leggiTutto } from '@/lib/leggiTutto'
 
 function todayStr() {
   const d = new Date()
@@ -59,10 +60,8 @@ export async function GET(req: NextRequest) {
   // Solo confermate/completate: il 23/08/2026 una richiesta dal sito rimasta
   // "in attesa" ha generato un ringraziamento per un ospite mai esistito
   // (Caso 2 dell'audit) — le richieste in attesa non sono ospiti.
-  const tutte = pretendi<Riga[]>(await supabase
-    .from('bookings')
-    .select('*, rooms(name), guests(full_name, phone)')
-    .neq('status', 'annullata'), 'leggere le prenotazioni')
+  // lettura completa (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+  const tutte = pretendi<Riga[]>(await leggiTutto<Riga>(supabase, 'bookings', '*, rooms(name), guests(full_name, phone)', { filtri: q => q.neq('status', 'annullata') }), 'leggere le prenotazioni')
 
   const bookings = attive(tutte)
   const partenzeOggi = bookings.filter((b: any) => b.check_out === oggi)

@@ -17,6 +17,7 @@ import { calcolaNotifica, todayStr, type Notifica, type Decisione } from './puli
 import { inviaATutti } from './inviaPush'
 import { registraPush } from './pushLog'
 import { type Riga, pretendi } from './cronLettura'
+import { leggiTutto } from './leggiTutto'
 
 // Calcola le pulizie in scadenza domani e invia la notifica.
 // `oggi` di default è la data corrente (il cron gira alle 14 UTC = pomeriggio
@@ -28,8 +29,9 @@ export async function inviaPulizieNotification(supabase: any, oggi?: string) {
   // non è più «nessuna pulizia domani». La 0018 (cleanings) è applicata.
   const [rRooms, rBookings, rEvents] = await Promise.all([
     supabase.from('rooms').select('*').eq('active', true),
-    supabase.from('bookings').select('*, guests(full_name)').neq('status', 'annullata'),
-    supabase.from('cleanings').select('*'),
+    // letture complete (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+    leggiTutto<Riga>(supabase, 'bookings', '*, guests(full_name)', { filtri: q => q.neq('status', 'annullata') }),
+    leggiTutto<Decisione>(supabase, 'cleanings', '*'),
   ])
   const rooms = pretendi<Riga[]>(rRooms, 'leggere le camere')
   const bookings = pretendi<Riga[]>(rBookings, 'leggere le prenotazioni')
