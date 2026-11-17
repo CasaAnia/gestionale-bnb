@@ -46,6 +46,7 @@ import { iconeFoglietto } from '@/lib/calendarioFoglietto'
 import { smartBack } from '@/lib/navHistory'
 import { nomeOspite } from '@/lib/guestName'
 import { telefonoPerEsteso } from '@/lib/whatsapp'
+import { leggiTutto } from '@/lib/leggiTutto'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, eAperta, inArchivio, rigaChiusa, riapribile, ordinaRichieste, nottiRichiesta, nomeCompleto,
@@ -245,12 +246,13 @@ function Richieste() {
     // con ospite, acconti) più le richieste. Ogni errore finisce a schermo.
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(*)').in('status', ['confermata', 'completata', 'annullata']),
-      supabase.from('payments').select('booking_id, amount'),
+      // letture complete (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+      leggiTutto<Record<string, unknown>>(supabase, 'bookings', '*, guests(*)', { filtri: q => q.in('status', ['confermata', 'completata', 'annullata']) }),
+      leggiTutto<Record<string, unknown>>(supabase, 'payments', 'booking_id, amount'),
       fetchRichieste(),
       // I clienti servono a riconoscere chi torna: valutazione, ricevuta e
       // scheda. `select('*')` regge anche senza la colonna vuole_ricevuta.
-      supabase.from('guests').select('*'),
+      leggiTutto<Record<string, unknown>>(supabase, 'guests', '*'),
     ]).then(([r, b, pay, ric, g]) => {
       const errs: string[] = []
       if (r.error) errs.push(`camere: ${r.error.message}`)

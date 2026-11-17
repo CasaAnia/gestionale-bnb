@@ -40,6 +40,7 @@ import { ETICHETTA_CASO, proponiSoluzioni, alternativaAmelia, personePerNotte, p
 import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate, spunteCorrenti, conSpuntaCambiata } from '@/lib/richiesteCamere'
 import { vociStesseDate, voceClienteCheTorna } from '@/lib/richiesteDaControllare'
 import { soggiorniDellaPersona, clienteDellaRichiesta, type SoggiornoStorico } from '@/lib/clienteCheTorna'
+import { leggiTutto } from '@/lib/leggiTutto'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole } from '@/lib/provenienza'
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
@@ -181,11 +182,12 @@ export default function PropostaPage() {
     Promise.all([
       fetchRichiesta(id),
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, rooms(name), guests(id, full_name, phone)').in('status', ['confermata', 'completata', 'annullata']),
+      // letture complete (lib/leggiTutto): oltre le 1.000 righe Supabase taglia senza dire nulla
+      leggiTutto<Record<string, unknown>>(supabase, 'bookings', '*, rooms(name), guests(id, full_name, phone)', { filtri: q => q.in('status', ['confermata', 'completata', 'annullata']) }),
       // Le altre richieste aperte: le «proposta inviata» tengono l'opzione di 3 ore,
       // tutte servono alla voce «Stesse date» di «Da controllare».
       supabase.from('richieste').select('*').in('stato', ['in_attesa', 'proposta_inviata']),
-      supabase.from('guests').select('*'),
+      leggiTutto<Record<string, unknown>>(supabase, 'guests', '*'),
     ]).then(([ric, r, b, ap, g]) => {
       const errs: string[] = []
       if (ric.error) errs.push(ric.error)

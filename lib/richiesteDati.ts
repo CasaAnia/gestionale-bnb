@@ -9,14 +9,12 @@ import type { CondizionePagamento } from './condizioniPrenotazione'
 import { contaConEsito, statoDopoConteggio, bolliniRichieste, CONTATORE_IN_CARICAMENTO, type EsitoContatore, type StatoContatore, type Bollini, type RigaAperta } from './richiesteContatore'
 import { manca0036, AVVISO_0036 } from './provenienza'
 import { conInizialiNomeCognome } from './maiuscole'
+import { leggiTutto } from './leggiTutto'
 
 // Tutte le richieste con il nome della camera. Gli errori tornano al
 // chiamante come testo: la pagina li mostra, mai catch silenziosi.
 export async function fetchRichieste(): Promise<{ data: Richiesta[]; error: string | null }> {
-  const { data, error } = await supabase
-    .from('richieste')
-    .select('*, rooms(name)')
-    .order('created_at', { ascending: true })
+  const { data, error } = await leggiTutto(supabase, 'richieste', '*, rooms(name)', { ordine: [{ colonna: 'created_at' }] })
   if (error) return { data: [], error: spiegaErrore(error) }
   return { data: (data || []) as unknown as Richiesta[], error: null }
 }
