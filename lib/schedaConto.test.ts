@@ -318,7 +318,9 @@ test('la storia parte dalla creazione e va avanti nel tempo', () => {
   const r = righeStoria(
     [evento('e1', '2026-09-05T14:20:00+02:00', 'camera', { camera: 'Ambra' }, { camera: 'Lena' })],
     [{ id: 'm1', message_type: 'conferma', created_at: '2026-09-04T10:00:00+02:00' }],
-    '2026-09-03T09:00:00+02:00',
+    // senza fuso: è l'ora del posto in cui gira la prova, come la scrive la storia (ora del browser);
+    // con «+02:00» il test dava 09:00 solo a Roma e 07:00 in UTC (17/11/2026)
+    '2026-09-03T09:00:00',
     ADESSO,
   )
   assert.deepEqual(r.map(x => x.cosa), ['Prenotazione creata', 'Conferma inviata', 'Camera Ambra → Lena'])

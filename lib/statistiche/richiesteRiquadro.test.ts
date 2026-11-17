@@ -25,7 +25,7 @@ test('arrivate = chiuse nel periodo; le in corso non contano ma si dicono; fuori
     ric({ stato: 'in_attesa' }),
     ric({ stato: 'proposta_inviata', ...proposta('r1') }),
     ric({ stato: 'chiusa', chiusura_motivo: 'scaduta' }),
-    ric({ stato: 'confermata', created_at: '2026-08-31T23:00:00' }),   // agosto
+    ric({ stato: 'confermata', created_at: '2026-08-31T23:00:00+02:00' }),   // agosto a Roma, in qualunque fuso giri la prova (in UTC senza «+02:00» era già settembre)
   ]
   const r = riquadroRichieste(lista, CAMERE, ...SET)
   assert.equal(r.arrivate, 2)

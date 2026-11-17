@@ -2,6 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildSiteFunnel, type SiteEvent } from './siteStats.ts'
 
+// I confini «oggi», «settimana» e «mese» del report si contano nell'ora del posto in cui gira la pagina
+// (il browser di Ania, a Roma): la prova gira nello stesso fuso, in qualunque macchina (17/11/2026).
+process.env.TZ = 'Europe/Rome'
+
 const base = { pagina: '/', fonte: 'google', campagna: null }
 const event = (tipo: string, created_at: string, extra: Partial<SiteEvent> = {}): SiteEvent => ({
   ...base,
