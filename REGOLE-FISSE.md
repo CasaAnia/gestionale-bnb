@@ -211,3 +211,22 @@ decisione è di Ania, più avanti.
 Test: `lib/spesoCliente.test.ts` → «regola 17/11/2026: concluso + questa…»,
 «causa 2 — due schede con lo stesso telefono…», «scheda cliente: il caso A dà
 1.998 €…» e la guardia «UNA sola funzione».
+
+## 13. Nessuna versione va online con test rossi
+
+Dal 17/11/2026 nessuna versione va online con test rossi: Vercel lancia i test
+prima della build (`"build": "npm test && next build --webpack"`). Se anche un
+solo test è rosso la build fallisce e resta online la versione precedente.
+Non aggirarlo mai: niente `--no-verify`, niente test saltati con `skip` (né
+`only` o `todo`) per far passare una pubblicazione, niente `buildCommand` o
+`ignoreCommand` in `vercel.json` che salti i test. Un test rosso si corregge.
+I test non devono dipendere dal giorno, dall'ora né dal fuso: `npm run test:orologi`
+li prova a nove istanti (cambi dell'ora legale, capodanno, fine mese, anno
+bisestile) in TZ Europe/Rome e UTC; Vercel costruisce in UTC. Secondo controllo:
+il workflow GitHub `test.yml`, a ogni push su ogni ramo.
+
+Provato il 17/11/2026: un ramo con un test rosso apposta ha dato «Error» su
+Vercel e la produzione è rimasta quella di prima.
+
+Test: `lib/bloccoTest.test.ts` (tutto il file).
+

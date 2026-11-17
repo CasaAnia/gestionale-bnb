@@ -39,3 +39,9 @@ test('il secondo controllo esiste: il workflow dei test a ogni push, su ogni ram
   assert.match(wf, /run: npm test/)
   assert.doesNotMatch(wf, /branches:/, 'deve valere per ogni ramo')
 })
+
+test('la regola è scritta in REGOLE-FISSE.md e in CLAUDE.md', () => {
+  for (const f of ['REGOLE-FISSE.md', 'CLAUDE.md']) {
+    assert.match(leggi(f), /Dal 17\/11\/2026 nessuna versione va online con test rossi/, f)
+  }
+})
